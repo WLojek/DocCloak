@@ -1,0 +1,139 @@
+import type { RegexRule } from '../types.ts';
+
+function validatePesel(match: string): boolean {
+  const digits = match.replace(/\D/g, '');
+  if (digits.length !== 11) return false;
+  const weights = [1, 3, 7, 9, 1, 3, 7, 9, 1, 3];
+  let sum = 0;
+  for (let i = 0; i < 10; i++) {
+    sum += parseInt(digits[i], 10) * weights[i];
+  }
+  const checkDigit = (10 - (sum % 10)) % 10;
+  return checkDigit === parseInt(digits[10], 10);
+}
+
+function validateNip(match: string): boolean {
+  const digits = match.replace(/\D/g, '');
+  if (digits.length !== 10) return false;
+  const weights = [6, 5, 7, 2, 3, 4, 5, 6, 7];
+  let sum = 0;
+  for (let i = 0; i < 9; i++) {
+    sum += parseInt(digits[i], 10) * weights[i];
+  }
+  return (sum % 11) === parseInt(digits[9], 10);
+}
+
+export const rules: RegexRule[] = [
+  // ── Identity ────────────────────────────────────────────
+  {
+    pattern: /\b\d{2}[0-3]\d[0-3]\d{6}\b/g,
+    type: 'SSN',
+    detector: 'regex:pl:pesel',
+    confidence: 0.90,
+    region: 'pl',
+    domains: ['identity', 'hr', 'medical'],
+    description: 'Polish PESEL national identification number (11 digits, YYMMDD + 5)',
+    examples: ['89052310002', '02271400004'],
+    validate: validatePesel,
+  },
+  {
+    pattern: /\b[A-Z]{3}\s?\d{6}\b/g,
+    type: 'SSN',
+    detector: 'regex:pl:id_card',
+    confidence: 0.80,
+    region: 'pl',
+    domains: ['identity'],
+    description: 'Polish ID card number (3 letters + 6 digits)',
+    examples: ['ABS 123456', 'ABC123456'],
+  },
+  {
+    pattern: /\b[A-Z]{2}\s?\d{7}\b/g,
+    type: 'SSN',
+    detector: 'regex:pl:passport',
+    confidence: 0.70,
+    region: 'pl',
+    domains: ['identity'],
+    description: 'Polish passport number (2 letters + 7 digits)',
+    examples: ['AB 1234567', 'CD1234567'],
+  },
+
+  // ── Financial ───────────────────────────────────────────
+  {
+    pattern: /\b\d{3}-?\d{3}-?\d{2}-?\d{2}\b/g,
+    type: 'SSN',
+    detector: 'regex:pl:nip',
+    confidence: 0.85,
+    region: 'pl',
+    domains: ['financial', 'legal'],
+    description: 'Polish NIP tax identification number (10 digits, XXX-XXX-XX-XX)',
+    examples: ['123-456-78-19', '1234567819'],
+    validate: validateNip,
+  },
+  {
+    pattern: /\b\d{9}(?:\d{5})?\b/g,
+    type: 'SSN',
+    detector: 'regex:pl:regon',
+    confidence: 0.60,
+    region: 'pl',
+    domains: ['financial', 'legal'],
+    description: 'Polish REGON business registry number (9 or 14 digits)',
+    examples: ['123456785'],
+    falsePositiveNotes: '9-digit REGON overlaps with many other number formats',
+  },
+  {
+    pattern: /\b\d{4}\s?\d{4}\s?\d{4}\s?\d{4}\s?\d{4}\s?\d{4}\s?\d{2}\b/g,
+    type: 'OTHER',
+    detector: 'regex:pl:bank_account',
+    confidence: 0.85,
+    region: 'pl',
+    domains: ['financial'],
+    description: 'Polish bank account number (26 digits, often spaced in groups of 4)',
+    examples: ['1234 5678 9012 3456 7890 1234 56'],
+  },
+
+  // ── Contact ─────────────────────────────────────────────
+  {
+    pattern: /\b(?:\+?48[\s-]?)?\d{3}[\s-]?\d{3}[\s-]?\d{3}\b/g,
+    type: 'PHONE',
+    detector: 'regex:pl:phone',
+    confidence: 0.80,
+    region: 'pl',
+    domains: ['contact'],
+    description: 'Polish phone number (9 digits, optionally with +48 prefix)',
+    examples: ['+48 600 123 456', '600-123-456', '48 600123456'],
+  },
+
+  // ── Address ─────────────────────────────────────────────
+  {
+    pattern: /\b\d{2}-\d{3}\s+[\p{L}][\p{L}\s-]+\b/gu,
+    type: 'ADDRESS',
+    detector: 'regex:pl:postal',
+    confidence: 0.80,
+    region: 'pl',
+    domains: ['contact'],
+    description: 'Polish postal code (XX-XXX) followed by city name',
+    examples: ['00-950 Warszawa', '31-501 Kraków', '80-244 Gdańsk Wrzeszcz'],
+  },
+
+  // ── Legal ───────────────────────────────────────────────
+  {
+    pattern: /\b[IVXLCDM]+\s+(?:K|C|Ca|Cz|Co|Gz|Ga|GCo|GC)\s+\d+\/\d{2,4}\b/g,
+    type: 'OTHER',
+    detector: 'regex:pl:court_case',
+    confidence: 0.90,
+    region: 'pl',
+    domains: ['legal'],
+    description: 'Polish court case signature (e.g., "III K 123/24", "I C 456/2023")',
+    examples: ['III K 123/24', 'I C 456/2023'],
+  },
+  {
+    pattern: /\b\d{4}\/\d{8}\/\d{4}\b/g,
+    type: 'OTHER',
+    detector: 'regex:pl:krs',
+    confidence: 0.90,
+    region: 'pl',
+    domains: ['legal', 'financial'],
+    description: 'Polish KRS company registry number',
+    examples: ['0000/12345678/0001'],
+  },
+];

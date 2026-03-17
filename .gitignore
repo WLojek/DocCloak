@@ -5,6 +5,9 @@ CLAUDE.md
 # Dependencies
 node_modules/
 
+# WASM binary (copied from node_modules after npm install)
+public/ort-wasm-simd-threaded.wasm
+
 # Build output
 dist/
 build/
@@ -23,6 +26,7 @@ build/
 
 # OS
 .DS_Store
+**/.DS_Store
 Thumbs.db
 
 # Logs

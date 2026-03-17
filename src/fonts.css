@@ -1,0 +1,51 @@
+/* Inter - Variable font (weights 400-700) */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: block;
+  src: url('/fonts/inter-latin.woff2') format('woff2');
+}
+
+/* JetBrains Mono - Variable font (weights 400-500) */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400 500;
+  font-display: block;
+  src: url('/fonts/jetbrains-mono-latin.woff2') format('woff2');
+}
+
+/* Playfair Display - Variable font (weights 400-900) */
+@font-face {
+  font-family: 'Playfair Display';
+  font-style: normal;
+  font-weight: 400 900;
+  font-display: block;
+  src: url('/fonts/playfair-display-latin.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Playfair Display';
+  font-style: italic;
+  font-weight: 400;
+  font-display: block;
+  src: url('/fonts/playfair-display-italic-latin.woff2') format('woff2');
+}
+
+/* Lora - Variable font (weights 400-600) */
+@font-face {
+  font-family: 'Lora';
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: block;
+  src: url('/fonts/lora-latin.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Lora';
+  font-style: italic;
+  font-weight: 400;
+  font-display: block;
+  src: url('/fonts/lora-italic-latin.woff2') format('woff2');
+}

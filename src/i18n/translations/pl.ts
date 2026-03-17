@@ -1,0 +1,117 @@
+import type { Translations } from '../types.ts';
+
+export const pl: Translations = {
+  header: {
+    ready: 'Gotowy',
+    notReady: 'Ładowanie',
+    error: 'Błąd',
+    offline: 'Offline',
+    edition: 'Wydanie prywatne',
+  },
+  settings: {
+    detectionSensitivity: 'Czu\u0142o\u015B\u0107 wykrywania',
+    fewerMatches: 'Mniej wykry\u0107',
+    moreMatches: 'Wi\u0119cej wykry\u0107',
+    sensitivityExplanation: 'Wy\u017Csza czu\u0142o\u015B\u0107 wykrywa wi\u0119cej potencjalnych danych osobowych, ale mo\u017Ce oznacza\u0107 nieistotne fragmenty.',
+    confidenceThreshold: (v) => `Pr\u00F3g pewno\u015Bci: ${v} \u2014 predykcje poni\u017Cej tego wyniku s\u0105 odrzucane.`,
+    replacementStyle: 'Styl zastępowania',
+    labeledPlaceholders: 'Etykietowane zastępniki',
+    labeledDescription: 'np. <<REDACTED_1>> — odwracalne, najlepsze do pracy z AI',
+    blankedOut: 'Zamazane',
+    blankedDescription: 'np. ________ — trwała redakcja do udostępniania',
+    customLabels: 'Własne etykiety detekcji',
+    customLabelsDescription: 'Dodaj własne etykiety (po angielsku), aby wykrywać dodatkowe rodzaje informacji.',
+    customLabelsPlaceholder: 'np. medical condition',
+    addLabel: 'Dodaj',
+    noCustomLabels: 'Nie dodano jeszcze własnych etykiet.',
+  },
+  step1: {
+    title: 'Wklej i zredaguj',
+    description: 'Wklej dokument po lewej, nast\u0119pnie kliknij Redaguj, aby zast\u0105pi\u0107 imiona, e-maile i inne dane osobowe bezpiecznymi symbolami',
+  },
+  textInput: {
+    title: 'Oryginalny dokument',
+    clear: 'Wyczy\u015B\u0107',
+    placeholder: 'Wklej tutaj sw\u00F3j dokument...',
+    wordCount: (n) => {
+      if (n === 1) return '1 s\u0142owo';
+      if (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) return `${n} s\u0142owa`;
+      return `${n} s\u0142\u00F3w`;
+    },
+    selectToTag: 'Zaznacz tekst, aby oznaczyć ręcznie',
+  },
+  textOutput: {
+    title: 'Zredagowany dokument',
+    copy: 'Kopiuj',
+    copied: 'Skopiowano',
+    placeholder: 'Zredagowany tekst pojawi si\u0119 tutaj...',
+    emptyStateHint: 'Wklej tekst po lewej i kliknij Redaguj',
+  },
+  redactButton: {
+    redact: 'Redaguj dokument',
+    redacting: 'Redagowanie...',
+    shortcutHint: '\u2318Enter / Ctrl+Enter',
+  },
+  entityTable: {
+    title: (n) => `Wykryte informacje (${n})`,
+    type: 'Typ',
+    label: 'Etykieta',
+    originalValue: 'Warto\u015B\u0107 oryginalna',
+    confidence: 'Pewno\u015B\u0107',
+    include: 'Uwzgl\u0119dnij',
+    clickToRename: 'Kliknij, aby zmieni\u0107 nazw\u0119',
+    includeEntity: 'Uwzgl\u0119dnij',
+    excludeEntity: 'Wyklucz',
+    markAs: 'Oznacz jako',
+  },
+  entityLabels: {
+    PERSON: 'Imi\u0119',
+    EMAIL: 'E-mail',
+    PHONE: 'Telefon',
+    SSN: 'PESEL',
+    CREDIT_CARD: 'Karta kredytowa',
+    DATE: 'Data',
+    CURRENCY: 'Waluta',
+    IP_ADDRESS: 'Adres IP',
+    IBAN: 'IBAN',
+    ADDRESS: 'Adres',
+    COMPANY: 'Firma',
+    OTHER: 'Inne',
+  },
+  step2: {
+    title: 'Przywr\u00F3\u0107 nazwy',
+    description: 'Wklej odpowied\u017A AI, aby przywr\u00F3ci\u0107 oryginalne nazwy',
+  },
+  deAnonymize: {
+    pasteLabel: 'Wklej odpowied\u017A AI',
+    restoredLabel: 'Przywr\u00F3cony wynik',
+    restoreButton: 'Przywr\u00F3\u0107 oryginalne nazwy',
+    inputPlaceholder: 'Wklej odpowied\u017A AI zawieraj\u0105c\u0105 symbole...',
+    outputPlaceholder: 'Wynik z przywr\u00F3conymi nazwami pojawi si\u0119 tutaj...',
+    copy: 'Kopiuj',
+    copied: 'Skopiowano',
+  },
+  footer: {
+    offlineMessage: '\u017Badne dane nie opuszczaj\u0105 przegl\u0105darki \u00B7 Open source',
+    verifyText: 'Weryfikacja: DevTools \u2192 Zak\u0142adka Sie\u0107 \u2192 zero \u017C\u0105da\u0144',
+    verifyTooltip: 'Otwórz DevTools przeglądarki (F12 lub Cmd+Option+I), przejdź do zakładki Sieć i potwierdź, że nie wysłano żadnych żądań podczas korzystania z DocCloak. Całe przetwarzanie odbywa się lokalnie.',
+  },
+  toast: {
+    copiedToClipboard: 'Skopiowano do schowka',
+    cleared: 'Wyczyszczono',
+    undo: 'Cofnij',
+  },
+  loading: {
+    settingUp: 'Konfiguracja DocCloak',
+    preparingEngine: 'Przygotowywanie silnika ochrony dokument\u00F3w...',
+    initializing: 'Inicjalizacja...',
+    oneTimeSetup: 'Jednorazowa konfiguracja. Zapisywane w pami\u0119ci podr\u0119cznej.',
+    oneTimeSetupWithSize: (size: string) => `Jednorazowa konfiguracja (~${size}). Zapisywane w pami\u0119ci podr\u0119cznej.`,
+    largeModelWarning: 'To jest duży model. Pobieranie może być wolne i zużyje więcej pamięci. Wbudowany model (46 MB) jest zalecany w większości przypadków.',
+    progress: (downloaded, total, percent) => `${downloaded} / ${total} (${percent}%)`,
+  },
+  anonymizing: {
+    title: 'Redagowanie dokumentu...',
+    description: 'Przetwarzanie lokalne w przegl\u0105darce \u2014 nic nie opuszcza urz\u0105dzenia',
+  },
+};
