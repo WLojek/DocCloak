@@ -82,6 +82,42 @@ export const rules: RegexRule[] = [
     falsePositiveNotes: 'Many 5-digit numbers are not ZIP codes',
   },
 
+  // ── Currency (written-out amounts) ────────────────────────
+  {
+    pattern: /(?:in\s+(?:the\s+)?(?:amount|sum)\s+of|pay(?:able)?(?:\s+the\s+(?:amount|sum))?\s+of)\s+[\p{L}\s-]+(?:dollars?|cents?|pounds?|pence)\b/giu,
+    type: 'CURRENCY',
+    detector: 'regex:us:currency_words',
+    confidence: 0.90,
+    region: 'us',
+    domains: ['financial'],
+    description: 'English amount written in words (e.g., "in the amount of eight thousand five hundred dollars")',
+    examples: ['in the amount of eight thousand five hundred dollars'],
+  },
+
+  // ── Address (street) ──────────────────────────────────────
+  {
+    pattern: /\b\d{1,5}\s+(?:(?:N(?:orth)?|S(?:outh)?|E(?:ast)?|W(?:est)?)\.?\s+)?[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s+(?:St(?:reet)?|Ave(?:nue)?|Blvd|Boulevard|Dr(?:ive)?|Rd|Road|Ln|Lane|Ct|Court|Pl(?:ace)?|Way|Cir(?:cle)?|Pkwy|Parkway|Terr?(?:ace)?|Hwy|Highway)\.?\b/g,
+    type: 'ADDRESS',
+    detector: 'regex:us:street',
+    confidence: 0.85,
+    region: 'us',
+    domains: ['contact'],
+    description: 'US street address (number + street name + type)',
+    examples: ['123 Main Street', '456 N Oak Ave', '7890 West Broadway Blvd'],
+  },
+
+  // ── Company ──────────────────────────────────────────────
+  {
+    pattern: /[\p{L}][\p{L}\s&.']+(?:,?\s+)?(?:Inc\.?|Corp(?:oration)?\.?|LLC|L\.L\.C\.|Ltd\.?|LLP|L\.L\.P\.|Co\.)\b/gu,
+    type: 'COMPANY',
+    detector: 'regex:us:company',
+    confidence: 0.85,
+    region: 'us',
+    domains: ['legal', 'financial'],
+    description: 'US company name with legal suffix (Inc., Corp., LLC, Ltd., LLP, Co.)',
+    examples: ['Acme Corp.', 'Smith & Associates, LLC', 'Global Solutions Inc'],
+  },
+
   // ── Medical ─────────────────────────────────────────────
   {
     pattern: /\b[A-Z]\d{2}(?:\.\d{1,2})?\b/g,

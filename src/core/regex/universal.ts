@@ -94,6 +94,16 @@ export const rules: RegexRule[] = [
     description: 'Currency amount with trailing ISO code (e.g., "1,000.00 USD")',
     examples: ['1,000.00 USD', '45 000 PLN', '100.50 EUR'],
   },
+  {
+    pattern: /\b\d{1,3}(?:[,.\s]\d{3})*(?:[.,]\d{1,2})?\s?(?:zł|kr|Kč|lei|лв|Ft|kn|₽|грн|₺|R\$|S\/\.|руб|₹|元|圆|円|원|ر\.س|ر\.ق|د\.إ|₪|₦|₵|₱|₫|₸|₼|₾|฿|RM|Rp|đ)(?=\s|$|[.,;:!?)}\]])/g,
+    type: 'CURRENCY',
+    detector: 'regex:universal:currency_symbol_suffix',
+    confidence: 0.85,
+    region: 'universal',
+    domains: ['financial'],
+    description: 'Currency amount with trailing local symbol (zł, kr, Kč, lei, etc.)',
+    examples: ['8 500,00 zł', '1 200 kr', '3.500 Kč', '10 000 lei', '5 000 Ft'],
+  },
 
   // ── Technical ───────────────────────────────────────────
   {

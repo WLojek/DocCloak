@@ -84,4 +84,40 @@ export const rules: RegexRule[] = [
     description: 'Swedish postal code (XXX XX) followed by city name',
     examples: ['111 22 Stockholm', '41301 Göteborg'],
   },
+
+  // ── Currency (written-out amounts) ────────────────────────
+  {
+    pattern: /(?:(?:med\s+)?(?:bokstäver|ord)\s*:\s*|(?:summan|beloppet)\s+)[\p{L}\s-]+(?:kronor|öre)\b/giu,
+    type: 'CURRENCY',
+    detector: 'regex:se:currency_words',
+    confidence: 0.90,
+    region: 'se',
+    domains: ['financial'],
+    description: 'Swedish amount written in words (e.g., "med bokstäver: åttatusen femhundra kronor")',
+    examples: ['med bokstäver: åttatusen femhundra kronor'],
+  },
+
+  // ── Address (street) ──────────────────────────────────────
+  {
+    pattern: /[\p{L}][\p{L}\s-]*(?:gatan|vägen|stigen|torget|platsen|gränd|backen|liden|ängen)\s+\d+[\p{L}]?/giu,
+    type: 'ADDRESS',
+    detector: 'regex:se:street',
+    confidence: 0.90,
+    region: 'se',
+    domains: ['contact'],
+    description: 'Swedish street address (name + gatan/vägen/etc. + number)',
+    examples: ['Drottninggatan 42', 'Sveavägen 15', 'Stortorget 3'],
+  },
+
+  // ── Company ──────────────────────────────────────────────
+  {
+    pattern: /[\p{L}][\p{L}\s&.']+(?:\s+)?(?:AB|HB|KB)\b/gu,
+    type: 'COMPANY',
+    detector: 'regex:se:company',
+    confidence: 0.80,
+    region: 'se',
+    domains: ['legal', 'financial'],
+    description: 'Swedish company name with legal form (AB, HB, KB)',
+    examples: ['Volvo AB', 'Handelsbanken AB', 'Ericsson AB'],
+  },
 ];

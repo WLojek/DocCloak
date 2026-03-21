@@ -96,4 +96,40 @@ export const rules: RegexRule[] = [
     examples: ['100000', '200000'],
     falsePositiveNotes: '6 digits is extremely broad — only useful with context',
   },
+
+  // ── Currency (Chinese amounts) ──────────────────────────
+  {
+    pattern: /[零壹贰叁肆伍陆柒捌玖拾佰仟萬億一二三四五六七八九十百千万亿]+\s*(?:元|圆|块)/gu,
+    type: 'CURRENCY',
+    detector: 'regex:cn:currency_hanzi',
+    confidence: 0.90,
+    region: 'cn',
+    domains: ['financial'],
+    description: 'Chinese amount in hanzi numerals + 元/圆 (e.g., "捌仟伍佰元", "八千五百元")',
+    examples: ['捌仟伍佰元', '八千五百元'],
+  },
+
+  // ── Address (Chinese) ──────────────────────────────────
+  {
+    pattern: /[\u4E00-\u9FFF]+[省市][\u4E00-\u9FFF]+[市区县][\u4E00-\u9FFF\d\-]+/gu,
+    type: 'ADDRESS',
+    detector: 'regex:cn:address',
+    confidence: 0.85,
+    region: 'cn',
+    domains: ['contact'],
+    description: 'Chinese address (province/city + district + street)',
+    examples: ['北京市朝阳区建国路1号'],
+  },
+
+  // ── Company ──────────────────────────────────────────────
+  {
+    pattern: /[\u4E00-\u9FFF][\u4E00-\u9FFF\s]+(?:有限公司|股份有限公司|集团|有限责任公司)/gu,
+    type: 'COMPANY',
+    detector: 'regex:cn:company',
+    confidence: 0.90,
+    region: 'cn',
+    domains: ['legal', 'financial'],
+    description: 'Chinese company name with legal form (有限公司, 股份有限公司, 集团)',
+    examples: ['阿里巴巴集团', '华为技术有限公司', '腾讯科技股份有限公司'],
+  },
 ];

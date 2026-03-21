@@ -24,9 +24,9 @@ Everything runs in your browser. No server, no API calls, no data leaves your ma
 
 ## How It Works
 
-1. **Paste** your document into the input panel
+1. **Paste** your document or **upload** a `.doc`/`.docx` file
 2. **Redact** — DocCloak detects names, emails, phone numbers, addresses, and other PII using a local ML model + regex patterns
-3. **Copy** the anonymized text and paste it into any AI service (ChatGPT, Claude, Gemini, etc.)
+3. **Copy** the anonymized text and paste it into any AI service (ChatGPT, Claude, Gemini, etc.) — or **download** the redacted document
 4. **Restore** — paste the AI's response back into DocCloak to replace placeholders with the original names
 
 The AI never sees the real data. You get the full power of AI assistance without the privacy risk.
@@ -38,32 +38,24 @@ The AI never sees the real data. You get the full power of AI assistance without
 ![Network Tab — zero requests](docs/network-tab.gif)
 
 - **12 entity types** — persons, emails, phones, SSNs, credit cards, dates, currencies, IP addresses, IBANs, addresses, companies, and custom labels
-- **Hybrid detection** — GLiNER zero-shot NER model (~46 MB) + 100+ regex rules for structured patterns across 10 regions
+- **Document support** — upload `.doc` and `.docx` files, redact PII, and download the protected file with all formatting preserved
+- **Hybrid detection** — GLiNER zero-shot NER model (~46 MB) + 100+ regex rules for structured patterns across 11 regions (US, GB, DE, FR, ES, PT, PL, SE, NO, JP, CN)
+- **Entity propagation** — when a name or company is detected once, DocCloak automatically finds all other occurrences throughout the document
 - **Round-trip de-anonymization** — paste the AI's response back in and DocCloak restores the original names automatically
 
 ![Restore Names](docs/restore-names.png)
 
 - **Editable labels** — rename any placeholder (e.g., `<<REDACTED_3>>` → `<<Client_Name>>`) for clearer AI prompts
-
-![Labeled Placeholders](docs/labeled-placeholders.png)
-
-![Detected Information](docs/detected-information.png)
-
-- **Custom detection labels** — add your own entity types (e.g., `medical condition`, `job title`) to detect domain-specific information beyond the built-in categories
-
-![Custom Detection Labels](docs/custom-detection-labels.png)
-
+- **Custom detection labels** — add your own entity types (e.g., `medical condition`, `job title`) to detect domain-specific information
 - **Manual tagging** — select any text and assign an entity type for things the model missed
-- **Configurable sensitivity** — slide the threshold between fewer and more matches. Higher sensitivity catches more potential PII but may flag non-sensitive text. Predictions below the confidence threshold are discarded, giving you control over the precision/recall trade-off
 
-![Detection Sensitivity](docs/detection-sensitivity.png)
+![Detected Information](docs/detected-informations.png)
+
+- **Configurable sensitivity** — adjust the confidence threshold to control the precision/recall trade-off
 - **10 languages** — English, Polish, German, French, Spanish, Portuguese, Chinese, Japanese, Swedish, Norwegian
-
-![Languages](docs/languages.png)
-
 - **Replacement styles** — labeled placeholders (`<<REDACTED_N>>`) or blanked out (`________`)
 
-![Blanked Out](docs/blanked-out.png)
+![Options](docs/options.png)
 
 ## Getting Started
 

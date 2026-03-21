@@ -3,6 +3,8 @@ import type { DetectedEntity, EntityType, ReplacementEntry } from '../../core/ty
 import { detectEntities, preloadModel, onDownloadProgress, setDetectionThreshold, getDetectionThreshold, getCustomLabels, setCustomLabels } from '../../core/engine.ts';
 import { AnonymizationSession } from '../../core/session.ts';
 import type { ReplacementMode } from '../../core/session.ts';
+import { readDocx, writeAnonymizedDocx, isLegacyDoc, isSupportedFile } from '../../core/docx.ts';
+import { readDocText, writeAnonymizedDoc } from '../../core/doc.ts';
 
 export function useAnonymizer() {
   const [inputText, setInputText] = useState('');
@@ -19,6 +21,8 @@ export function useAnonymizer() {
   const [threshold, setThreshold] = useState(getDetectionThreshold());
   const [replacementMode, setReplacementModeState] = useState<ReplacementMode>('labeled');
   const [customLabels, setCustomLabelsState] = useState<string[]>(getCustomLabels());
+  const [docxFile, setDocxFile] = useState<File | null>(null);
+  const [docxFileName, setDocxFileName] = useState<string | null>(null);
   const sessionRef = useRef(new AnonymizationSession());
   const latestRequestRef = useRef(0);
 
@@ -186,12 +190,91 @@ export function useAnonymizer() {
     }
   }, [entities, inputText, excludedIndices, rebuildAnonymization]);
 
+  const loadDocxFile = useCallback(async (file: File): Promise<{ success: boolean; error?: string }> => {
+    if (!isSupportedFile(file.name)) {
+      return { success: false, error: 'unsupported' };
+    }
+    try {
+      let plainText: string;
+
+      if (isLegacyDoc(file.name)) {
+        // Legacy .doc: try as .docx first (some .doc files are renamed .docx)
+        try {
+          const extraction = await readDocx(file);
+          plainText = extraction.plainText;
+        } catch {
+          // Not a .docx in disguise — parse as real .doc binary
+          const buffer = await file.arrayBuffer();
+          plainText = readDocText(buffer);
+        }
+      } else {
+        // Standard .docx
+        const extraction = await readDocx(file);
+        plainText = extraction.plainText;
+      }
+
+      setDocxFile(file);
+      setDocxFileName(file.name);
+      setInputText(plainText);
+      setAnonymizedText('');
+      setEntities([]);
+      setEntries([]);
+      setExcludedIndices(new Set());
+      sessionRef.current.clear();
+      return { success: true };
+    } catch (err) {
+      console.error('[DocCloak] Failed to read file:', err);
+      return { success: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  }, []);
+
+  const exportDocx = useCallback(async (): Promise<Blob> => {
+    if (!docxFile || entities.length === 0) {
+      throw new Error('No document or entities to export');
+    }
+
+    const activeEntities = entities.filter((_, i) => !excludedIndices.has(i));
+    const replacements = activeEntities.map((entity) => ({
+      start: entity.start,
+      end: entity.end,
+      replacement: sessionRef.current.getForward(entity.value) ?? entity.value,
+    }));
+
+    if (isLegacyDoc(docxFile.name)) {
+      // Legacy .doc: try .docx first (renamed files), fall back to .doc binary export
+      try {
+        const extraction = await readDocx(docxFile);
+        return await writeAnonymizedDocx(extraction, replacements);
+      } catch {
+        const buffer = await docxFile.arrayBuffer();
+        return await writeAnonymizedDoc(buffer, replacements);
+      }
+    } else {
+      // Standard .docx
+      const extraction = await readDocx(docxFile);
+      return await writeAnonymizedDocx(extraction, replacements);
+    }
+  }, [docxFile, entities, excludedIndices]);
+
+  const removeDocxFile = useCallback(() => {
+    setDocxFile(null);
+    setDocxFileName(null);
+    setInputText('');
+    setAnonymizedText('');
+    setEntities([]);
+    setEntries([]);
+    setExcludedIndices(new Set());
+    sessionRef.current.clear();
+  }, []);
+
   const clear = useCallback(() => {
     setInputText('');
     setAnonymizedText('');
     setEntities([]);
     setEntries([]);
     setExcludedIndices(new Set());
+    setDocxFile(null);
+    setDocxFileName(null);
     sessionRef.current.clear();
   }, []);
 
@@ -210,6 +293,8 @@ export function useAnonymizer() {
     threshold,
     replacementMode,
     customLabels,
+    docxFileName,
+    hasDocxExtraction: docxFile !== null,
     handleInputChange,
     anonymize,
     addManualEntity,
@@ -221,5 +306,8 @@ export function useAnonymizer() {
     handleThresholdChange,
     handleReplacementModeChange,
     handleCustomLabelsChange,
+    loadDocxFile,
+    exportDocx,
+    removeDocxFile,
   };
 }

@@ -113,4 +113,40 @@ export const rules: RegexRule[] = [
     description: 'UK postcode (e.g., SW1A 1AA, EC2A 1NT, M1 1AA)',
     examples: ['SW1A 1AA', 'EC2A 1NT', 'M1 1AA', 'B33 8TH'],
   },
+
+  // ── Currency (written-out amounts) ────────────────────────
+  {
+    pattern: /(?:in\s+(?:the\s+)?(?:amount|sum)\s+of|pay(?:able)?(?:\s+the\s+(?:amount|sum))?\s+of)\s+[\p{L}\s-]+(?:pounds?|pence|sterling)\b/giu,
+    type: 'CURRENCY',
+    detector: 'regex:gb:currency_words',
+    confidence: 0.90,
+    region: 'gb',
+    domains: ['financial'],
+    description: 'English (UK) amount written in words (e.g., "in the amount of eight thousand five hundred pounds")',
+    examples: ['in the amount of eight thousand five hundred pounds'],
+  },
+
+  // ── Address (street) ──────────────────────────────────────
+  {
+    pattern: /\b\d{1,4}[A-Z]?\s+[A-Z][\w]+(?:\s+[A-Z][\w]+)*\s+(?:Street|St|Road|Rd|Avenue|Ave|Lane|Ln|Drive|Dr|Close|Cl|Crescent|Cres|Terrace|Terr|Place|Pl|Gardens|Gdns|Grove|Way|Court|Ct|Square|Sq|Mews|Row|Rise|Hill|Park|Gate|Walk|Green|Parade|Wharf)\.?\b/gi,
+    type: 'ADDRESS',
+    detector: 'regex:gb:street',
+    confidence: 0.85,
+    region: 'gb',
+    domains: ['contact'],
+    description: 'UK street address (number + street name + type)',
+    examples: ['10 Downing Street', '221B Baker Street', '42 Oxford Road'],
+  },
+
+  // ── Company ──────────────────────────────────────────────
+  {
+    pattern: /[\p{L}][\p{L}\s&.']+(?:,?\s+)?(?:Ltd\.?|PLC|LLP|L\.L\.P\.)\b/gu,
+    type: 'COMPANY',
+    detector: 'regex:gb:company',
+    confidence: 0.85,
+    region: 'gb',
+    domains: ['legal', 'financial'],
+    description: 'UK company name with legal suffix (Ltd, PLC, LLP)',
+    examples: ['Barclays PLC', 'Tesco Ltd', 'Deloitte LLP'],
+  },
 ];

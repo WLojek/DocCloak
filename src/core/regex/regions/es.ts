@@ -80,6 +80,42 @@ export const rules: RegexRule[] = [
     examples: ['28001 Madrid', '08001 Barcelona'],
   },
 
+  // ── Currency (written-out amounts) ────────────────────────
+  {
+    pattern: /(?:(?:en\s+)?(?:letras?|palabras?)\s*:\s*|(?:la\s+)?(?:cantidad|suma)\s+de\s+)[\p{L}\s-]+(?:euros?|céntimos?|pesos?|centavos?)\b/giu,
+    type: 'CURRENCY',
+    detector: 'regex:es:currency_words',
+    confidence: 0.90,
+    region: 'es',
+    domains: ['financial'],
+    description: 'Spanish amount written in words (e.g., "en letras: ocho mil quinientos euros")',
+    examples: ['en letras: ocho mil quinientos euros'],
+  },
+
+  // ── Address (street) ──────────────────────────────────────
+  {
+    pattern: /(?:(?:C(?:alle)?|Av(?:enida|da)?|Avda|Pza|Plaza|Pl|Paseo|P\.º|Ronda|Ctra|Carretera|Camino|Travesía|Glorieta)\.?\s+)[\p{L}][\p{L}\s'-]+(?:,?\s*(?:n\.?º?\s*)?\d+)?/giu,
+    type: 'ADDRESS',
+    detector: 'regex:es:street',
+    confidence: 0.85,
+    region: 'es',
+    domains: ['contact'],
+    description: 'Spanish street address (Calle/Avenida/Plaza + name + optional number)',
+    examples: ['Calle Mayor 15', 'Av. de la Constitución 3', 'Plaza de España'],
+  },
+
+  // ── Company ──────────────────────────────────────────────
+  {
+    pattern: /[\p{L}][\p{L}\s&.']+(?:\s+)?(?:S\.L\.U\.|S\.L\.U|S\.L\.|S\.L|S\.A\.U\.|S\.A\.U|S\.A\.|S\.A|S\.C\.)\b/gu,
+    type: 'COMPANY',
+    detector: 'regex:es:company',
+    confidence: 0.90,
+    region: 'es',
+    domains: ['legal', 'financial'],
+    description: 'Spanish company name with legal form (S.L., S.A., S.L.U., S.A.U., S.C.)',
+    examples: ['Telefónica S.A.', 'Construcciones García S.L.', 'Inditex S.A.'],
+  },
+
   // ── Medical ─────────────────────────────────────────────
   {
     pattern: /\b[A-Z]{4}\d{10}\b/gi,

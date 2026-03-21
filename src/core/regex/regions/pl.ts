@@ -115,6 +115,42 @@ export const rules: RegexRule[] = [
     examples: ['00-950 Warszawa', '31-501 Kraków', '80-244 Gdańsk Wrzeszcz'],
   },
 
+  // ── Currency (written-out amounts) ────────────────────────
+  {
+    pattern: /(?:słownie:\s*)[\p{L}\s]+(?:złot(?:ych|y|e)|groszy|grosz(?:e)?)\b/giu,
+    type: 'CURRENCY',
+    detector: 'regex:pl:currency_words',
+    confidence: 0.90,
+    region: 'pl',
+    domains: ['financial'],
+    description: 'Polish amount written in words after "słownie:" (e.g., "słownie: osiem tysięcy pięćset złotych")',
+    examples: ['słownie: osiem tysięcy pięćset złotych'],
+  },
+
+  // ── Address (street) ──────────────────────────────────────
+  {
+    pattern: /(?:ul\.|al\.|pl\.|os\.)\s+[\p{L}][\p{L}\s]+\s+\d+[\p{L}]?(?:\s*[/\\]\s*\d+[\p{L}]?)?/gu,
+    type: 'ADDRESS',
+    detector: 'regex:pl:street',
+    confidence: 0.90,
+    region: 'pl',
+    domains: ['contact'],
+    description: 'Polish street address (ul./al./pl./os. + name + number)',
+    examples: ['ul. Floriańska 27/3', 'ul. Juliusza Słowackiego 15/8', 'al. Krakowska 42', 'os. Złotego Wieku 12'],
+  },
+
+  // ── Company ──────────────────────────────────────────────
+  {
+    pattern: /[\p{L}][\p{L}\s]+(?:Sp(?:ółka)?\s*z\s*o\.?\s*o\.?|Spółka\s+z\s+ograniczon[\p{L}]+\s+odpowiedzialno[\p{L}]+|Sp\.\s*j\.|S\.A\.|Sp\.\s*k\.)/gu,
+    type: 'COMPANY',
+    detector: 'regex:pl:company',
+    confidence: 0.90,
+    region: 'pl',
+    domains: ['legal', 'financial'],
+    description: 'Polish company name with legal form (Sp. z o.o., S.A., Sp. j., Sp. k.)',
+    examples: ['Santander Bank Polska S.A.', 'NOVAMED Spółka z ograniczoną odpowiedzialnością'],
+  },
+
   // ── Legal ───────────────────────────────────────────────
   {
     pattern: /\b[IVXLCDM]+\s+(?:K|C|Ca|Cz|Co|Gz|Ga|GCo|GC)\s+\d+\/\d{2,4}\b/g,

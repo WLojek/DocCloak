@@ -60,4 +60,40 @@ export const rules: RegexRule[] = [
     description: 'Norwegian postal code (4 digits) followed by city name',
     examples: ['0001 Oslo', '5003 Bergen'],
   },
+
+  // ── Currency (written-out amounts) ────────────────────────
+  {
+    pattern: /(?:(?:med\s+)?(?:bokstaver|ord)\s*:\s*|(?:summen|beløpet)\s+)[\p{L}\s-]+(?:kroner|øre)\b/giu,
+    type: 'CURRENCY',
+    detector: 'regex:no:currency_words',
+    confidence: 0.90,
+    region: 'no',
+    domains: ['financial'],
+    description: 'Norwegian amount written in words (e.g., "med bokstaver: åtte tusen fem hundre kroner")',
+    examples: ['med bokstaver: åtte tusen fem hundre kroner'],
+  },
+
+  // ── Address (street) ──────────────────────────────────────
+  {
+    pattern: /[\p{L}][\p{L}\s-]*(?:gata|gaten|gate|veien|vegen|vei|veg|stien|torget|plassen|plass|allé|alleen)\s+\d+[\p{L}]?/giu,
+    type: 'ADDRESS',
+    detector: 'regex:no:street',
+    confidence: 0.90,
+    region: 'no',
+    domains: ['contact'],
+    description: 'Norwegian street address (name + gate/veien/vei/etc. + number)',
+    examples: ['Karl Johans gate 22', 'Storgata 15', 'Bygdøy allé 3'],
+  },
+
+  // ── Company ──────────────────────────────────────────────
+  {
+    pattern: /[\p{L}][\p{L}\s&.']+(?:\s+)?(?:AS|ASA|ANS|DA)\b/gu,
+    type: 'COMPANY',
+    detector: 'regex:no:company',
+    confidence: 0.80,
+    region: 'no',
+    domains: ['legal', 'financial'],
+    description: 'Norwegian company name with legal form (AS, ASA, ANS, DA)',
+    examples: ['Equinor ASA', 'Telenor ASA', 'Nordea Bank ASA'],
+  },
 ];

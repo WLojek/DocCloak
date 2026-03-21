@@ -90,6 +90,42 @@ export const rules: RegexRule[] = [
     examples: ['75008 Paris', '69001 Lyon', "13001 Marseille"],
   },
 
+  // ── Currency (written-out amounts) ────────────────────────
+  {
+    pattern: /(?:(?:soit|montant)\s+(?:en\s+)?(?:lettres?|toutes?\s+lettres?)\s*:\s*|(?:la\s+)?somme\s+de\s+)[\p{L}\s'-]+(?:euros?|centimes?)\b/giu,
+    type: 'CURRENCY',
+    detector: 'regex:fr:currency_words',
+    confidence: 0.90,
+    region: 'fr',
+    domains: ['financial'],
+    description: 'French amount written in words (e.g., "soit en lettres: huit mille cinq cents euros")',
+    examples: ['soit en lettres: huit mille cinq cents euros'],
+  },
+
+  // ── Address (street) ──────────────────────────────────────
+  {
+    pattern: /\b\d{1,5}(?:\s*(?:bis|ter))?\s*,?\s*(?:rue|avenue|av\.|boulevard|bd\.?|place|pl\.|impasse|allée|passage|chemin|route|quai|cours|square|voie|sentier|résidence)\s+[\p{L}][\p{L}\s'-]+/giu,
+    type: 'ADDRESS',
+    detector: 'regex:fr:street',
+    confidence: 0.90,
+    region: 'fr',
+    domains: ['contact'],
+    description: 'French street address (number + rue/avenue/boulevard + name)',
+    examples: ['12 rue de Rivoli', '42 avenue des Champs-Élysées', '8 bis boulevard Haussmann'],
+  },
+
+  // ── Company ──────────────────────────────────────────────
+  {
+    pattern: /[\p{L}][\p{L}\s&.']+(?:\s+)?(?:SARL|SAS|SA|EURL|SCI|SNC|SASU)\b/gu,
+    type: 'COMPANY',
+    detector: 'regex:fr:company',
+    confidence: 0.90,
+    region: 'fr',
+    domains: ['legal', 'financial'],
+    description: 'French company name with legal form (SARL, SAS, SA, EURL, SCI, SNC)',
+    examples: ['Total SA', 'Capgemini SAS', 'Dupont et Fils SARL'],
+  },
+
   // ── Medical ─────────────────────────────────────────────
   {
     pattern: /\b\d{1}\s?\d{2}\s?\d{2}\s?\d{3}\s?\d{3}\b/g,

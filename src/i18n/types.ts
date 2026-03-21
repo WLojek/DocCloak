@@ -25,6 +25,15 @@ export interface Translations {
     addLabel: string;
     noCustomLabels: string;
   };
+  howItWorks: {
+    title: string;
+    step1Label: string;
+    step1Text: string;
+    step2Label: string;
+    step2Text: string;
+    step3Label: string;
+    step3Text: string;
+  };
   step1: {
     title: string;
     description: string;
@@ -35,6 +44,18 @@ export interface Translations {
     placeholder: string;
     wordCount: (count: number) => string;
     selectToTag: string;
+    uploadDocx: string;
+    uploadDocxSub: string;
+    pasteText: string;
+    pasteTextSub: string;
+    loadedFile: (name: string) => string;
+    unsupportedFormat: string;
+    removeFile: string;
+    dropzoneTitle: string;
+    dropzoneOr: string;
+    dropzoneHint: string;
+    dragging: string;
+    readyToRedact: string;
   };
   textOutput: {
     title: string;
@@ -42,6 +63,14 @@ export interface Translations {
     copied: string;
     placeholder: string;
     emptyStateHint: string;
+    emptyStateStep1: string;
+    emptyStateStep2: string;
+    emptyStateStep3: string;
+    downloadDocx: string;
+    downloaded: string;
+    exportFailed: string;
+    downloadDocxAction: string;
+    nextStepHint: string;
   };
   redactButton: {
     redact: string;
@@ -50,6 +79,7 @@ export interface Translations {
   };
   entityTable: {
     title: (count: number) => string;
+    subtitle: string;
     type: string;
     label: string;
     originalValue: string;
@@ -64,6 +94,7 @@ export interface Translations {
   step2: {
     title: string;
     description: string;
+    example: string;
   };
   deAnonymize: {
     pasteLabel: string;

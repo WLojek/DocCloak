@@ -82,6 +82,42 @@ export const rules: RegexRule[] = [
     examples: ['10115 Berlin', '80331 München'],
   },
 
+  // ── Currency (written-out amounts) ────────────────────────
+  {
+    pattern: /(?:in\s+(?:Höhe|Worten?)\s+(?:von\s+)?|(?:Betrag|Summe)\s+von\s+)[\p{L}\s-]+(?:Euro|Cent)\b/giu,
+    type: 'CURRENCY',
+    detector: 'regex:de:currency_words',
+    confidence: 0.90,
+    region: 'de',
+    domains: ['financial'],
+    description: 'German amount written in words (e.g., "in Höhe von achttausendfünfhundert Euro")',
+    examples: ['in Höhe von achttausendfünfhundert Euro'],
+  },
+
+  // ── Address (street) ──────────────────────────────────────
+  {
+    pattern: /[\p{L}][\p{L}\s-]*(?:straße|strasse|str\.|weg|gasse|platz|allee|ring|damm|ufer|chaussee)\s+\d+[\p{L}]?(?:\s*[/\\]\s*\d+)?/giu,
+    type: 'ADDRESS',
+    detector: 'regex:de:street',
+    confidence: 0.90,
+    region: 'de',
+    domains: ['contact'],
+    description: 'German street address (name + straße/str./weg/gasse/platz + number)',
+    examples: ['Friedrichstraße 43', 'Berliner Str. 12', 'Hauptplatz 1', 'Am Damm 7a'],
+  },
+
+  // ── Company ──────────────────────────────────────────────
+  {
+    pattern: /[\p{L}][\p{L}\s&.]+(?:\s+)?(?:GmbH|AG|KG|OHG|e\.?\s?V\.?|GbR|UG|mbH|KGaA)\b/gu,
+    type: 'COMPANY',
+    detector: 'regex:de:company',
+    confidence: 0.90,
+    region: 'de',
+    domains: ['legal', 'financial'],
+    description: 'German company name with legal form (GmbH, AG, KG, OHG, e.V., GbR, UG)',
+    examples: ['Deutsche Bank AG', 'Siemens GmbH', 'Bosch KG'],
+  },
+
   // ── Medical ─────────────────────────────────────────────
   {
     pattern: /\b[A-Z]\d{2}(?:\.\d{1,2})?(?:\s?[GLRAZ])?\b/g,

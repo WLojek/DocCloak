@@ -11,7 +11,7 @@ import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
-import { Lock, Settings, ArrowRight, Languages, Check, Plus, X, ChevronDown, Info } from 'lucide-react';
+import { Lock, Settings, ArrowRight, Languages, Check, Plus, X, ChevronDown, Info, FileText, Download } from 'lucide-react';
 import logoSrc from './ui/assets/doc-cloak-logo-light.png';
 import { version } from '../package.json';
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -50,6 +50,11 @@ export default function App() {
     handleThresholdChange,
     handleReplacementModeChange,
     handleCustomLabelsChange,
+    docxFileName,
+    hasDocxExtraction,
+    loadDocxFile,
+    exportDocx,
+    removeDocxFile,
   } = useAnonymizer();
 
   const { showToast } = useToast();
@@ -58,6 +63,31 @@ export default function App() {
   const [labelsExpanded, setLabelsExpanded] = useState(false);
   const [footerTooltipOpen, setFooterTooltipOpen] = useState(false);
   const clearSnapshotRef = useRef<{ text: string; anonymized: string; entities: typeof entities; entries: typeof entries } | null>(null);
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownloadDocx = useCallback(async () => {
+    if (!exportDocx) return;
+    setDownloading(true);
+    try {
+      const blob = await exportDocx();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const ext = docxFileName?.match(/\.(docx?)$/i)?.[1] ?? 'docx';
+      const baseName = docxFileName?.replace(/\.(docx?)$/i, '') ?? 'document';
+      a.href = url;
+      a.download = `${baseName}_redacted.${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast(t.textOutput.downloaded);
+    } catch (err) {
+      console.error('[DocCloak] Export failed:', err);
+      showToast(t.textOutput.exportFailed ?? 'Export failed.');
+    } finally {
+      setDownloading(false);
+    }
+  }, [exportDocx, docxFileName, showToast, t]);
 
   // Keyboard shortcut: Cmd+Enter / Ctrl+Enter to redact
   useEffect(() => {
@@ -284,18 +314,6 @@ export default function App() {
 
       {/* Main content */}
       <main className="max-w-6xl mx-auto px-6 py-10 newsprint-texture">
-        {/* Step 1 header */}
-        <div className="mb-2">
-          <div className="flex items-baseline gap-3">
-            <span className="font-serif text-lg font-bold text-[#111111] uppercase tracking-tight">01</span>
-            <div>
-              <h2 className="font-serif text-lg font-bold text-[#111111] uppercase tracking-tight leading-tight">{t.step1.title}</h2>
-              <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{t.step1.description}</p>
-            </div>
-          </div>
-        </div>
-        <div className="border-b-2 border-[#111111] mb-6" />
-
         {/* Custom detection labels */}
         <div className="mb-6">
           <button
@@ -358,10 +376,34 @@ export default function App() {
           </div>
         </div>
 
+        {/* File bar — input file (left) + download (right) */}
+        {docxFileName && anonymizedText && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-0 border-2 border-b-0 border-[#111111] bg-[#F5F5F3]">
+            <div className="flex items-center gap-2 px-4 py-2.5 border-r-0 md:border-r-2 border-[#111111]">
+              <div className="w-7 h-7 bg-[#E5E5E0] flex items-center justify-center flex-shrink-0">
+                <FileText className="w-3.5 h-3.5 text-muted-foreground" />
+              </div>
+              <p className="text-xs text-muted-foreground truncate">{docxFileName}</p>
+            </div>
+            <div className="flex items-center px-4 py-2.5">
+              {hasDocxExtraction && entries.length > 0 && (
+                <button
+                  onClick={handleDownloadDocx}
+                  disabled={downloading}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-[#111111] text-[#F9F9F7] hover:bg-[#222222] transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-xs font-medium"
+                >
+                  <Download className="w-3 h-3" />
+                  {t.textOutput.downloadDocx}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Document panels */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-0 border-2 border-[#111111]">
+        <div className={`grid grid-cols-1 md:grid-cols-2 gap-0 border-2 border-[#111111] ${docxFileName && anonymizedText ? 'border-t-0' : ''}`}>
           <div className="border-r-2 border-[#111111] bg-[#F9F9F7]">
-            <TextInput value={inputText} onChange={handleInputChange} onClear={handleClear} entities={entities} onAddEntity={addManualEntity} onRemoveEntity={removeEntity} />
+            <TextInput value={inputText} onChange={handleInputChange} onClear={handleClear} entities={entities} onAddEntity={addManualEntity} onRemoveEntity={removeEntity} docxFileName={docxFileName} onLoadDocx={loadDocxFile} onRemoveDocx={removeDocxFile} />
           </div>
           <div className="bg-[#F9F9F7]">
             <TextOutput value={anonymizedText} entries={entries} loading={anonymizing} />
@@ -414,6 +456,7 @@ export default function App() {
                 <div>
                   <h2 className="font-serif text-lg font-bold text-[#111111] uppercase tracking-tight leading-tight">{t.step2.title}</h2>
                   <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{t.step2.description}</p>
+                  <p className="text-xs text-muted-foreground/60 mt-1 leading-relaxed italic">{t.step2.example}</p>
                 </div>
               </div>
             </div>

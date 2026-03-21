@@ -21,8 +21,11 @@ export function EntityTable({ entities, entries, excludedIndices, onToggle, onRe
   const [expanded, setExpanded] = useState(false);
   const prevEntityCount = useRef(0);
 
-  // Reset collapsed state when entities are cleared (new redaction cycle)
+  // Auto-expand when entities first appear (after redaction), reset when cleared
   useEffect(() => {
+    if (entities.length > 0 && prevEntityCount.current === 0) {
+      setExpanded(true);
+    }
     if (entities.length === 0) {
       prevEntityCount.current = 0;
     } else {
@@ -88,9 +91,11 @@ export function EntityTable({ entities, entries, excludedIndices, onToggle, onRe
         onClick={() => setExpanded(!expanded)}
         className="w-full flex items-center justify-between px-4 py-3 bg-[#111111] text-[#F9F9F7] cursor-pointer hover:bg-[#222222] transition-colors duration-150"
       >
-        <h3 className="label-meta text-[#F9F9F7] tracking-[0.15em]">
-          {t.entityTable.title(entities.length)}
-        </h3>
+        <div>
+          <h3 className="label-meta text-[#F9F9F7] tracking-[0.15em]">
+            {t.entityTable.title(entities.length)}
+          </h3>
+        </div>
         <ChevronDown
           className={`w-4 h-4 text-[#F9F9F7] transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}
         />
@@ -101,6 +106,9 @@ export function EntityTable({ entities, entries, excludedIndices, onToggle, onRe
       >
         <div className="overflow-hidden">
       <Card className="overflow-hidden border-t-0 mt-0">
+        <div className="px-4 py-2.5 bg-[#E5E5E0]/20 border-b border-[#E5E5E0]">
+          <p className="text-[11px] text-muted-foreground leading-relaxed">{t.entityTable.subtitle}</p>
+        </div>
         {/* Desktop table */}
         <table className="w-full text-sm hidden md:table">
           <thead>
