@@ -7,7 +7,7 @@
   "license": "AGPL-3.0",
   "author": "Witold Lojek",
   "scripts": {
-    "postinstall": "cp node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm public/",
+    "postinstall": "node -e \"require('fs').copyFileSync('node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm','public/ort-wasm-simd-threaded.wasm')\"",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
