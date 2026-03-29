@@ -1,10 +1,10 @@
 import type { DetectedEntity, EntityType, DetectionProvider, ProgressCallback } from '../../types.ts';
-import { AutoTokenizer, env } from '@xenova/transformers';
+import { AutoTokenizer, env } from '@huggingface/transformers';
 import * as ort from 'onnxruntime-web';
 
 // ── Model config ──────────────────────────────────────────
 const DEFAULT_MODEL_URL = 'https://huggingface.co/knowledgator/gliner-pii-edge-v1.0/resolve/main/onnx/model_quint8.onnx';
-const DEFAULT_TOKENIZER_PATH = 'gliner-pii-edge';
+const DEFAULT_TOKENIZER_HF = 'knowledgator/gliner-pii-edge-v1.0';
 const DEFAULT_MODEL_NAME = 'GLiNER PII Edge';
 const WASM_PATH = import.meta.env.BASE_URL;
 const CUSTOM_LABELS_STORAGE_KEY = 'doccloak-custom-labels';
@@ -161,18 +161,16 @@ export class GlinerProvider implements DetectionProvider {
 
     this.loading = true;
     try {
-      // Configure WASM paths for ONNX Runtime
       ort.env.wasm.wasmPaths = WASM_PATH;
 
-      // Configure @xenova/transformers
-      env.allowLocalModels = true;
-      env.allowRemoteModels = false;
-      env.useBrowserCache = false;
+      // Configure @huggingface/transformers — load tokenizers from HF
+      env.allowLocalModels = false;
+      env.allowRemoteModels = true;
 
       // Load tokenizer and model in parallel
       const [modelBlobUrl] = await Promise.all([
         this.fetchModelWithProgress(DEFAULT_MODEL_URL),
-        AutoTokenizer.from_pretrained(DEFAULT_TOKENIZER_PATH).then((t: unknown) => {
+        AutoTokenizer.from_pretrained(DEFAULT_TOKENIZER_HF).then((t: unknown) => {
           this.tokenizer = t;
         }),
       ]);
@@ -193,7 +191,7 @@ export class GlinerProvider implements DetectionProvider {
     }
   }
 
-  async detect(text: string): Promise<DetectedEntity[]> {
+  async detect(text: string, onProgress?: (progress: number) => void): Promise<DetectedEntity[]> {
     if (!this.isLoaded()) await this.load();
     if (!this.session || !this.tokenizer) return [];
 
@@ -209,13 +207,23 @@ export class GlinerProvider implements DetectionProvider {
 
     // Split into chunks if text is too long
     const allSpans: RawSpan[] = [];
+    onProgress?.(0);
 
     if (words.length <= chunkSize) {
       // Single chunk — no splitting needed
       const spans = await this.inferChunk(words, starts, ends, text, promptTokens, activeLabels);
       allSpans.push(...spans);
+      onProgress?.(1);
     } else {
+      // Count total chunks
+      let totalChunks = 0;
+      for (let cs = 0; cs < words.length; cs += chunkSize - overlap) {
+        totalChunks++;
+        if (Math.min(cs + chunkSize, words.length) >= words.length) break;
+      }
+
       // Multiple overlapping chunks
+      let chunksDone = 0;
       for (let chunkStart = 0; chunkStart < words.length; chunkStart += chunkSize - overlap) {
         const chunkEnd = Math.min(chunkStart + chunkSize, words.length);
         const chunkWords = words.slice(chunkStart, chunkEnd);
@@ -224,6 +232,10 @@ export class GlinerProvider implements DetectionProvider {
 
         const spans = await this.inferChunk(chunkWords, chunkStarts, chunkEnds, text, promptTokens, activeLabels);
         allSpans.push(...spans);
+
+        chunksDone++;
+        onProgress?.(chunksDone / totalChunks);
+        await new Promise((r) => setTimeout(r, 0));
 
         if (chunkEnd >= words.length) break;
       }

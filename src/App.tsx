@@ -16,6 +16,7 @@ import logoSrc from './ui/assets/doc-cloak-logo-light.png';
 import { version } from '../package.json';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useToast } from './ui/components/Toast.tsx';
+import { PROVIDERS } from './core/engine.ts';
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
@@ -33,6 +34,7 @@ export default function App() {
     modelLoaded,
     modelLoading,
     anonymizing,
+    detectionProgress,
     detectionError,
     modelError,
     downloadProgress,
@@ -50,6 +52,8 @@ export default function App() {
     handleThresholdChange,
     handleReplacementModeChange,
     handleCustomLabelsChange,
+    activeProvider,
+    handleSwitchProvider,
     docxFileName,
     hasDocxExtraction,
     loadDocxFile,
@@ -196,6 +200,12 @@ export default function App() {
                 ))}
               </div>
               <p className="font-serif text-base font-bold mb-1 uppercase tracking-tight">{t.anonymizing.title}</p>
+              {detectionProgress !== null && (
+                <div className="w-48 mx-auto mt-3 mb-2">
+                  <Progress value={Math.round(detectionProgress * 100)} className="h-1.5" />
+                  <p className="text-[10px] text-muted-foreground mt-1">{Math.round(detectionProgress * 100)}%</p>
+                </div>
+              )}
               <p className="text-sm text-[#525252] font-body">{t.anonymizing.description}</p>
             </CardContent>
           </Card>
@@ -248,7 +258,31 @@ export default function App() {
               </PopoverTrigger>
               <PopoverContent align="end" className="w-80 max-h-[85vh] overflow-auto">
                 <div className="space-y-3">
+                  {/* Model selector */}
                   <div>
+                    <span className="label-meta text-muted-foreground">{t.settings.detectionModel}</span>
+                    <div className="mt-2 space-y-2">
+                      {PROVIDERS.map((p) => {
+                        const modelT = t.settings.models[p.id as keyof typeof t.settings.models];
+                        return (
+                          <button
+                            key={p.id}
+                            onClick={() => { setSettingsOpen(false); handleSwitchProvider(p.id); }}
+                            disabled={modelLoading}
+                            className={`w-full text-left px-3 py-2 border transition-colors cursor-pointer ${
+                              activeProvider === p.id
+                                ? 'border-[#111111] bg-[#111111]/5 text-[#111111]'
+                                : 'border-[#E5E5E0] text-[#525252] hover:border-[#111111]'
+                            } disabled:opacity-50 disabled:cursor-not-allowed`}
+                          >
+                            <p className="text-xs font-medium">{modelT?.label ?? p.label}</p>
+                            <p className="text-[10px] text-muted-foreground font-light mt-0.5">{modelT?.description ?? p.description}</p>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div className="border-t border-[#E5E5E0] pt-3">
                     <div className="flex items-center justify-between mb-2">
                       <span className="label-meta text-muted-foreground">{t.settings.detectionSensitivity}</span>
                       <span className="label-meta text-[#111111]">{Math.round((1 - threshold) * 100)}%</span>

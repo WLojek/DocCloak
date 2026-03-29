@@ -8,7 +8,7 @@
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 
-DocCloak is an open-source document anonymizer that strips personally identifiable information (PII) before you share documents with AI services — and restores the original names in the AI's response.
+DocCloak is an open-source document anonymizer that strips personally identifiable information (PII) before you share documents with AI services - and restores the original names in the AI's response.
 
 Everything runs in your browser. No server, no API calls, no data leaves your machine.
 
@@ -16,44 +16,45 @@ Everything runs in your browser. No server, no API calls, no data leaves your ma
 
 ## Who Is This For?
 
-- **Lawyers & legal teams** — redact client names from contracts before asking AI to review clauses
-- **Consultants** — anonymize company data in reports before generating AI summaries
-- **Healthcare professionals** — strip patient identifiers from notes before using AI for research
-- **HR departments** — remove employee PII from documents before AI-assisted policy drafting
+- **Lawyers & legal teams** - redact client names from contracts before asking AI to review clauses
+- **Consultants** - anonymize company data in reports before generating AI summaries
+- **Healthcare professionals** - strip patient identifiers from notes before using AI for research
+- **HR departments** - remove employee PII from documents before AI-assisted policy drafting
 - **Anyone** who uses AI tools but handles sensitive data they can't afford to leak
 
 ## How It Works
 
 1. **Paste** your document or **upload** a `.doc`/`.docx` file
-2. **Redact** — DocCloak detects names, emails, phone numbers, addresses, and other PII using a local ML model + regex patterns
-3. **Copy** the anonymized text and paste it into any AI service (ChatGPT, Claude, Gemini, etc.) — or **download** the redacted document
-4. **Restore** — paste the AI's response back into DocCloak to replace placeholders with the original names
+2. **Redact** - DocCloak detects names, emails, phone numbers, addresses, and other PII using a local ML model + regex patterns
+3. **Copy** the anonymized text and paste it into any AI service (ChatGPT, Claude, Gemini, etc.) - or **download** the redacted document
+4. **Restore** - paste the AI's response back into DocCloak to replace placeholders with the original names
 
 The AI never sees the real data. You get the full power of AI assistance without the privacy risk.
 
 ## Features
 
-- **Runs locally** — ML model runs in-browser via ONNX Runtime WebAssembly. Verify: open DevTools → Network tab → zero requests during anonymization
+- **Runs locally** - ML models run in-browser via ONNX Runtime WebAssembly. Verify: open DevTools → Network tab → zero requests during anonymization
 
-![Network Tab — zero requests](docs/network-tab.gif)
+![Network Tab - zero requests](docs/network-tab.gif)
 
-- **12 entity types** — persons, emails, phones, SSNs, credit cards, dates, currencies, IP addresses, IBANs, addresses, companies, and custom labels
-- **Document support** — upload `.doc` and `.docx` files, redact PII, and download the protected file with all formatting preserved
-- **Hybrid detection** — GLiNER zero-shot NER model (~46 MB) + 100+ regex rules for structured patterns across 11 regions (US, GB, DE, FR, ES, PT, PL, SE, NO, JP, CN)
-- **Entity propagation** — when a name or company is detected once, DocCloak automatically finds all other occurrences throughout the document
-- **Round-trip de-anonymization** — paste the AI's response back in and DocCloak restores the original names automatically
+- **12 entity types** - persons, emails, phones, SSNs, credit cards, dates, currencies, IP addresses, IBANs, addresses, companies, and custom labels
+- **Document support** - upload `.doc` and `.docx` files, redact PII, and download the protected file with all formatting preserved
+- **Multiple detection models** - choose between GLiNER PII Edge (~65 MB, multi-language, custom labels) and BardS.ai EU PII (~279 MB, best for Polish, 35 entity types). Switch models from settings without reloading
+- **Hybrid detection** - ML model + 100+ regex rules for structured patterns across 11 regions (US, GB, DE, FR, ES, PT, PL, SE, NO, JP, CN)
+- **Entity propagation** - when a name or company is detected once, DocCloak automatically finds all other occurrences throughout the document
+- **Round-trip de-anonymization** - paste the AI's response back in and DocCloak restores the original names automatically
 
 ![Restore Names](docs/restore-names.png)
 
-- **Editable labels** — rename any placeholder (e.g., `<<REDACTED_3>>` → `<<Client_Name>>`) for clearer AI prompts
-- **Custom detection labels** — add your own entity types (e.g., `medical condition`, `job title`) to detect domain-specific information
-- **Manual tagging** — select any text and assign an entity type for things the model missed
+- **Editable labels** - rename any placeholder (e.g., `<<REDACTED_3>>` → `<<Client_Name>>`) for clearer AI prompts
+- **Custom detection labels** - add your own entity types (e.g., `medical condition`, `job title`) to detect domain-specific information
+- **Manual tagging** - select any text and assign an entity type for things the model missed
 
 ![Detected Information](docs/detected-informations.png)
 
-- **Configurable sensitivity** — adjust the confidence threshold to control the precision/recall trade-off
-- **10 languages** — English, Polish, German, French, Spanish, Portuguese, Chinese, Japanese, Swedish, Norwegian
-- **Replacement styles** — labeled placeholders (`<<REDACTED_N>>`) or blanked out (`________`)
+- **Configurable sensitivity** - adjust the confidence threshold to control the precision/recall trade-off
+- **10 languages** - English, Polish, German, French, Spanish, Portuguese, Chinese, Japanese, Swedish, Norwegian
+- **Replacement styles** - labeled placeholders (`<<REDACTED_N>>`) or blanked out (`________`)
 
 ![Options](docs/options.png)
 
@@ -91,7 +92,8 @@ The output in `dist/` is a static SPA that can be deployed to any static hosting
 | Build | Vite 6 |
 | Styling | Tailwind CSS v4 + shadcn/ui (Radix primitives) |
 | ML Runtime | ONNX Runtime WebAssembly |
-| NER Model | [GLiNER PII Edge v1.0](https://huggingface.co/knowledgator/gliner-pii-edge-v1.0) (zero-shot, ~46 MB, quantized ONNX) |
+| NER Models | [GLiNER PII Edge v1.0](https://huggingface.co/knowledgator/gliner-pii-edge-v1.0) (~65 MB) / [BardS.ai EU PII](https://huggingface.co/bardsai/eu-pii-anonimization) (~279 MB) |
+| Tokenizers | [@huggingface/transformers](https://huggingface.co/docs/transformers.js) v3 (loaded from HuggingFace Hub) |
 | Testing | Vitest |
 
 ## Why It's Safe
@@ -99,10 +101,10 @@ The output in `dist/` is a static SPA that can be deployed to any static hosting
 DocCloak doesn't ask you to trust a server, a company, or a privacy policy. It's built so you don't have to trust anyone.
 
 - **Your data never leaves the browser.** There is no backend. No API. No server to get hacked. The ML model and all regex rules run entirely in your browser using WebAssembly. You can verify this yourself: open DevTools → Network tab → paste a document → zero requests.
-- **Nothing is stored.** All entity mappings live in memory only. Close the tab and everything is gone. No localStorage, no IndexedDB, no cookies.
+- **Nothing sensitive is stored.** All entity mappings live in memory only. Close the tab and everything is gone. Only your model preference is saved to localStorage.
 - **No tracking, no analytics, no telemetry.** DocCloak doesn't know who you are, what you paste, or how often you use it.
-- **No external requests at all.** Fonts are self-hosted. No CDN, no Google Fonts, no third-party scripts. The only network activity is loading the app itself.
-- **Open source and auditable.** Every line of code is in this repository. The AGPL-3.0 license guarantees it stays that way — even if someone else hosts it, they must publish their source code too.
+- **Minimal external requests.** The only network activity is loading the app, the ML model, and tokenizer from HuggingFace on first use (cached after). No CDN, no Google Fonts, no third-party scripts. No data you paste ever leaves your browser.
+- **Open source and auditable.** Every line of code is in this repository. The AGPL-3.0 license guarantees it stays that way - even if someone else hosts it, they must publish their source code too.
 - **Works offline.** Once the page loads, you can disconnect from the internet and it keeps working. The ML model is cached in the browser after first load.
 
 ## Scripts
@@ -118,7 +120,7 @@ npm run test:watch # Run tests in watch mode
 
 ## Contributing
 
-Contributions are welcome! Whether it's adding regex rules for new regions, improving detection accuracy, fixing bugs, or translating the UI — all help is appreciated.
+Contributions are welcome! Whether it's adding regex rules for new regions, improving detection accuracy, fixing bugs, or translating the UI - all help is appreciated.
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/my-feature`)

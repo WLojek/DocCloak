@@ -44,8 +44,8 @@ export interface DetectionProvider {
   /** Register a callback for download progress updates */
   onProgress(callback: ProgressCallback): void;
 
-  /** Run detection on the given text */
-  detect(text: string): Promise<DetectedEntity[]>;
+  /** Run detection on the given text. Optional progress callback (0-1). */
+  detect(text: string, onProgress?: (progress: number) => void): Promise<DetectedEntity[]>;
 
   /** Set detection confidence threshold */
   setThreshold(value: number): void;

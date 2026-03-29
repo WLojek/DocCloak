@@ -11,6 +11,9 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  optimizeDeps: {
+    exclude: ['@huggingface/transformers'],
+  },
   test: {
     environment: 'jsdom',
     globals: true,

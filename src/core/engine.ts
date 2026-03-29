@@ -1,9 +1,62 @@
-import type { DetectedEntity, ProgressCallback } from './types.ts';
-import { GlinerProvider } from './detectors/ner/index.ts';
+import type { DetectedEntity, DetectionProvider, ProgressCallback } from './types.ts';
+import { GlinerProvider, BardsaiProvider } from './detectors/ner/index.ts';
 
-// ── Active provider ─────────────────────────────────────────
-const provider: GlinerProvider = new GlinerProvider();
-// ─────────────────────────────────────────────────────────────
+// ── Provider registry ──────────────────────────────────────
+export type ProviderId = 'gliner' | 'bardsai';
+
+interface ProviderEntry {
+  id: ProviderId;
+  label: string;
+  description: string;
+  create: () => DetectionProvider;
+}
+
+export const PROVIDERS: ProviderEntry[] = [
+  {
+    id: 'gliner',
+    label: 'GLiNER PII Edge',
+    description: 'Lightweight, multi-language, supports custom labels (~65 MB)',
+    create: () => new GlinerProvider(),
+  },
+  {
+    id: 'bardsai',
+    label: 'BardS.ai EU PII',
+    description: 'Best for Polish, 35 PII types, high accuracy (~279 MB)',
+    create: () => new BardsaiProvider(),
+  },
+];
+
+const PROVIDER_STORAGE_KEY = 'doccloak-active-provider';
+const ACCEL_STORAGE_KEY = 'doccloak-acceleration';
+
+// ── Acceleration setting ───────────────────────────────────
+export type AccelMode = 'auto' | 'webgpu' | 'wasm';
+
+export function getAccelMode(): AccelMode {
+  const saved = localStorage.getItem(ACCEL_STORAGE_KEY);
+  if (saved === 'webgpu' || saved === 'wasm') return saved;
+  return 'auto';
+}
+
+export function setAccelMode(mode: AccelMode): void {
+  localStorage.setItem(ACCEL_STORAGE_KEY, mode);
+}
+
+export function getExecutionProviders(): { providers: string[]; isExplicit: boolean } {
+  const mode = getAccelMode();
+  if (mode === 'webgpu') return { providers: ['webgpu'], isExplicit: true };
+  if (mode === 'wasm') return { providers: ['wasm'], isExplicit: true };
+  return { providers: ['webgpu', 'wasm'], isExplicit: false }; // auto
+}
+
+function loadSavedProviderId(): ProviderId {
+  const saved = localStorage.getItem(PROVIDER_STORAGE_KEY);
+  if (saved && PROVIDERS.some((p) => p.id === saved)) return saved as ProviderId;
+  return 'gliner';
+}
+
+let activeId: ProviderId = loadSavedProviderId();
+let provider: DetectionProvider = PROVIDERS.find((p) => p.id === activeId)!.create();
 
 // ── Regex fallback for structured patterns the ML model often misses ───
 import { ALL_REGEX_RULES } from './regex/index.ts';
@@ -135,12 +188,15 @@ function propagateEntities(text: string, entities: DetectedEntity[]): DetectedEn
 /**
  * Detect entities in text using the active provider.
  */
-export async function detectEntities(text: string): Promise<DetectedEntity[]> {
+export async function detectEntities(
+  text: string,
+  onProgress?: (progress: number) => void,
+): Promise<DetectedEntity[]> {
   if (!text.trim()) return [];
 
-  const mlResults = filterFalsePositives(await provider.detect(text));
-  const regexResults = detectWithRegex(text);
-  const initial = resolveOverlaps([...mlResults, ...regexResults]);
+  const mlResults = filterFalsePositives(await provider.detect(text, onProgress));
+  // const regexResults = detectWithRegex(text);
+  const initial = resolveOverlaps([...mlResults]);
   const propagated = propagateEntities(text, initial);
   return resolveOverlaps([...initial, ...propagated]);
 }
@@ -150,7 +206,9 @@ export async function detectEntities(text: string): Promise<DetectedEntity[]> {
  * Restores custom labels if previously saved.
  */
 export async function preloadModel(): Promise<void> {
-  provider.restoreCustomLabels();
+  if ('restoreCustomLabels' in provider) {
+    (provider as any).restoreCustomLabels();
+  }
   await provider.load();
 }
 
@@ -183,6 +241,44 @@ export function getProviderName(): string {
 }
 
 /**
+ * ID of the active detection provider.
+ */
+export function getActiveProviderId(): ProviderId {
+  return activeId;
+}
+
+/**
+ * Switch to a different detection provider.
+ * Returns a promise that resolves when the new provider is loaded.
+ */
+export async function switchProvider(
+  id: ProviderId,
+  progressCallback?: ProgressCallback,
+): Promise<void> {
+  if (id === activeId && provider.isLoaded()) return;
+
+  const entry = PROVIDERS.find((p) => p.id === id);
+  if (!entry) throw new Error(`Unknown provider: ${id}`);
+
+  // Clear cached model from previous provider to save storage
+  try {
+    await caches.delete('doccloak-models');
+  } catch { /* ignore */ }
+
+  activeId = id;
+  provider = entry.create();
+  localStorage.setItem(PROVIDER_STORAGE_KEY, id);
+
+  if (progressCallback) {
+    provider.onProgress(progressCallback);
+  }
+  if ('restoreCustomLabels' in provider) {
+    (provider as any).restoreCustomLabels();
+  }
+  await provider.load();
+}
+
+/**
  * Set the detection confidence threshold (0.05–0.95).
  */
 export function setDetectionThreshold(value: number): void {
@@ -200,12 +296,17 @@ export function getDetectionThreshold(): number {
  * Get user-defined custom detection labels.
  */
 export function getCustomLabels(): string[] {
-  return provider.getCustomLabels();
+  if ('getCustomLabels' in provider) {
+    return (provider as any).getCustomLabels();
+  }
+  return [];
 }
 
 /**
  * Set user-defined custom detection labels.
  */
 export function setCustomLabels(labels: string[]): void {
-  provider.setCustomLabels(labels);
+  if ('setCustomLabels' in provider) {
+    (provider as any).setCustomLabels(labels);
+  }
 }

@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import type { DetectedEntity, EntityType, ReplacementEntry } from '../../core/types.ts';
-import { detectEntities, preloadModel, onDownloadProgress, setDetectionThreshold, getDetectionThreshold, getCustomLabels, setCustomLabels } from '../../core/engine.ts';
+import { detectEntities, preloadModel, onDownloadProgress, setDetectionThreshold, getDetectionThreshold, getCustomLabels, setCustomLabels, switchProvider as engineSwitchProvider, getActiveProviderId } from '../../core/engine.ts';
+import type { ProviderId } from '../../core/engine.ts';
 import { AnonymizationSession } from '../../core/session.ts';
 import type { ReplacementMode } from '../../core/session.ts';
 import { readDocx, writeAnonymizedDocx, isLegacyDoc, isSupportedFile } from '../../core/docx.ts';
@@ -16,11 +17,13 @@ export function useAnonymizer() {
   const [modelLoading, setModelLoading] = useState(false);
   const [modelError, setModelError] = useState(false);
   const [anonymizing, setAnonymizing] = useState(false);
+  const [detectionProgress, setDetectionProgress] = useState<number | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<{ downloaded: number; total: number } | null>(null);
   const [detectionError, setDetectionError] = useState<string | null>(null);
   const [threshold, setThreshold] = useState(getDetectionThreshold());
   const [replacementMode, setReplacementModeState] = useState<ReplacementMode>('labeled');
   const [customLabels, setCustomLabelsState] = useState<string[]>(getCustomLabels());
+  const [activeProvider, setActiveProvider] = useState<ProviderId>(getActiveProviderId());
   const [docxFile, setDocxFile] = useState<File | null>(null);
   const [docxFileName, setDocxFileName] = useState<string | null>(null);
   const sessionRef = useRef(new AnonymizationSession());
@@ -66,6 +69,7 @@ export function useAnonymizer() {
 
     setAnonymizing(true);
     setDetectionError(null);
+    setDetectionProgress(0);
     const requestId = ++latestRequestRef.current;
     const excluded = new Set<number>();
     setExcludedIndices(excluded);
@@ -73,12 +77,17 @@ export function useAnonymizer() {
     // Yield to browser so React can paint the loading overlay before heavy inference blocks the thread
     requestAnimationFrame(() => {
       setTimeout(() => {
-        detectEntities(text)
+        detectEntities(text, (progress) => {
+          if (requestId === latestRequestRef.current) {
+            setDetectionProgress(progress);
+          }
+        })
           .then((results) => {
             if (requestId === latestRequestRef.current) {
               setEntities(results);
               rebuildAnonymization(text, results, excluded);
               setAnonymizing(false);
+              setDetectionProgress(null);
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }
           })
@@ -86,6 +95,7 @@ export function useAnonymizer() {
             console.error('[DocCloak] Detection failed:', err);
             if (requestId === latestRequestRef.current) {
               setAnonymizing(false);
+              setDetectionProgress(null);
               setDetectionError(err instanceof Error ? err.message : String(err));
             }
           });
@@ -181,6 +191,30 @@ export function useAnonymizer() {
     setCustomLabels(labels);
     setCustomLabelsState(labels);
   }, []);
+
+  const handleSwitchProvider = useCallback(async (id: ProviderId) => {
+    if (id === activeProvider) return;
+    setModelLoading(true);
+    setModelLoaded(false);
+    setModelError(false);
+    setDownloadProgress(null);
+    try {
+      await engineSwitchProvider(id, (downloaded, total) => {
+        setDownloadProgress({ downloaded, total });
+      });
+      setActiveProvider(id);
+      setModelLoaded(true);
+      setModelLoading(false);
+      setDownloadProgress(null);
+      setCustomLabelsState(getCustomLabels());
+      setThreshold(getDetectionThreshold());
+    } catch (err) {
+      console.error('Model switch failed:', err);
+      setModelLoading(false);
+      setModelError(true);
+      setDownloadProgress(null);
+    }
+  }, [activeProvider]);
 
   const handleReplacementModeChange = useCallback((mode: ReplacementMode) => {
     setReplacementModeState(mode);
@@ -288,6 +322,7 @@ export function useAnonymizer() {
     modelLoading,
     modelError,
     anonymizing,
+    detectionProgress,
     detectionError,
     downloadProgress,
     threshold,
@@ -306,6 +341,8 @@ export function useAnonymizer() {
     handleThresholdChange,
     handleReplacementModeChange,
     handleCustomLabelsChange,
+    activeProvider,
+    handleSwitchProvider,
     loadDocxFile,
     exportDocx,
     removeDocxFile,

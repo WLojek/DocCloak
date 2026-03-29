@@ -24,6 +24,19 @@ export interface Translations {
     customLabelsPlaceholder: string;
     addLabel: string;
     noCustomLabels: string;
+    detectionModel: string;
+    models: {
+      gliner: { label: string; description: string };
+      bardsai: { label: string; description: string };
+    };
+    acceleration: string;
+    accelAuto: string;
+    accelAutoDesc: string;
+    accelWebGPU: string;
+    accelWebGPUDesc: string;
+    accelCPU: string;
+    accelCPUDesc: string;
+    accelReloadNote: string;
   };
   howItWorks: {
     title: string;
