@@ -1,11 +1,14 @@
 import type { RegexRule } from '../types.ts';
 
 function validateNir(match: string): boolean {
-  const digits = match.replace(/\s/g, '');
-  if (digits.length < 13) return false;
-  // First digit: 1 (male) or 2 (female)
-  if (!/^[12]/.test(digits)) return false;
-  return true;
+  const digits = match.replace(/\D/g, '');
+  if (digits.length !== 15) return false;
+  const gender = digits[0];
+  if (gender !== '1' && gender !== '2') return false;
+  // First 13 digits, last 2 are check
+  const first13 = parseInt(digits.substring(0, 13), 10);
+  const key = parseInt(digits.substring(13, 15), 10);
+  return (97 - (first13 % 97)) === key;
 }
 
 export const rules: RegexRule[] = [
@@ -18,7 +21,7 @@ export const rules: RegexRule[] = [
     region: 'fr',
     domains: ['identity', 'medical', 'hr'],
     description: 'French NIR / INSEE number (numéro de sécurité sociale, 13+2 digits)',
-    examples: ['1 85 05 78 049 013 28', '2 99 12 75 115 001'],
+    examples: ['1 85 05 78 049 013 36'],
     validate: validateNir,
   },
   {

@@ -135,7 +135,9 @@ export class GlinerProvider implements DetectionProvider {
    */
   setCustomLabels(labels: string[]): void {
     this.customLabels = labels.filter((l) => l.trim().length > 0);
-    localStorage.setItem(CUSTOM_LABELS_STORAGE_KEY, JSON.stringify(this.customLabels));
+    try {
+      localStorage.setItem(CUSTOM_LABELS_STORAGE_KEY, JSON.stringify(this.customLabels));
+    } catch { /* localStorage unavailable in Web Worker */ }
   }
 
   /**
@@ -147,7 +149,7 @@ export class GlinerProvider implements DetectionProvider {
       if (saved) {
         this.customLabels = JSON.parse(saved);
       }
-    } catch { /* ignore */ }
+    } catch { /* localStorage unavailable in Web Worker — labels are passed via message */ }
   }
 
   async load(): Promise<void> {
@@ -167,17 +169,23 @@ export class GlinerProvider implements DetectionProvider {
       env.allowLocalModels = false;
       env.allowRemoteModels = true;
 
-      // Load tokenizer and model in parallel
-      const [modelBlobUrl] = await Promise.all([
-        this.fetchModelWithProgress(DEFAULT_MODEL_URL),
-        AutoTokenizer.from_pretrained(DEFAULT_TOKENIZER_HF).then((t: unknown) => {
-          this.tokenizer = t;
-        }),
-      ]);
+      // Load tokenizer and model in parallel (skip tokenizer if already loaded from a prior session)
+      const tasks: Promise<unknown>[] = [this.fetchModelWithProgress(DEFAULT_MODEL_URL)];
+      if (!this.tokenizer) {
+        tasks.push(
+          AutoTokenizer.from_pretrained(DEFAULT_TOKENIZER_HF).then((t: unknown) => {
+            this.tokenizer = t;
+          }),
+        );
+      }
+      const [blobUrl] = await Promise.all(tasks) as [string];
 
-      this.session = await ort.InferenceSession.create(modelBlobUrl, {
+      this.session = await ort.InferenceSession.create(blobUrl, {
         executionProviders: ['wasm'],
       });
+
+      // Revoke blob URL — ONNX Runtime has already read the data into WASM heap
+      URL.revokeObjectURL(blobUrl);
 
       console.info(`[DocCloak] Model loaded: ${this._name} | inputs: [${this.session.inputNames.join(', ')}] | outputs: [${this.session.outputNames.join(', ')}]`);
 
@@ -189,6 +197,15 @@ export class GlinerProvider implements DetectionProvider {
       this.loading = false;
       throw this.loadError;
     }
+  }
+
+  release(): void {
+    if (this.session) {
+      this.session.release();
+      this.session = null;
+    }
+    this.loading = false;
+    this.loadError = null;
   }
 
   async detect(text: string, onProgress?: (progress: number) => void): Promise<DetectedEntity[]> {

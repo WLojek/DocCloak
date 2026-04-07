@@ -44,7 +44,23 @@ export const rules: RegexRule[] = [
     region: 'pl',
     domains: ['identity'],
     description: 'Polish ID card number (3 letters + 6 digits)',
-    examples: ['ABS 123456', 'ABC123456'],
+    examples: ['ABC 523456'],
+    validate: (match: string) => {
+      const clean = match.replace(/\s/g, '').toUpperCase();
+      if (clean.length !== 9) return false;
+      // First 3 chars are letters (A=10..Z=35), remaining 6 are digits
+      // Weights: [7, 3, 1, 0, 7, 3, 1, 7, 3] where position 4 (index 3) is the check digit
+      const weights = [7, 3, 1, 0, 7, 3, 1, 7, 3];
+      let sum = 0;
+      for (let i = 0; i < 9; i++) {
+        const ch = clean[i];
+        const val = ch >= 'A' && ch <= 'Z' ? ch.charCodeAt(0) - 55 : parseInt(ch, 10);
+        if (i === 3) continue; // skip check digit position
+        sum += val * weights[i];
+      }
+      const checkDigit = sum % 10;
+      return checkDigit === parseInt(clean[3], 10);
+    },
   },
   {
     pattern: /\b[A-Z]{2}\s?\d{7}\b/g,
@@ -79,6 +95,24 @@ export const rules: RegexRule[] = [
     description: 'Polish REGON business registry number (9 or 14 digits)',
     examples: ['123456785'],
     falsePositiveNotes: '9-digit REGON overlaps with many other number formats',
+    validate: (match: string) => {
+      const digits = match.replace(/\D/g, '');
+      if (digits.length === 9) {
+        const weights = [8, 9, 2, 3, 4, 5, 6, 7];
+        let sum = 0;
+        for (let i = 0; i < 8; i++) sum += parseInt(digits[i], 10) * weights[i];
+        const checkDigit = sum % 11 === 10 ? 0 : sum % 11;
+        return checkDigit === parseInt(digits[8], 10);
+      }
+      if (digits.length === 14) {
+        const weights = [2, 4, 8, 5, 0, 9, 7, 3, 6, 1, 2, 4, 8];
+        let sum = 0;
+        for (let i = 0; i < 13; i++) sum += parseInt(digits[i], 10) * weights[i];
+        const checkDigit = sum % 11 === 10 ? 0 : sum % 11;
+        return checkDigit === parseInt(digits[13], 10);
+      }
+      return false;
+    },
   },
   {
     pattern: /\b\d{4}\s?\d{4}\s?\d{4}\s?\d{4}\s?\d{4}\s?\d{4}\s?\d{2}\b/g,

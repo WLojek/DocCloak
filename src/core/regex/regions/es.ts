@@ -118,13 +118,13 @@ export const rules: RegexRule[] = [
 
   // ── Medical ─────────────────────────────────────────────
   {
-    pattern: /\b[A-Z]{4}\d{10}\b/gi,
+    pattern: /\b\d{2}[-/]?\d{8}[-/]?\d{2}\b/g,
     type: 'SSN',
     detector: 'regex:es:nuss',
-    confidence: 0.70,
+    confidence: 0.75,
     region: 'es',
     domains: ['medical', 'hr'],
-    description: 'Spanish Social Security number (NUSS)',
-    examples: ['ABCD1234567890'],
+    description: 'Spanish Social Security Number (NUSS/NAF, 12 digits: province + sequential + check)',
+    examples: ['28-12345678-56'],
   },
 ];

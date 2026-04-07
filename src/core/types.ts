@@ -52,6 +52,9 @@ export interface DetectionProvider {
 
   /** Get current detection confidence threshold */
   getThreshold(): number;
+
+  /** Release the ONNX session and free memory. Provider can be re-loaded later. */
+  release(): void;
 }
 
 export interface ReplacementEntry {

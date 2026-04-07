@@ -37,6 +37,10 @@ export interface Translations {
     accelCPU: string;
     accelCPUDesc: string;
     accelReloadNote: string;
+    regexRules: string;
+    regexRulesDescription: string;
+    regexRegion: string;
+    regexRegions: Record<string, string>;
   };
   howItWorks: {
     title: string;

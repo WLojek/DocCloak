@@ -33,6 +33,17 @@ export const rules: RegexRule[] = [
     description: 'UK NHS number (10 digits)',
     examples: ['943 476 5919'],
     falsePositiveNotes: '10-digit format overlaps with many phone numbers',
+    validate: (match: string) => {
+      const digits = match.replace(/\D/g, '');
+      if (digits.length !== 10) return false;
+      const weights = [10, 9, 8, 7, 6, 5, 4, 3, 2];
+      let sum = 0;
+      for (let i = 0; i < 9; i++) sum += parseInt(digits[i], 10) * weights[i];
+      const checkDigit = 11 - (sum % 11);
+      if (checkDigit === 11) return parseInt(digits[9], 10) === 0;
+      if (checkDigit === 10) return false; // invalid
+      return checkDigit === parseInt(digits[9], 10);
+    },
   },
   {
     pattern: /\b\d{9}\b/g,

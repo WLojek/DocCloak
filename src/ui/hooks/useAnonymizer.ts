@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import type { DetectedEntity, EntityType, ReplacementEntry } from '../../core/types.ts';
-import { detectEntities, preloadModel, onDownloadProgress, setDetectionThreshold, getDetectionThreshold, getCustomLabels, setCustomLabels, switchProvider as engineSwitchProvider, getActiveProviderId } from '../../core/engine.ts';
+import { detectEntities, preloadModel, onDownloadProgress, setDetectionThreshold, getDetectionThreshold, getCustomLabels, setCustomLabels, switchProvider as engineSwitchProvider, getActiveProviderId, isRegexEnabled, setRegexEnabled, getRegexRegion, setRegexRegionSetting } from '../../core/engine.ts';
+import type { RegexRegionId } from '../../core/engine.ts';
 import type { ProviderId } from '../../core/engine.ts';
 import { AnonymizationSession } from '../../core/session.ts';
 import type { ReplacementMode } from '../../core/session.ts';
@@ -24,6 +25,8 @@ export function useAnonymizer() {
   const [replacementMode, setReplacementModeState] = useState<ReplacementMode>('labeled');
   const [customLabels, setCustomLabelsState] = useState<string[]>(getCustomLabels());
   const [activeProvider, setActiveProvider] = useState<ProviderId>(getActiveProviderId());
+  const [regexRules, setRegexRulesState] = useState(isRegexEnabled());
+  const [regexRegion, setRegexRegionState] = useState<RegexRegionId>(getRegexRegion());
   const [docxFile, setDocxFile] = useState<File | null>(null);
   const [docxFileName, setDocxFileName] = useState<string | null>(null);
   const sessionRef = useRef(new AnonymizationSession());
@@ -74,33 +77,29 @@ export function useAnonymizer() {
     const excluded = new Set<number>();
     setExcludedIndices(excluded);
 
-    // Yield to browser so React can paint the loading overlay before heavy inference blocks the thread
-    requestAnimationFrame(() => {
-      setTimeout(() => {
-        detectEntities(text, (progress) => {
-          if (requestId === latestRequestRef.current) {
-            setDetectionProgress(progress);
-          }
-        })
-          .then((results) => {
-            if (requestId === latestRequestRef.current) {
-              setEntities(results);
-              rebuildAnonymization(text, results, excluded);
-              setAnonymizing(false);
-              setDetectionProgress(null);
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }
-          })
-          .catch((err) => {
-            console.error('[DocCloak] Detection failed:', err);
-            if (requestId === latestRequestRef.current) {
-              setAnonymizing(false);
-              setDetectionProgress(null);
-              setDetectionError(err instanceof Error ? err.message : String(err));
-            }
-          });
-      }, 50);
-    });
+    // Detection runs in a Web Worker — no need to yield to the browser
+    detectEntities(text, (progress) => {
+      if (requestId === latestRequestRef.current) {
+        setDetectionProgress(progress);
+      }
+    })
+      .then((results) => {
+        if (requestId === latestRequestRef.current) {
+          setEntities(results);
+          rebuildAnonymization(text, results, excluded);
+          setAnonymizing(false);
+          setDetectionProgress(null);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      })
+      .catch((err) => {
+        console.error('[DocCloak] Detection failed:', err);
+        if (requestId === latestRequestRef.current) {
+          setAnonymizing(false);
+          setDetectionProgress(null);
+          setDetectionError(err instanceof Error ? err.message : String(err));
+        }
+      });
   }, [inputText, rebuildAnonymization]);
 
   const handleInputChange = useCallback((text: string) => {
@@ -190,6 +189,16 @@ export function useAnonymizer() {
   const handleCustomLabelsChange = useCallback((labels: string[]) => {
     setCustomLabels(labels);
     setCustomLabelsState(labels);
+  }, []);
+
+  const handleRegexChange = useCallback((enabled: boolean) => {
+    setRegexRulesState(enabled);
+    setRegexEnabled(enabled);
+  }, []);
+
+  const handleRegexRegionChange = useCallback((region: RegexRegionId) => {
+    setRegexRegionState(region);
+    setRegexRegionSetting(region);
   }, []);
 
   const handleSwitchProvider = useCallback(async (id: ProviderId) => {
@@ -343,6 +352,10 @@ export function useAnonymizer() {
     handleCustomLabelsChange,
     activeProvider,
     handleSwitchProvider,
+    regexRules,
+    handleRegexChange,
+    regexRegion,
+    handleRegexRegionChange,
     loadDocxFile,
     exportDocx,
     removeDocxFile,

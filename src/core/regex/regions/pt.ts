@@ -16,12 +16,25 @@ export const rules: RegexRule[] = [
     pattern: /\b\d{9}\b/g,
     type: 'SSN',
     detector: 'regex:pt:nif',
-    confidence: 0.50,
+    confidence: 0.80,
     region: 'pt',
     domains: ['financial', 'identity'],
     description: 'Portuguese NIF tax number (9 digits)',
     examples: ['123456789'],
     falsePositiveNotes: '9 digits is very broad',
+    validate: (match: string) => {
+      const digits = match.replace(/\D/g, '');
+      if (digits.length !== 9) return false;
+      // First digit must not be 0, 3, 4, or 7
+      const first = parseInt(digits[0], 10);
+      if (first === 0 || first === 3 || first === 4 || first === 7) return false;
+      const weights = [9, 8, 7, 6, 5, 4, 3, 2];
+      let sum = 0;
+      for (let i = 0; i < 8; i++) sum += parseInt(digits[i], 10) * weights[i];
+      const remainder = sum % 11;
+      const checkDigit = remainder < 2 ? 0 : 11 - remainder;
+      return checkDigit === parseInt(digits[8], 10);
+    },
   },
 
   // ── Contact ─────────────────────────────────────────────

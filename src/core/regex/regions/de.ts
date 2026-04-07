@@ -43,7 +43,21 @@ export const rules: RegexRule[] = [
     region: 'de',
     domains: ['financial', 'identity'],
     description: 'German tax ID (Steuerliche Identifikationsnummer, 11 digits)',
-    examples: ['12 345 678 901'],
+    examples: ['12 345 678 903'],
+    validate: (match: string) => {
+      const digits = match.replace(/\D/g, '');
+      if (digits.length !== 11) return false;
+      if (digits[0] === '0') return false;
+      // Check digit validation (ISO 7064 Mod 11,10)
+      let product = 10;
+      for (let i = 0; i < 10; i++) {
+        let sum = (parseInt(digits[i], 10) + product) % 10;
+        if (sum === 0) sum = 10;
+        product = (sum * 2) % 11;
+      }
+      const checkDigit = (11 - product) % 10;
+      return checkDigit === parseInt(digits[10], 10);
+    },
   },
   {
     pattern: /\b(?:DE)?\d{9}\b/gi,
@@ -133,13 +147,13 @@ export const rules: RegexRule[] = [
 
   // ── Insurance ───────────────────────────────────────────
   {
-    pattern: /\b[A-Z]\d{9}\b/g,
+    pattern: /\b\d{2}(?:0[1-9]|[12]\d|3[01])(?:0[1-9]|1[0-2])\d{2}[A-Z]\d{2}\d\b/gi,
     type: 'SSN',
     detector: 'regex:de:sozialversicherung',
     confidence: 0.75,
     region: 'de',
     domains: ['hr', 'identity'],
-    description: 'German social insurance number (Sozialversicherungsnummer, 1 letter + 9 digits within 12-char format)',
-    examples: ['A123456789'],
+    description: 'German social insurance number (Sozialversicherungsnummer, 12 chars: area + DDMMYY birth date + letter + serial + check digit)',
+    examples: ['12010182A056'],
   },
 ];

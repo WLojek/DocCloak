@@ -3,6 +3,10 @@ import type { RegexRule } from '../types.ts';
 function validatePersonnummer(match: string): boolean {
   const digits = match.replace(/[\s-]/g, '');
   if (digits.length < 10) return false;
+  // Exclude samordningsnummer (day >= 61)
+  const cleanForDay = match.replace(/[-+]/g, '');
+  const day = parseInt(cleanForDay.substring(4, 6), 10);
+  if (day >= 61) return false;
   // Use last 10 digits for Luhn check
   const last10 = digits.slice(-10);
   let sum = 0;
@@ -48,6 +52,13 @@ export const rules: RegexRule[] = [
     description: 'Swedish samordningsnummer (coordination number, day +60)',
     examples: ['850583-1478'],
     falsePositiveNotes: 'Same format as personnummer — differentiated by day > 60',
+    validate: (match: string) => {
+      const digits = match.replace(/[-+]/g, '');
+      if (digits.length < 10) return false;
+      // Day portion is positions 4-5 (in YYMMDD format)
+      const day = parseInt(digits.substring(4, 6), 10);
+      return day >= 61;
+    },
   },
   {
     pattern: /\b\d{6}-?\d{4}\b/g,

@@ -1,14 +1,12 @@
-import type { DetectedEntity, DetectionProvider, ProgressCallback } from './types.ts';
-import { GlinerProvider, BardsaiProvider } from './detectors/ner/index.ts';
+import type { DetectedEntity, ProgressCallback } from './types.ts';
 
 // ── Provider registry ──────────────────────────────────────
 export type ProviderId = 'gliner' | 'bardsai';
 
-interface ProviderEntry {
+export interface ProviderEntry {
   id: ProviderId;
   label: string;
   description: string;
-  create: () => DetectionProvider;
 }
 
 export const PROVIDERS: ProviderEntry[] = [
@@ -16,228 +14,219 @@ export const PROVIDERS: ProviderEntry[] = [
     id: 'gliner',
     label: 'GLiNER PII Edge',
     description: 'Lightweight, multi-language, supports custom labels (~65 MB)',
-    create: () => new GlinerProvider(),
   },
   {
     id: 'bardsai',
     label: 'BardS.ai EU PII',
-    description: 'Best for Polish, 35 PII types, high accuracy (~279 MB)',
-    create: () => new BardsaiProvider(),
+    description: 'Multilingual EU languages, 35 PII types, high accuracy (~279 MB)',
   },
 ];
 
 const PROVIDER_STORAGE_KEY = 'doccloak-active-provider';
-const ACCEL_STORAGE_KEY = 'doccloak-acceleration';
+const CUSTOM_LABELS_STORAGE_KEY = 'doccloak-custom-labels';
 
 // ── Acceleration setting ───────────────────────────────────
 export type AccelMode = 'auto' | 'webgpu' | 'wasm';
 
 export function getAccelMode(): AccelMode {
-  const saved = localStorage.getItem(ACCEL_STORAGE_KEY);
+  const saved = localStorage.getItem('doccloak-acceleration');
   if (saved === 'webgpu' || saved === 'wasm') return saved;
   return 'auto';
 }
 
 export function setAccelMode(mode: AccelMode): void {
-  localStorage.setItem(ACCEL_STORAGE_KEY, mode);
+  localStorage.setItem('doccloak-acceleration', mode);
 }
 
 export function getExecutionProviders(): { providers: string[]; isExplicit: boolean } {
   const mode = getAccelMode();
   if (mode === 'webgpu') return { providers: ['webgpu'], isExplicit: true };
   if (mode === 'wasm') return { providers: ['wasm'], isExplicit: true };
-  return { providers: ['webgpu', 'wasm'], isExplicit: false }; // auto
+  return { providers: ['webgpu', 'wasm'], isExplicit: false };
 }
 
+// ── Saved provider ─────────────────────────────────────────
 function loadSavedProviderId(): ProviderId {
   const saved = localStorage.getItem(PROVIDER_STORAGE_KEY);
   if (saved && PROVIDERS.some((p) => p.id === saved)) return saved as ProviderId;
   return 'gliner';
 }
 
+// ── Worker singleton ───────────────────────────────────────
+let worker: Worker | null = null;
 let activeId: ProviderId = loadSavedProviderId();
-let provider: DetectionProvider = PROVIDERS.find((p) => p.id === activeId)!.create();
+let loaded = false;
+let loading = false;
+let threshold = activeId === 'bardsai' ? 0.5 : 0.35;
+let customLabels: string[] = [];
+let regexEnabled = loadRegexSetting();
+let regexRegion = loadRegexRegion();
 
-// ── Regex fallback for structured patterns the ML model often misses ───
-import { ALL_REGEX_RULES } from './regex/index.ts';
+// Callbacks
+let downloadProgressCallback: ProgressCallback | null = null;
+let loadResolve: (() => void) | null = null;
+let loadReject: ((err: Error) => void) | null = null;
 
-function detectWithRegex(text: string): DetectedEntity[] {
-  const entities: DetectedEntity[] = [];
-  for (const rule of ALL_REGEX_RULES) {
-    rule.pattern.lastIndex = 0;
-    let match: RegExpExecArray | null;
-    while ((match = rule.pattern.exec(text)) !== null) {
-      if (rule.validate && !rule.validate(match[0])) continue;
-      entities.push({
-        type: rule.type,
-        value: match[0],
-        start: match.index,
-        end: match.index + match[0].length,
-        confidence: rule.confidence,
-        detector: rule.detector,
-      });
-    }
-  }
-  return entities;
-}
+// Release tracking
+let releaseResolve: (() => void) | null = null;
 
-function resolveOverlaps(entities: DetectedEntity[]): DetectedEntity[] {
-  const sorted = [...entities].sort((a, b) => {
-    if (a.start !== b.start) return a.start - b.start;
-    const aLen = a.end - a.start;
-    const bLen = b.end - b.start;
-    if (aLen !== bLen) return bLen - aLen;
-    return b.confidence - a.confidence;
-  });
+// Detection request tracking
+let requestCounter = 0;
+const pendingDetections = new Map<number, {
+  resolve: (entities: DetectedEntity[]) => void;
+  reject: (err: Error) => void;
+  onProgress?: (progress: number) => void;
+}>();
 
-  const resolved: DetectedEntity[] = [];
-  for (const entity of sorted) {
-    const overlaps = resolved.some(
-      (existing) => entity.start < existing.end && entity.end > existing.start
+function getWorker(): Worker {
+  if (!worker) {
+    worker = new Worker(
+      new URL('./detection.worker.ts', import.meta.url),
+      { type: 'module' },
     );
-    if (!overlaps) {
-      resolved.push(entity);
-    }
+    worker.onmessage = handleWorkerMessage;
+    worker.onerror = (e) => {
+      console.error('[DocCloak] Worker error:', e);
+    };
   }
-
-  return resolved;
+  return worker;
 }
 
-/**
- * Filter out the most obvious ML false positives.
- * Biased toward keeping detections — better to over-redact than miss real PII.
- */
-function filterFalsePositives(entities: DetectedEntity[]): DetectedEntity[] {
-  return entities.filter((e) => {
-    // Drop very short detections (1-2 chars) — always noise
-    if (e.value.trim().length < 3) return false;
-    return true;
-  });
-}
+function handleWorkerMessage(e: MessageEvent) {
+  const msg = e.data;
 
-/**
- * Propagate detected entities: for each detected value, find all other
- * occurrences in the text (exact match + significant individual words from
- * multi-word entities).
- */
-function propagateEntities(text: string, entities: DetectedEntity[]): DetectedEntity[] {
-  const propagated: DetectedEntity[] = [];
-  const seen = new Set<string>(); // "start:end" keys already covered
-
-  for (const e of entities) {
-    seen.add(`${e.start}:${e.end}`);
-  }
-
-  // Collect unique search terms: full entity values + significant words
-  const terms: { term: string; type: DetectedEntity['type'] }[] = [];
-  const addedTerms = new Set<string>();
-
-  for (const e of entities) {
-    const val = e.value.trim();
-    if (val.length >= 3 && !addedTerms.has(val.toLowerCase())) {
-      addedTerms.add(val.toLowerCase());
-      terms.push({ term: val, type: e.type });
+  switch (msg.type) {
+    case 'downloadProgress': {
+      downloadProgressCallback?.(msg.downloaded, msg.total);
+      break;
     }
-    // For multi-word entities, also propagate significant individual words
-    if (val.includes(' ')) {
-      for (const word of val.split(/\s+/)) {
-        const w = word.replace(/[.,;:!?()]+$/, '');
-        // Only propagate words >= 4 chars that look like proper nouns or identifiers
-        if (w.length >= 4 && !addedTerms.has(w.toLowerCase())) {
-          addedTerms.add(w.toLowerCase());
-          terms.push({ term: w, type: e.type });
-        }
+
+    case 'loaded': {
+      loaded = true;
+      loading = false;
+      activeId = msg.providerId;
+      threshold = msg.threshold;
+      customLabels = msg.customLabels ?? [];
+      loadResolve?.();
+      loadResolve = null;
+      loadReject = null;
+      break;
+    }
+
+    case 'loadError': {
+      loaded = false;
+      loading = false;
+      loadReject?.(new Error(msg.error));
+      loadResolve = null;
+      loadReject = null;
+      break;
+    }
+
+    case 'detectionProgress': {
+      const pending = pendingDetections.get(msg.requestId);
+      pending?.onProgress?.(msg.progress);
+      break;
+    }
+
+    case 'detected': {
+      const pending = pendingDetections.get(msg.requestId);
+      if (pending) {
+        pendingDetections.delete(msg.requestId);
+        pending.resolve(msg.entities);
       }
+      break;
     }
-  }
 
-  for (const { term, type } of terms) {
-    let searchFrom = 0;
-    const lowerText = text.toLowerCase();
-    const lowerTerm = term.toLowerCase();
-    while (searchFrom < text.length) {
-      const idx = lowerText.indexOf(lowerTerm, searchFrom);
-      if (idx === -1) break;
-      const end = idx + term.length;
-      const key = `${idx}:${end}`;
-      if (!seen.has(key)) {
-        // Check word boundaries to avoid matching inside longer words
-        const charBefore = idx > 0 ? text[idx - 1] : ' ';
-        const charAfter = end < text.length ? text[end] : ' ';
-        const isBoundaryBefore = /[\s.,;:!?()"'„"\-–—/]/.test(charBefore);
-        const isBoundaryAfter = /[\s.,;:!?()"'„"\-–—/]/.test(charAfter);
-        if (isBoundaryBefore && isBoundaryAfter) {
-          seen.add(key);
-          propagated.push({
-            type,
-            value: text.slice(idx, end),
-            start: idx,
-            end,
-            confidence: 0.95,
-            detector: 'propagated',
-          });
-        }
+    case 'detectError': {
+      const pending = pendingDetections.get(msg.requestId);
+      if (pending) {
+        pendingDetections.delete(msg.requestId);
+        pending.reject(new Error(msg.error));
       }
-      searchFrom = idx + 1;
+      break;
+    }
+
+    case 'released': {
+      loaded = false;
+      releaseResolve?.();
+      releaseResolve = null;
+      break;
     }
   }
-
-  return propagated;
 }
 
+// ── Public API (same signatures as before) ─────────────────
+
 /**
- * Detect entities in text using the active provider.
+ * Detect entities in text using the active provider (runs in Web Worker).
  */
-export async function detectEntities(
+export function detectEntities(
   text: string,
   onProgress?: (progress: number) => void,
 ): Promise<DetectedEntity[]> {
-  if (!text.trim()) return [];
+  const requestId = ++requestCounter;
+  const w = getWorker();
 
-  const mlResults = filterFalsePositives(await provider.detect(text, onProgress));
-  // const regexResults = detectWithRegex(text);
-  const initial = resolveOverlaps([...mlResults]);
-  const propagated = propagateEntities(text, initial);
-  return resolveOverlaps([...initial, ...propagated]);
+  return new Promise<DetectedEntity[]>((resolve, reject) => {
+    pendingDetections.set(requestId, { resolve, reject, onProgress });
+    w.postMessage({ type: 'detect', requestId, text });
+  });
 }
 
 /**
  * Preload the detection model in the background.
- * Restores custom labels if previously saved.
  */
-export async function preloadModel(): Promise<void> {
-  if ('restoreCustomLabels' in provider) {
-    (provider as any).restoreCustomLabels();
+export function preloadModel(): Promise<void> {
+  if (loaded) return Promise.resolve();
+  if (loading) {
+    return new Promise<void>((resolve, reject) => {
+      loadResolve = resolve;
+      loadReject = reject;
+    });
   }
-  await provider.load();
+
+  loading = true;
+  const savedLabels = loadCustomLabelsFromStorage();
+
+  return new Promise<void>((resolve, reject) => {
+    loadResolve = resolve;
+    loadReject = reject;
+    getWorker().postMessage({
+      type: 'init',
+      providerId: activeId,
+      customLabels: savedLabels,
+      regexEnabled,
+      regexRegion,
+    });
+  });
 }
 
 /**
  * Register a download progress callback.
  */
 export function onDownloadProgress(callback: ProgressCallback): void {
-  provider.onProgress(callback);
+  downloadProgressCallback = callback;
 }
 
 /**
  * Whether the detection model is loaded and ready.
  */
 export function isModelLoaded(): boolean {
-  return provider.isLoaded();
+  return loaded;
 }
 
 /**
  * Whether the detection model is currently loading.
  */
 export function isModelLoading(): boolean {
-  return provider.isLoading();
+  return loading;
 }
 
 /**
  * Name of the active detection provider.
  */
 export function getProviderName(): string {
-  return provider.name;
+  return PROVIDERS.find((p) => p.id === activeId)?.label ?? activeId;
 }
 
 /**
@@ -249,64 +238,151 @@ export function getActiveProviderId(): ProviderId {
 
 /**
  * Switch to a different detection provider.
- * Returns a promise that resolves when the new provider is loaded.
  */
 export async function switchProvider(
   id: ProviderId,
   progressCallback?: ProgressCallback,
 ): Promise<void> {
-  if (id === activeId && provider.isLoaded()) return;
+  if (id === activeId && loaded) return;
 
   const entry = PROVIDERS.find((p) => p.id === id);
   if (!entry) throw new Error(`Unknown provider: ${id}`);
 
-  // Clear cached model from previous provider to save storage
-  try {
-    await caches.delete('doccloak-models');
-  } catch { /* ignore */ }
-
-  activeId = id;
-  provider = entry.create();
-  localStorage.setItem(PROVIDER_STORAGE_KEY, id);
+  loaded = false;
+  loading = true;
 
   if (progressCallback) {
-    provider.onProgress(progressCallback);
+    downloadProgressCallback = progressCallback;
   }
-  if ('restoreCustomLabels' in provider) {
-    (provider as any).restoreCustomLabels();
-  }
-  await provider.load();
+
+  localStorage.setItem(PROVIDER_STORAGE_KEY, id);
+  const savedLabels = loadCustomLabelsFromStorage();
+
+  return new Promise<void>((resolve, reject) => {
+    loadResolve = resolve;
+    loadReject = reject;
+    getWorker().postMessage({
+      type: 'switchProvider',
+      providerId: id,
+      customLabels: savedLabels,
+    });
+  });
 }
 
 /**
  * Set the detection confidence threshold (0.05–0.95).
  */
 export function setDetectionThreshold(value: number): void {
-  provider.setThreshold(value);
+  threshold = Math.max(0.05, Math.min(0.95, value));
+  if (worker) {
+    worker.postMessage({ type: 'setThreshold', value: threshold });
+  }
 }
 
 /**
  * Get the current detection confidence threshold.
  */
 export function getDetectionThreshold(): number {
-  return provider.getThreshold();
+  return threshold;
 }
 
 /**
  * Get user-defined custom detection labels.
  */
 export function getCustomLabels(): string[] {
-  if ('getCustomLabels' in provider) {
-    return (provider as any).getCustomLabels();
-  }
-  return [];
+  return [...customLabels];
 }
 
 /**
  * Set user-defined custom detection labels.
  */
 export function setCustomLabels(labels: string[]): void {
-  if ('setCustomLabels' in provider) {
-    (provider as any).setCustomLabels(labels);
+  customLabels = labels.filter((l) => l.trim().length > 0);
+  localStorage.setItem(CUSTOM_LABELS_STORAGE_KEY, JSON.stringify(customLabels));
+  if (worker) {
+    worker.postMessage({ type: 'setCustomLabels', labels: customLabels });
   }
+}
+
+/**
+ * Release the ONNX session to free memory. The model will be re-loaded on next detection.
+ */
+export function releaseModel(): Promise<void> {
+  if (!worker || !loaded) return Promise.resolve();
+  return new Promise<void>((resolve) => {
+    releaseResolve = resolve;
+    worker!.postMessage({ type: 'releaseModel' });
+  });
+}
+
+const REGEX_STORAGE_KEY = 'doccloak-regex-enabled';
+const REGEX_REGION_STORAGE_KEY = 'doccloak-regex-region';
+
+export const REGEX_REGIONS = [
+  'all', 'gb', 'pl', 'de', 'fr', 'es', 'pt', 'se', 'no',
+  'it', 'nl', 'be', 'at', 'ch', 'ie', 'dk', 'fi',
+] as const;
+
+export type RegexRegionId = typeof REGEX_REGIONS[number];
+
+/**
+ * Whether regex pattern detection is enabled.
+ */
+export function isRegexEnabled(): boolean {
+  return regexEnabled;
+}
+
+/**
+ * Enable or disable regex pattern detection.
+ */
+export function setRegexEnabled(enabled: boolean): void {
+  regexEnabled = enabled;
+  localStorage.setItem(REGEX_STORAGE_KEY, JSON.stringify(enabled));
+  if (worker) {
+    worker.postMessage({ type: 'setRegex', enabled, region: regexRegion });
+  }
+}
+
+/**
+ * Get the active regex region.
+ */
+export function getRegexRegion(): RegexRegionId {
+  return regexRegion;
+}
+
+/**
+ * Set the regex region filter.
+ */
+export function setRegexRegionSetting(region: RegexRegionId): void {
+  regexRegion = region;
+  localStorage.setItem(REGEX_REGION_STORAGE_KEY, region);
+  if (worker) {
+    worker.postMessage({ type: 'setRegexRegion', region });
+  }
+}
+
+// ── Helpers ────────────────────────────────────────────────
+
+function loadRegexRegion(): RegexRegionId {
+  try {
+    const saved = localStorage.getItem(REGEX_REGION_STORAGE_KEY);
+    if (saved && REGEX_REGIONS.includes(saved as RegexRegionId)) return saved as RegexRegionId;
+  } catch { /* ignore */ }
+  return 'all';
+}
+
+function loadRegexSetting(): boolean {
+  try {
+    const saved = localStorage.getItem(REGEX_STORAGE_KEY);
+    if (saved !== null) return JSON.parse(saved);
+  } catch { /* ignore */ }
+  return false;
+}
+
+function loadCustomLabelsFromStorage(): string[] {
+  try {
+    const saved = localStorage.getItem(CUSTOM_LABELS_STORAGE_KEY);
+    if (saved) return JSON.parse(saved);
+  } catch { /* ignore */ }
+  return [];
 }

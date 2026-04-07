@@ -1,7 +1,7 @@
 /**
  * BardS.ai EU PII Anonymization Provider
  *
- * XLM-RoBERTa-base fine-tuned for Polish PII detection.
+ * XLM-RoBERTa-base fine-tuned for EU PII detection (multilingual).
  * 35 entity types, 277M parameters, quantized ONNX (~279 MB).
  * Runs in-browser via ONNX Runtime WebAssembly.
  */
@@ -142,17 +142,23 @@ export class BardsaiProvider implements DetectionProvider {
       env.allowLocalModels = false;
       env.allowRemoteModels = true;
 
-      // Load tokenizer and model in parallel
-      const [modelBlobUrl] = await Promise.all([
-        this.fetchModelWithProgress(MODEL_URL),
-        AutoTokenizer.from_pretrained(TOKENIZER_HF).then((t: unknown) => {
-          this.tokenizer = t;
-        }),
-      ]);
+      // Load tokenizer and model in parallel (skip tokenizer if already loaded from a prior session)
+      const tasks: Promise<unknown>[] = [this.fetchModelWithProgress(MODEL_URL)];
+      if (!this.tokenizer) {
+        tasks.push(
+          AutoTokenizer.from_pretrained(TOKENIZER_HF).then((t: unknown) => {
+            this.tokenizer = t;
+          }),
+        );
+      }
+      const [blobUrl] = await Promise.all(tasks) as [string];
 
-      this.session = await ort.InferenceSession.create(modelBlobUrl, {
+      this.session = await ort.InferenceSession.create(blobUrl, {
         executionProviders: ['wasm'],
       });
+
+      // Revoke blob URL — ONNX Runtime has already read the data into WASM heap
+      URL.revokeObjectURL(blobUrl);
 
       console.info(`[DocCloak] Model loaded: ${this._name} | inputs: [${this.session.inputNames.join(', ')}] | outputs: [${this.session.outputNames.join(', ')}]`);
 
@@ -164,6 +170,15 @@ export class BardsaiProvider implements DetectionProvider {
       this.loading = false;
       throw this.loadError;
     }
+  }
+
+  release(): void {
+    if (this.session) {
+      this.session.release();
+      this.session = null;
+    }
+    this.loading = false;
+    this.loadError = null;
   }
 
   async detect(text: string, onProgress?: (progress: number) => void): Promise<DetectedEntity[]> {

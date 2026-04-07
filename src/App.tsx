@@ -16,7 +16,8 @@ import logoSrc from './ui/assets/doc-cloak-logo-light.png';
 import { version } from '../package.json';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useToast } from './ui/components/Toast.tsx';
-import { PROVIDERS } from './core/engine.ts';
+import { PROVIDERS, REGEX_REGIONS } from './core/engine.ts';
+import type { RegexRegionId } from './core/engine.ts';
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
@@ -54,6 +55,10 @@ export default function App() {
     handleCustomLabelsChange,
     activeProvider,
     handleSwitchProvider,
+    regexRules,
+    handleRegexChange,
+    regexRegion,
+    handleRegexRegionChange,
     docxFileName,
     hasDocxExtraction,
     loadDocxFile,
@@ -256,7 +261,7 @@ export default function App() {
                   <Settings className="w-4 h-4" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent align="end" className="w-80 max-h-[85vh] overflow-auto">
+              <PopoverContent align="end" className="w-80 max-h-[calc(100vh-5rem)] overflow-auto">
                 <div className="space-y-3">
                   {/* Model selector */}
                   <div>
@@ -306,6 +311,42 @@ export default function App() {
                     <p className="text-xs text-muted-foreground leading-relaxed font-light">
                       {t.settings.confidenceThreshold(threshold.toFixed(2))}
                     </p>
+                  </div>
+                  <div className="border-t border-[#E5E5E0] pt-3">
+                    <label className="flex items-center justify-between cursor-pointer">
+                      <div>
+                        <p className="text-xs font-medium text-[#111111]">{t.settings.regexRules}</p>
+                        <p className="text-[10px] text-muted-foreground font-light mt-0.5">{t.settings.regexRulesDescription}</p>
+                      </div>
+                      <button
+                        role="switch"
+                        aria-checked={regexRules}
+                        onClick={() => handleRegexChange(!regexRules)}
+                        className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
+                          regexRules ? 'bg-[#111111]' : 'bg-[#E5E5E0]'
+                        }`}
+                      >
+                        <span className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
+                          regexRules ? 'translate-x-4' : 'translate-x-0'
+                        }`} />
+                      </button>
+                    </label>
+                    {regexRules && (
+                      <div className="mt-2">
+                        <span className="label-meta text-muted-foreground">{t.settings.regexRegion}</span>
+                        <select
+                          value={regexRegion}
+                          onChange={(e) => handleRegexRegionChange(e.target.value as RegexRegionId)}
+                          className="mt-1 w-full px-2 py-1.5 text-xs border border-[#E5E5E0] bg-white text-[#111111] cursor-pointer focus:outline-none focus:border-[#111111]"
+                        >
+                          {REGEX_REGIONS.map((r) => (
+                            <option key={r} value={r}>
+                              {t.settings.regexRegions[r] ?? r}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                   </div>
                   <div className="border-t border-[#E5E5E0] pt-3">
                     <span className="label-meta text-muted-foreground">{t.settings.replacementStyle}</span>

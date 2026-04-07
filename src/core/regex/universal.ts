@@ -61,6 +61,23 @@ export const rules: RegexRule[] = [
     domains: ['financial'],
     description: 'IBAN (2-letter country code + 2 check digits + up to 30 alphanumeric)',
     examples: ['GB29 NWBK 6016 1331 9268 19', 'DE89 3704 0044 0532 0130 00', 'PL61 1090 1014 0000 0712 1981 2874'],
+    validate: (match: string) => {
+      const clean = match.replace(/\s/g, '').toUpperCase();
+      if (clean.length < 5 || clean.length > 34) return false;
+      // Move first 4 chars to end, convert letters to digits (A=10..Z=35)
+      const rearranged = clean.slice(4) + clean.slice(0, 4);
+      let numStr = '';
+      for (const ch of rearranged) {
+        if (ch >= '0' && ch <= '9') numStr += ch;
+        else numStr += (ch.charCodeAt(0) - 55).toString();
+      }
+      // Mod-97 using chunked arithmetic (BigInt not needed)
+      let remainder = 0;
+      for (let i = 0; i < numStr.length; i++) {
+        remainder = (remainder * 10 + parseInt(numStr[i], 10)) % 97;
+      }
+      return remainder === 1;
+    },
   },
   {
     pattern: /\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{1,7}\b/g,
