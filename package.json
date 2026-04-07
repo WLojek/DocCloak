@@ -1,13 +1,13 @@
 {
   "name": "doccloak",
   "private": true,
-  "version": "0.4.1",
+  "version": "0.4.2",
   "type": "module",
   "description": "Offline, open-source document anonymizer. Strip PII before sharing with AI services.",
   "license": "AGPL-3.0",
   "author": "Witold Lojek",
   "scripts": {
-    "postinstall": "node -e \"require('fs').copyFileSync('node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm','public/ort-wasm-simd-threaded.wasm')\"",
+    "postinstall": "node -e \"const fs=require('fs');for(const f of ['ort-wasm-simd-threaded.wasm','ort-wasm-simd-threaded.jsep.wasm'])fs.copyFileSync('node_modules/onnxruntime-web/dist/'+f,'public/'+f)\"",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
