@@ -137,6 +137,10 @@ export class BardsaiProvider implements DetectionProvider {
     this.loading = true;
     try {
       ort.env.wasm.wasmPaths = WASM_PATH;
+      // Force single-threaded WASM. ORT's multi-threaded path hangs silently
+      // in some cross-origin-isolated browser contexts when spawning pthread
+      // workers (model downloads but session.create never resolves).
+      ort.env.wasm.numThreads = 1;
 
       // Configure @huggingface/transformers — load tokenizer from HF
       env.allowLocalModels = false;
@@ -426,13 +430,24 @@ export class BardsaiProvider implements DetectionProvider {
   }
 
   private async fetchModelWithProgress(url: string): Promise<string> {
-    const cache = await caches.open('doccloak-models');
+    let cache: Cache | null = null;
+    try {
+      cache = await caches.open('doccloak-models');
+    } catch {
+      // Cache API unavailable (e.g. private mode with strict storage). Proceed without caching.
+    }
 
-    const cached = await cache.match(url);
-    if (cached) {
-      const blob = await cached.blob();
-      this.progressCallback?.(blob.size, blob.size);
-      return URL.createObjectURL(blob);
+    if (cache) {
+      try {
+        const cached = await cache.match(url);
+        if (cached) {
+          const blob = await cached.blob();
+          this.progressCallback?.(blob.size, blob.size);
+          return URL.createObjectURL(blob);
+        }
+      } catch {
+        // Cache lookup failed — fall through to network.
+      }
     }
 
     const response = await fetch(url);
@@ -446,7 +461,7 @@ export class BardsaiProvider implements DetectionProvider {
     const reader = response.body?.getReader();
     if (!reader) {
       const blob = await response.blob();
-      await cache.put(url, new Response(blob));
+      await tryCachePut(cache, url, blob);
       return URL.createObjectURL(blob);
     }
 
@@ -462,7 +477,21 @@ export class BardsaiProvider implements DetectionProvider {
     }
 
     const blob = new Blob(chunks);
-    await cache.put(url, new Response(blob));
+    await tryCachePut(cache, url, blob);
     return URL.createObjectURL(blob);
+  }
+}
+
+/**
+ * Best-effort cache.put — large models often exceed per-origin quota,
+ * which surfaces as "Failed to execute 'put' on 'Cache': Unexpected internal error".
+ * Caching is an optimisation, not a correctness requirement, so swallow failures.
+ */
+async function tryCachePut(cache: Cache | null, url: string, blob: Blob): Promise<void> {
+  if (!cache) return;
+  try {
+    await cache.put(url, new Response(blob));
+  } catch (err) {
+    console.warn('[DocCloak] Model cache put failed (model still loaded in memory):', err);
   }
 }

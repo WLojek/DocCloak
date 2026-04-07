@@ -103,9 +103,17 @@ DocCloak doesn't ask you to trust a server, a company, or a privacy policy. It's
 - **Your data never leaves the browser.** There is no backend. No API. No server to get hacked. The ML model and all regex rules run entirely in your browser using WebAssembly. You can verify this yourself: open DevTools → Network tab → paste a document → zero requests.
 - **Nothing sensitive is stored.** All entity mappings live in memory only. Close the tab and everything is gone. Only your model preference is saved to localStorage.
 - **No tracking, no analytics, no telemetry.** DocCloak doesn't know who you are, what you paste, or how often you use it.
-- **Minimal external requests.** The only network activity is loading the app, the ML model, and tokenizer from HuggingFace on first use (cached after). No CDN, no Google Fonts, no third-party scripts. No data you paste ever leaves your browser.
+- **Minimal external requests.** The only network activity is loading the app, the ML model, and tokenizer from HuggingFace on first use. No CDN, no Google Fonts, no third-party scripts. No data you paste ever leaves your browser.
 - **Open source and auditable.** Every line of code is in this repository. The AGPL-3.0 license guarantees it stays that way - even if someone else hosts it, they must publish their source code too.
-- **Works offline.** Once the page loads, you can disconnect from the internet and it keeps working. The ML model is cached in the browser after first load.
+- **Works offline after first load.** Once the model is cached, you can disconnect from the internet and DocCloak keeps working — anonymization runs entirely in WebAssembly.
+
+### Model caching and offline use
+
+After a model is downloaded for the first time, DocCloak stores it in the browser's [Cache Storage](https://developer.mozilla.org/en-US/docs/Web/API/Cache) under the `doccloak-models` cache. On subsequent visits the model loads from local storage instead of re-downloading from HuggingFace, so you can use DocCloak fully offline.
+
+Caching is **best-effort**. If your browser refuses to cache the model — for example because the per-origin storage quota is exceeded, you're using an Incognito/Private window with restricted quota, or the model file is larger than the browser allows for a single Cache entry — DocCloak still loads the model into memory and works normally for the current session. The next visit will simply re-download it instead of using the cache.
+
+The BardS.ai EU PII model (~279 MB) is most likely to hit quota limits, especially in Incognito mode. GLiNER PII Edge (~65 MB) caches reliably almost everywhere. To force a re-download (e.g. after a model update), open DevTools → Application → Cache Storage → delete the `doccloak-models` cache.
 
 ## Scripts
 
