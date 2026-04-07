@@ -389,7 +389,8 @@ export default function App() {
 
       {/* Main content */}
       <main className="max-w-6xl mx-auto px-6 py-10 newsprint-texture">
-        {/* Custom detection labels */}
+        {/* Custom detection labels — only supported by GLiNER (zero-shot). BardS.ai has a fixed label set. */}
+        {activeProvider !== 'bardsai' && (
         <div className="mb-6">
           <button
             onClick={() => setLabelsExpanded(!labelsExpanded)}
@@ -450,6 +451,7 @@ export default function App() {
             </div>
           </div>
         </div>
+        )}
 
         {/* File bar — input file (left) + download (right) */}
         {docxFileName && anonymizedText && (
