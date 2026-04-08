@@ -3,26 +3,26 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>DocCloak — Use AI without leaking client data</title>
-    <meta name="description" content="Open-source, browser-only document anonymizer. Strip names, emails, phones, and other PII from documents before sharing them with ChatGPT, Claude, Gemini, and other AI services. Runs entirely in your browser — your data never leaves your device." />
+    <title>DocCloak - Anonymize documents before AI. Open source.</title>
+    <meta name="description" content="Open-source, browser-only document anonymizer. Strip names, emails, phones, and other PII from documents before sharing them with ChatGPT, Claude, Gemini, and other AI services. Runs entirely in your browser - your data never leaves your device." />
     <meta name="keywords" content="PII redaction, document anonymizer, GDPR, HIPAA, ChatGPT privacy, Claude privacy, local-first, browser-only, open source, AGPL" />
     <meta name="author" content="DocCloak" />
     <meta name="theme-color" content="#111111" />
 
     <!-- Open Graph -->
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="DocCloak — Use AI without leaking client data" />
+    <meta property="og:title" content="DocCloak - Anonymize documents before AI. Open source." />
     <meta property="og:description" content="Open-source, browser-only document anonymizer. Strip PII before sharing documents with ChatGPT, Claude, or Gemini. Your data never leaves your browser." />
     <meta property="og:url" content="https://doccloak.com/" />
     <meta property="og:site_name" content="DocCloak" />
     <meta property="og:image" content="https://doccloak.com/og-image.jpg" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="DocCloak — open-source browser-only PII redactor" />
+    <meta property="og:image:alt" content="DocCloak - open-source browser-only PII redactor" />
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="DocCloak — Use AI without leaking client data" />
+    <meta name="twitter:title" content="DocCloak - Anonymize documents before AI. Open source." />
     <meta name="twitter:description" content="Open-source, browser-only document anonymizer. Strip PII before sharing with AI. Your data never leaves your browser." />
     <meta name="twitter:image" content="https://doccloak.com/og-image.jpg" />
 
@@ -38,7 +38,7 @@
       "@context": "https://schema.org",
       "@type": "SoftwareApplication",
       "name": "DocCloak",
-      "description": "Open-source, browser-only document anonymizer that strips personally identifiable information (PII) from documents before they are shared with AI services such as ChatGPT, Claude, or Gemini. All processing happens locally in the browser via WebAssembly — no data is sent to any server.",
+      "description": "Open-source, browser-only document anonymizer that strips personally identifiable information (PII) from documents before they are shared with AI services such as ChatGPT, Claude, or Gemini. All processing happens locally in the browser via WebAssembly - no data is sent to any server.",
       "url": "https://doccloak.com/",
       "applicationCategory": "SecurityApplication",
       "operatingSystem": "Web Browser",
@@ -58,7 +58,7 @@
       "codeRepository": "https://github.com/WLojek/DocCloak",
       "featureList": [
         "Detects 12+ entity types: persons, emails, phones, SSNs, credit cards, addresses, companies",
-        "Runs entirely in the browser — no backend, no API, no telemetry",
+        "Runs entirely in the browser - no backend, no API, no telemetry",
         "Multiple ML models (GLiNER PII Edge, BardS.ai EU PII)",
         "Regex pattern detection for 17 regions (US + 16 European countries)",
         "Round-trip de-anonymization restores names in AI responses",
@@ -75,35 +75,35 @@
         <h1 style="font-size: 2rem; margin-bottom: 0.5rem;">DocCloak</h1>
         <p style="font-size: 1.25rem; color: #555; margin-top: 0;"><strong>Use AI without leaking client data.</strong></p>
 
-        <p>DocCloak is an open-source document anonymizer that strips personally identifiable information (PII) before you share documents with AI services — and restores the original names in the AI's response. Everything runs in your browser. No server, no API calls, no data leaves your machine.</p>
+        <p>DocCloak is an open-source document anonymizer that strips personally identifiable information (PII) before you share documents with AI services - and restores the original names in the AI's response. Everything runs in your browser. No server, no API calls, no data leaves your machine.</p>
 
         <p><strong>This page requires JavaScript to run.</strong> DocCloak performs all PII detection locally in your browser using WebAssembly, so JavaScript and a modern browser are required.</p>
 
         <h2>Who it's for</h2>
         <ul>
-          <li><strong>Lawyers and legal teams</strong> — redact client names from contracts before asking AI to review clauses</li>
-          <li><strong>Consultants</strong> — anonymize company data in reports before generating AI summaries</li>
-          <li><strong>Healthcare professionals</strong> — strip patient identifiers from notes before using AI for research</li>
-          <li><strong>HR departments</strong> — remove employee PII from documents before AI-assisted policy drafting</li>
+          <li><strong>Lawyers and legal teams</strong> - redact client names from contracts before asking AI to review clauses</li>
+          <li><strong>Consultants</strong> - anonymize company data in reports before generating AI summaries</li>
+          <li><strong>Healthcare professionals</strong> - strip patient identifiers from notes before using AI for research</li>
+          <li><strong>HR departments</strong> - remove employee PII from documents before AI-assisted policy drafting</li>
           <li><strong>Anyone</strong> who uses AI tools but handles sensitive data they can't afford to leak</li>
         </ul>
 
         <h2>How it works</h2>
         <ol>
           <li><strong>Paste</strong> your document or upload a .doc/.docx file</li>
-          <li><strong>Redact</strong> — DocCloak detects names, emails, phone numbers, addresses, and other PII using a local ML model and regex patterns</li>
-          <li><strong>Copy</strong> the anonymized text into any AI service (ChatGPT, Claude, Gemini, etc.) — or download the redacted document</li>
-          <li><strong>Restore</strong> — paste the AI's response back into DocCloak to replace placeholders with the original names</li>
+          <li><strong>Redact</strong> - DocCloak detects names, emails, phone numbers, addresses, and other PII using a local ML model and regex patterns</li>
+          <li><strong>Copy</strong> the anonymized text into any AI service (ChatGPT, Claude, Gemini, etc.) - or download the redacted document</li>
+          <li><strong>Restore</strong> - paste the AI's response back into DocCloak to replace placeholders with the original names</li>
         </ol>
 
         <h2>Features</h2>
         <ul>
-          <li>Runs locally — ML models run in-browser via ONNX Runtime WebAssembly, zero network requests during anonymization</li>
+          <li>Runs locally - ML models run in-browser via ONNX Runtime WebAssembly, zero network requests during anonymization</li>
           <li>12+ entity types: persons, emails, phones, SSNs, credit cards, dates, currencies, IP addresses, IBANs, addresses, companies, custom labels</li>
           <li>Supports .doc and .docx documents with all formatting preserved</li>
           <li>Regex pattern detection for 17 regions including the US and 16 European countries</li>
           <li>8 UI languages: English, Polish, German, French, Spanish, Portuguese, Swedish, Norwegian</li>
-          <li>Open source under AGPL-3.0 — every line of code is auditable on GitHub</li>
+          <li>Open source under AGPL-3.0 - every line of code is auditable on GitHub</li>
         </ul>
 
         <p><a href="https://github.com/WLojek/DocCloak">View source on GitHub</a></p>
