@@ -49,7 +49,7 @@ export function getExecutionProviders(): { providers: string[]; isExplicit: bool
 function loadSavedProviderId(): ProviderId {
   const saved = localStorage.getItem(PROVIDER_STORAGE_KEY);
   if (saved && PROVIDERS.some((p) => p.id === saved)) return saved as ProviderId;
-  return 'gliner';
+  return 'bardsai';
 }
 
 // ── Worker singleton ───────────────────────────────────────

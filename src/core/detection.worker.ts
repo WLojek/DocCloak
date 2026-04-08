@@ -18,7 +18,7 @@ function createProvider(id: ProviderId): DetectionProvider {
   return new GlinerProvider();
 }
 
-let activeId: ProviderId = 'gliner';
+let activeId: ProviderId = 'bardsai';
 let provider: DetectionProvider = createProvider(activeId);
 let regexEnabled = false;
 let regexRegion = 'all';
