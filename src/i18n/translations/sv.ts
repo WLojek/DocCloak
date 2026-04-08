@@ -101,6 +101,7 @@ export const sv: Translations = {
     emptyStateStep1: 'Klistra in text eller ladda upp ett dokument till vänster',
     emptyStateStep2: 'Klicka på "Maskera dokument" nedan',
     emptyStateStep3: 'Kopiera den säkra texten eller ladda ner den skyddade filen',
+    emptyStateTip: 'Tips: klicka på kugghjulsikonen för att ändra detekteringsmodell, språk eller känslighet.',
     downloadDocx: 'Ladda ner skyddad fil',
     downloaded: 'Nedladdad',
     exportFailed: 'Export misslyckades. Det här filformatet kanske inte stöds.',

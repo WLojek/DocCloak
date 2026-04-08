@@ -101,6 +101,7 @@ export const no: Translations = {
     emptyStateStep1: 'Lim inn tekst eller last opp et dokument til venstre',
     emptyStateStep2: 'Klikk «Maskér dokument» nedenfor',
     emptyStateStep3: 'Kopier den sikre teksten eller last ned den beskyttede filen',
+    emptyStateTip: 'Tips: klikk på tannhjulikonet for å endre deteksjonsmodell, språk eller følsomhet.',
     downloadDocx: 'Last ned beskyttet fil',
     downloaded: 'Lastet ned',
     exportFailed: 'Eksport mislyktes. Dette filformatet støttes kanskje ikke.',

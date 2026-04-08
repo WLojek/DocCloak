@@ -101,6 +101,7 @@ export const es: Translations = {
     emptyStateStep1: 'Pegue texto o suba un documento a la izquierda',
     emptyStateStep2: 'Haga clic en "Redactar documento" abajo',
     emptyStateStep3: 'Copie el texto seguro o descargue el archivo protegido',
+    emptyStateTip: 'Consejo: haga clic en el icono del engranaje para cambiar el modelo de detección, el idioma o la sensibilidad.',
     downloadDocx: 'Descargar archivo protegido',
     downloaded: 'Descargado',
     exportFailed: 'Error al exportar. Es posible que este formato de archivo no sea compatible.',

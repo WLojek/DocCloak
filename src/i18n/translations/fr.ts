@@ -101,6 +101,7 @@ export const fr: Translations = {
     emptyStateStep1: 'Collez du texte ou importez un document à gauche',
     emptyStateStep2: 'Cliquez sur « Censurer le document » ci-dessous',
     emptyStateStep3: 'Copiez le texte sécurisé ou téléchargez le fichier protégé',
+    emptyStateTip: 'Astuce : cliquez sur l\'icône d\'engrenage pour changer le modèle de détection, la langue ou la sensibilité.',
     downloadDocx: 'Télécharger le fichier protégé',
     downloaded: 'Téléchargé',
     exportFailed: 'Échec de l\'exportation. Ce format de fichier n\'est peut-être pas pris en charge.',

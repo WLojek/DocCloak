@@ -105,6 +105,7 @@ export const pl: Translations = {
     emptyStateStep1: 'Wklej tekst lub prześlij dokument po lewej',
     emptyStateStep2: 'Kliknij „Redaguj dokument" poniżej',
     emptyStateStep3: 'Skopiuj bezpieczny tekst lub pobierz chroniony plik',
+    emptyStateTip: 'Wskazówka: kliknij ikonę koła zębatego, aby zmienić model wykrywania, język lub czułość.',
     downloadDocx: 'Pobierz chroniony plik',
     downloaded: 'Pobrano',
     exportFailed: 'Eksport nie powiódł się. Ten format pliku może nie być obsługiwany.',

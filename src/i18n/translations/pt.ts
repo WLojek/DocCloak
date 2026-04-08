@@ -101,6 +101,7 @@ export const pt: Translations = {
     emptyStateStep1: 'Cole texto ou carregue um documento à esquerda',
     emptyStateStep2: 'Clique em "Redigir documento" abaixo',
     emptyStateStep3: 'Copie o texto seguro ou baixe o arquivo protegido',
+    emptyStateTip: 'Dica: clique no ícone de engrenagem para alterar o modelo de detecção, idioma ou sensibilidade.',
     downloadDocx: 'Baixar arquivo protegido',
     downloaded: 'Baixado',
     exportFailed: 'Falha na exportação. Este formato de arquivo pode não ser suportado.',

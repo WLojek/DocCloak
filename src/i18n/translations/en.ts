@@ -101,6 +101,7 @@ export const en: Translations = {
     emptyStateStep1: 'Paste text or upload a document on the left',
     emptyStateStep2: 'Click "Redact Document" below',
     emptyStateStep3: 'Copy the safe text or download the protected file',
+    emptyStateTip: 'Tip: click the gear icon to change detection model, language, or sensitivity.',
     downloadDocx: 'Download Protected File',
     downloaded: 'Downloaded',
     exportFailed: 'Export failed. This file format may not be supported.',

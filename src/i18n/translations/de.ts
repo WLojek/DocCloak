@@ -101,6 +101,7 @@ export const de: Translations = {
     emptyStateStep1: 'Fügen Sie links Text ein oder laden Sie ein Dokument hoch',
     emptyStateStep2: 'Klicken Sie unten auf „Dokument schwärzen"',
     emptyStateStep3: 'Kopieren Sie den sicheren Text oder laden Sie die geschützte Datei herunter',
+    emptyStateTip: 'Tipp: Klicken Sie auf das Zahnradsymbol, um Erkennungsmodell, Sprache oder Empfindlichkeit zu ändern.',
     downloadDocx: 'Geschützte Datei herunterladen',
     downloaded: 'Heruntergeladen',
     exportFailed: 'Export fehlgeschlagen. Dieses Dateiformat wird möglicherweise nicht unterstützt.',

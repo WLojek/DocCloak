@@ -83,6 +83,7 @@ export interface Translations {
     emptyStateStep1: string;
     emptyStateStep2: string;
     emptyStateStep3: string;
+    emptyStateTip: string;
     downloadDocx: string;
     downloaded: string;
     exportFailed: string;

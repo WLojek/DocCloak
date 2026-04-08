@@ -124,6 +124,7 @@ export function TextOutput({ value, entries, loading }: TextOutputProps) {
                 </div>
               ))}
             </div>
+            <p className="text-[10px] text-muted-foreground/60 leading-relaxed mt-4 max-w-[220px] italic">{t.textOutput.emptyStateTip}</p>
           </div>
         )}
       </div>
