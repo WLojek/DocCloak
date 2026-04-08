@@ -76,17 +76,15 @@ export function TextOutput({ value, entries, loading }: TextOutputProps) {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center justify-center h-11 relative border-b-2 border-[#111111] bg-[#111111] px-3">
-        <h3 className="label-meta text-[#F9F9F7] tracking-[0.15em]">
+      <div className="flex items-center justify-between h-11 relative border-b border-[#C8C5BC] px-4 bg-[#F4F3EE]">
+        <h3 className="font-serif text-sm text-[#111111] font-medium">
           {t.textOutput.title}
         </h3>
         {value && (
-          <div className="absolute right-2 flex items-center gap-1">
-            <Button variant="ghost" size="sm" onClick={handleCopy} className="gap-1.5 h-7 text-[#F9F9F7] hover:bg-[#F9F9F7]/10 hover:text-[#F9F9F7]">
-              {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-              {copied ? t.textOutput.copied : t.textOutput.copy}
-            </Button>
-          </div>
+          <Button variant="ghost" size="sm" onClick={handleCopy} className="gap-1.5 h-7 text-[#525252] hover:bg-[#E5E5E0] hover:text-[#111111]">
+            {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+            {copied ? t.textOutput.copied : t.textOutput.copy}
+          </Button>
         )}
       </div>
       <div className="flex-1 min-h-[200px] p-4 text-foreground text-sm leading-relaxed whitespace-pre-wrap font-light">
@@ -112,19 +110,19 @@ export function TextOutput({ value, entries, loading }: TextOutputProps) {
         ) : (
           /* Empty state: numbered guide */
           <div className="flex flex-col items-center justify-center h-full min-h-[160px] text-center px-4">
-            <div className="w-10 h-10 bg-[#E5E5E0]/50 flex items-center justify-center mb-4">
-              <Shield className="w-5 h-5 text-muted-foreground/40" />
+            <div className="w-10 h-10 bg-[#F4F3EE] border border-[#C8C5BC] flex items-center justify-center mb-4">
+              <Shield className="w-5 h-5 text-[#525252]" />
             </div>
-            <p className="text-xs text-muted-foreground font-medium mb-4">{t.textOutput.emptyStateHint}</p>
-            <div className="space-y-2 text-left w-full max-w-[200px]">
+            <p className="text-sm text-[#111111] font-medium mb-4 font-serif">{t.textOutput.emptyStateHint}</p>
+            <div className="space-y-2 text-left w-full max-w-[220px]">
               {[t.textOutput.emptyStateStep1, t.textOutput.emptyStateStep2, t.textOutput.emptyStateStep3].map((step, i) => (
-                <div key={i} className="flex items-start gap-2">
-                  <span className="w-4 h-4 bg-[#E5E5E0] text-muted-foreground flex items-center justify-center flex-shrink-0 text-[9px] font-bold mt-0.5">{i + 1}</span>
-                  <p className="text-[10px] text-muted-foreground/60 leading-relaxed">{step}</p>
+                <div key={i} className="flex items-start gap-2.5">
+                  <span className="w-4 h-4 bg-[#111111] text-[#F9F9F7] flex items-center justify-center flex-shrink-0 text-[9px] font-bold mt-0.5">{i + 1}</span>
+                  <p className="text-xs text-[#525252] leading-relaxed">{step}</p>
                 </div>
               ))}
             </div>
-            <p className="text-[10px] text-muted-foreground/60 leading-relaxed mt-4 max-w-[220px] italic">{t.textOutput.emptyStateTip}</p>
+            <p className="text-[11px] text-[#707070] leading-relaxed mt-4 max-w-[240px] italic">{t.textOutput.emptyStateTip}</p>
           </div>
         )}
       </div>

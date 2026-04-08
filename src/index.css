@@ -4,12 +4,70 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Self-hosted fonts (no external requests, CSP-compliant) */
+@font-face {
+  font-family: 'Fraunces';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/fonts/fraunces-latin-variable.woff2') format('woff2-variations');
+}
+@font-face {
+  font-family: 'Fraunces';
+  font-style: italic;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/fonts/fraunces-latin-italic-variable.woff2') format('woff2-variations');
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/fonts/inter-latin.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url('/fonts/jetbrains-mono-latin.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Lora';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/fonts/lora-latin.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Lora';
+  font-style: italic;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/fonts/lora-italic-latin.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Playfair Display';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/fonts/playfair-display-latin.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Playfair Display';
+  font-style: italic;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/fonts/playfair-display-italic-latin.woff2') format('woff2');
+}
+
 @theme inline {
   --font-sans: 'Inter', 'Helvetica Neue', ui-sans-serif, system-ui, sans-serif;
-  --font-serif: 'Playfair Display', 'Times New Roman', serif;
-  --font-body: 'Lora', Georgia, serif;
+  --font-serif: 'Fraunces', 'Playfair Display', Georgia, serif;
+  --font-body: 'Inter', 'Helvetica Neue', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', 'Courier New', monospace;
-  --font-display: 'Playfair Display', 'Times New Roman', serif;
+  --font-display: 'Fraunces', 'Playfair Display', Georgia, serif;
 
   --color-background: #F9F9F7;
   --color-foreground: #111111;

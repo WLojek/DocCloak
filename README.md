@@ -12,7 +12,9 @@ DocCloak is an open-source document anonymizer that strips personally identifiab
 
 Everything runs in your browser. No server, no API calls, no data leaves your machine.
 
-![DocCloak Demo](docs/redact.gif)
+<p align="center">
+  <video src="docs/redact.mp4" controls width="100%" muted loop></video>
+</p>
 
 ## Who Is This For?
 
@@ -34,29 +36,18 @@ The AI never sees the real data. You get the full power of AI assistance without
 ## Features
 
 - **Runs locally** - ML models run in-browser via ONNX Runtime WebAssembly. Verify: open DevTools → Network tab → zero requests during anonymization
-
-![Network Tab - zero requests](docs/network-tab.gif)
-
 - **12 entity types** - persons, emails, phones, SSNs, credit cards, dates, currencies, IP addresses, IBANs, addresses, companies, and custom labels
 - **Document support** - upload `.doc` and `.docx` files, redact PII, and download the protected file with all formatting preserved
 - **Multiple detection models** - choose between GLiNER PII Edge (~65 MB, multi-language, custom labels) and BardS.ai EU PII (~279 MB, best for Polish, 35 entity types). Switch models from settings without reloading
 - **Hybrid detection** - ML model + 100+ regex rules for structured patterns across European regions and the US (AT, BE, CH, DE, DK, ES, FI, FR, GB, IE, IT, NL, NO, PL, PT, SE, US)
 - **Entity propagation** - when a name or company is detected once, DocCloak automatically finds all other occurrences throughout the document
 - **Round-trip de-anonymization** - paste the AI's response back in and DocCloak restores the original names automatically
-
-![Restore Names](docs/restore-names.png)
-
 - **Editable labels** - rename any placeholder (e.g., `<<REDACTED_3>>` → `<<Client_Name>>`) for clearer AI prompts
 - **Custom detection labels** - add your own entity types (e.g., `medical condition`, `job title`) to detect domain-specific information
 - **Manual tagging** - select any text and assign an entity type for things the model missed
-
-![Detected Information](docs/detected-informations.png)
-
 - **Configurable sensitivity** - adjust the confidence threshold to control the precision/recall trade-off
 - **8 European languages** - English, Polish, German, French, Spanish, Portuguese, Swedish, Norwegian
 - **Replacement styles** - labeled placeholders (`<<REDACTED_N>>`) or blanked out (`________`)
-
-![Options](docs/options.png)
 
 ## Getting Started
 

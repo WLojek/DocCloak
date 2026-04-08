@@ -16,6 +16,7 @@ import logoSrc from './ui/assets/doc-cloak-logo-light.png';
 import { version } from '../package.json';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useToast } from './ui/components/Toast.tsx';
+import { Hero, Audience, HowItWorks, FAQ } from './ui/components/Landing.tsx';
 import { PROVIDERS, REGEX_REGIONS } from './core/engine.ts';
 import type { RegexRegionId } from './core/engine.ts';
 
@@ -73,6 +74,17 @@ export default function App() {
   const [footerTooltipOpen, setFooterTooltipOpen] = useState(false);
   const clearSnapshotRef = useRef<{ text: string; anonymized: string; entities: typeof entities; entries: typeof entries } | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const toolRef = useRef<HTMLElement>(null);
+  const scrollToTool = useCallback(() => {
+    toolRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, []);
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 50);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   const handleDownloadDocx = useCallback(async () => {
     if (!exportDocx) return;
@@ -218,16 +230,15 @@ export default function App() {
       )}
 
       {/* Header */}
-      <header className="bg-[#F9F9F7] border-b-4 border-[#111111] px-6 py-3">
+      <header className={`sticky top-0 z-30 px-6 transition-all duration-200 backdrop-blur-md bg-[#F9F9F7]/85 ${scrolled ? 'py-2 border-b border-[#E5E5E0] shadow-[0_1px_0_0_rgba(17,17,17,0.04)]' : 'py-3 border-b border-transparent'}`}>
         <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <img src={logoSrc} alt="DocCloak" className="h-9" />
-            <div className="flex flex-col">
-              <span className="font-serif text-xl tracking-tight uppercase leading-none">
-                <span className="font-bold text-[#111111]">Doc</span>
-                <span className="font-normal text-[#525252]">Cloak</span>
+          <div className="flex items-center gap-3">
+            <img src={logoSrc} alt="DocCloak" className={`transition-all duration-200 ${scrolled ? 'h-7' : 'h-9'}`} />
+            <div className="flex items-baseline gap-2">
+              <span className={`font-serif tracking-tight leading-none text-[#111111] font-medium transition-all duration-200 ${scrolled ? 'text-xl' : 'text-2xl'}`}>
+                DocCloak
               </span>
-              <span className="label-meta text-muted-foreground mt-0.5 hidden sm:block">
+              <span className="text-[10px] text-muted-foreground font-mono hidden sm:inline">
                 v{version}
               </span>
             </div>
@@ -337,7 +348,7 @@ export default function App() {
                         <select
                           value={regexRegion}
                           onChange={(e) => handleRegexRegionChange(e.target.value as RegexRegionId)}
-                          className="mt-1 w-full px-2 py-1.5 text-xs border border-[#E5E5E0] bg-white text-[#111111] cursor-pointer focus:outline-none focus:border-[#111111]"
+                          className="mt-1 w-full px-2 py-1.5 text-xs border border-[#C8C5BC] bg-white text-[#111111] cursor-pointer focus:outline-none focus:border-[#111111]"
                         >
                           {REGEX_REGIONS.map((r) => (
                             <option key={r} value={r}>
@@ -387,8 +398,12 @@ export default function App() {
         </div>
       </header>
 
-      {/* Main content */}
-      <main className="max-w-6xl mx-auto px-6 py-10 newsprint-texture">
+      {/* Landing: hero + audience */}
+      <Hero onScrollToTool={scrollToTool} />
+      <Audience />
+
+      {/* Main content (the tool) */}
+      <main ref={toolRef} className="max-w-6xl mx-auto px-6 py-16 newsprint-texture scroll-mt-4">
         {/* Custom detection labels — only supported by GLiNER (zero-shot). BardS.ai has a fixed label set. */}
         {activeProvider !== 'bardsai' && (
         <div className="mb-6">
@@ -455,19 +470,19 @@ export default function App() {
 
         {/* File bar — input file (left) + download (right) */}
         {docxFileName && anonymizedText && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-0 border-2 border-b-0 border-[#111111] bg-[#F5F5F3]">
-            <div className="flex items-center gap-2 px-4 py-2.5 border-r-0 md:border-r-2 border-[#111111]">
-              <div className="w-7 h-7 bg-[#E5E5E0] flex items-center justify-center flex-shrink-0">
-                <FileText className="w-3.5 h-3.5 text-muted-foreground" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-0 border border-b-0 border-[#A8A498] bg-[#F4F3EE] shadow-[0_2px_24px_-6px_rgba(17,17,17,0.08)]">
+            <div className="flex items-center gap-2.5 px-4 py-2.5 border-r-0 md:border-r border-[#C8C5BC]">
+              <div className="w-7 h-7 bg-[#FFFFFF] border border-[#C8C5BC] flex items-center justify-center flex-shrink-0">
+                <FileText className="w-3.5 h-3.5 text-[#525252]" />
               </div>
-              <p className="text-xs text-muted-foreground truncate">{docxFileName}</p>
+              <p className="text-xs text-[#111111] truncate font-medium">{docxFileName}</p>
             </div>
-            <div className="flex items-center px-4 py-2.5">
+            <div className="flex items-center justify-end px-4 py-2">
               {hasDocxExtraction && entries.length > 0 && (
                 <button
                   onClick={handleDownloadDocx}
                   disabled={downloading}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-[#111111] text-[#F9F9F7] hover:bg-[#222222] transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-xs font-medium"
+                  className="flex items-center gap-2 px-3 py-1.5 border border-[#C8C5BC] bg-[#FFFFFF] text-[#111111] hover:bg-[#111111] hover:text-[#F9F9F7] hover:border-[#111111] transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-xs font-medium"
                 >
                   <Download className="w-3 h-3" />
                   {t.textOutput.downloadDocx}
@@ -478,11 +493,11 @@ export default function App() {
         )}
 
         {/* Document panels */}
-        <div className={`grid grid-cols-1 md:grid-cols-2 gap-0 border-2 border-[#111111] ${docxFileName && anonymizedText ? 'border-t-0' : ''}`}>
-          <div className="border-r-2 border-[#111111] bg-[#F9F9F7]">
+        <div className={`grid grid-cols-1 md:grid-cols-2 gap-0 border border-[#A8A498] bg-[#FFFFFF] shadow-[0_2px_24px_-6px_rgba(17,17,17,0.08)] ${docxFileName && anonymizedText ? 'border-t-0' : ''}`}>
+          <div className="md:border-r border-[#C8C5BC] bg-[#FFFFFF] flex flex-col">
             <TextInput value={inputText} onChange={handleInputChange} onClear={handleClear} entities={entities} onAddEntity={addManualEntity} onRemoveEntity={removeEntity} docxFileName={docxFileName} onLoadDocx={loadDocxFile} onRemoveDocx={removeDocxFile} />
           </div>
-          <div className="bg-[#F9F9F7]">
+          <div className="bg-[#FFFFFF] border-t md:border-t-0 border-[#C8C5BC] flex flex-col">
             <TextOutput value={anonymizedText} entries={entries} loading={anonymizing} />
           </div>
         </div>
@@ -495,7 +510,7 @@ export default function App() {
               onClick={anonymize}
               disabled={!inputText.trim() || !modelLoaded || anonymizing}
               size="lg"
-              className="gap-3 px-16 py-4 text-sm uppercase tracking-[0.25em] font-semibold shadow-[4px_4px_0px_0px_#111111] hover:shadow-[2px_2px_0px_0px_#111111] hover:translate-x-[2px] hover:translate-y-[2px] transition-all duration-150"
+              className="gap-2 px-12 py-4 text-sm uppercase tracking-[0.15em] font-semibold bg-[#111111] text-[#F9F9F7] hover:bg-[#222222] hover:text-[#F9F9F7] transition-colors disabled:bg-[#111111]/55 disabled:text-[#F9F9F7] disabled:cursor-not-allowed"
             >
               {anonymizing ? t.redactButton.redacting : <>{t.redactButton.redact} <ArrowRight className="w-4 h-4" /></>}
             </Button>
@@ -537,7 +552,7 @@ export default function App() {
                 </div>
               </div>
             </div>
-            <div className="border-b-2 border-[#111111] mb-6" />
+            <div className="border-b border-[#E5E5E0] mb-6" />
 
             <DeAnonymize
               onDeanonymize={deanonymize}
@@ -547,8 +562,12 @@ export default function App() {
         )}
       </main>
 
+      {/* Landing: how it works + FAQ */}
+      <HowItWorks />
+      <FAQ />
+
       {/* Footer */}
-      <footer className="border-t-2 border-[#111111] bg-[#F9F9F7] px-6 py-5 mt-10">
+      <footer className="border-t-2 border-[#111111] bg-[#F9F9F7] px-6 py-5">
         <div className="max-w-6xl mx-auto flex flex-col items-start gap-3">
           <div className="flex items-start gap-2.5">
             <Lock className="w-3.5 h-3.5 text-[#111111] shrink-0 -translate-y-px" />
@@ -580,6 +599,9 @@ export default function App() {
               </>
             )}
           </div>
+          <p className="label-meta text-muted-foreground/80 leading-none mt-2 pt-3 border-t border-[#E5E5E0] w-full">
+            © {new Date().getFullYear()} DocCloak · Built by Witold Łojek
+          </p>
         </div>
       </footer>
     </div>

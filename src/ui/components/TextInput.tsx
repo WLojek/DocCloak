@@ -176,19 +176,19 @@ export function TextInput({ value, onChange, onClear, entities, onAddEntity, onR
 
   return (
     <div
-      className="flex flex-col"
+      className="flex flex-col h-full"
       onDragEnter={onLoadDocx ? handleDragEnter : undefined}
       onDragLeave={onLoadDocx ? handleDragLeave : undefined}
       onDragOver={onLoadDocx ? handleDragOver : undefined}
       onDrop={onLoadDocx ? handleDrop : undefined}
     >
       {/* Header bar */}
-      <div className="flex items-center justify-center h-11 relative border-b-2 border-[#111111] bg-[#111111] px-3">
-        <h3 className="label-meta text-[#F9F9F7] tracking-[0.15em]">
+      <div className="flex items-center justify-between h-11 relative border-b border-[#C8C5BC] px-4 bg-[#F4F3EE]">
+        <h3 className="font-serif text-sm text-[#111111] font-medium">
           {t.textInput.title}
         </h3>
         {value && (
-          <Button variant="ghost" size="sm" onClick={docxFileName ? onRemoveDocx : onClear} className="gap-1.5 h-7 absolute right-2 text-[#F9F9F7] hover:bg-[#F9F9F7]/10 hover:text-[#F9F9F7]">
+          <Button variant="ghost" size="sm" onClick={docxFileName ? onRemoveDocx : onClear} className="gap-1.5 h-7 text-[#525252] hover:bg-[#E5E5E0] hover:text-[#111111]">
             <X className="w-3 h-3" />
             {t.textInput.clear}
           </Button>
@@ -203,14 +203,14 @@ export function TextInput({ value, onChange, onClear, entities, onAddEntity, onR
       </div>
 
       {/* Content area */}
-      <div className="min-h-[200px] relative">
+      <div className="min-h-[200px] relative flex-1">
         {/* Drag overlay */}
         {isDragging && (
-          <div className="absolute inset-0 z-20 bg-[#F9F9F7]/95 border-2 border-dashed border-[#111111] flex flex-col items-center justify-center gap-3 pointer-events-none">
-            <div className="w-12 h-12 border-2 border-[#111111] flex items-center justify-center">
+          <div className="absolute inset-0 z-20 bg-[#F9F9F7]/95 border border-dashed border-[#525252] flex flex-col items-center justify-center gap-3 pointer-events-none">
+            <div className="w-12 h-12 border border-[#525252] flex items-center justify-center">
               <Upload className="w-6 h-6 text-[#111111]" />
             </div>
-            <p className="text-sm font-medium text-[#111111] uppercase tracking-wider">{t.textInput.dragging}</p>
+            <p className="text-sm font-medium text-[#111111]">{t.textInput.dragging}</p>
           </div>
         )}
 
@@ -291,7 +291,7 @@ export function TextInput({ value, onChange, onClear, entities, onAddEntity, onR
               value={value}
               onChange={(e) => onChange(e.target.value)}
               placeholder={t.textInput.placeholder}
-              className={`w-full bg-transparent p-4 text-foreground placeholder-muted-foreground resize-none focus:outline-none text-sm leading-relaxed font-light ${showEmptyState ? 'min-h-[140px]' : 'min-h-[200px]'}`}
+              className={`w-full bg-transparent p-4 text-[#111111] placeholder:text-[#707070] resize-none focus:outline-none text-sm leading-relaxed ${showEmptyState ? 'min-h-[140px]' : 'min-h-[200px]'}`}
               style={{ fieldSizing: 'content' } as React.CSSProperties}
             />
             {/* Upload section — only visible when empty */}
