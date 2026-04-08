@@ -89,7 +89,12 @@ export function useAnonymizer() {
           rebuildAnonymization(text, results, excluded);
           setAnonymizing(false);
           setDetectionProgress(null);
-          window.scrollTo({ top: 0, behavior: 'smooth' });
+          // Scroll the tool back into view in case the page has drifted.
+          // We target <main> which wraps the tool; falls back to no-op if not found.
+          const toolEl = document.querySelector('main');
+          if (toolEl) {
+            toolEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
         }
       })
       .catch((err) => {

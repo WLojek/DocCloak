@@ -146,6 +146,60 @@ export interface Translations {
     title: string;
     description: string;
   };
+  landing: {
+    hero: {
+      titleBefore: string;
+      titleEm: string;
+      titleAfter: string;
+      subtitle: string;
+      subtitleEmphasis: string;
+      ctaTry: string;
+      ctaSeeHow: string;
+      trustBrowser: string;
+      trustOpenSource: string;
+      trustNoTracking: string;
+    };
+    audience: {
+      eyebrow: string;
+      heading: string;
+      lawyersTitle: string;
+      lawyersBody: string;
+      consultantsTitle: string;
+      consultantsBody: string;
+      healthcareTitle: string;
+      healthcareBody: string;
+      hrTitle: string;
+      hrBody: string;
+    };
+    howItWorks: {
+      eyebrow: string;
+      heading: string;
+      step1Title: string;
+      step1Body: string;
+      step2Title: string;
+      step2Body: string;
+      step3Title: string;
+      step3Body: string;
+      step4Title: string;
+      step4Body: string;
+    };
+    faq: {
+      eyebrow: string;
+      heading: string;
+      q1: string;
+      a1: string;
+      q2: string;
+      a2: string;
+      q3: string;
+      a3: string;
+      q4: string;
+      a4: string;
+      q5: string;
+      a5: string;
+      q6: string;
+      a6: string;
+    };
+  };
 }
 
 export interface Language {
