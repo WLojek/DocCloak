@@ -319,7 +319,7 @@ const REGEX_STORAGE_KEY = 'doccloak-regex-enabled';
 const REGEX_REGION_STORAGE_KEY = 'doccloak-regex-region';
 
 export const REGEX_REGIONS = [
-  'all', 'gb', 'pl', 'de', 'fr', 'es', 'pt', 'se', 'no',
+  'all', 'gb', 'us', 'pl', 'de', 'fr', 'es', 'pt', 'se', 'no',
   'it', 'nl', 'be', 'at', 'ch', 'ie', 'dk', 'fi',
 ] as const;
 

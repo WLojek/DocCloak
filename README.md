@@ -40,7 +40,7 @@ The AI never sees the real data. You get the full power of AI assistance without
 - **12 entity types** - persons, emails, phones, SSNs, credit cards, dates, currencies, IP addresses, IBANs, addresses, companies, and custom labels
 - **Document support** - upload `.doc` and `.docx` files, redact PII, and download the protected file with all formatting preserved
 - **Multiple detection models** - choose between GLiNER PII Edge (~65 MB, multi-language, custom labels) and BardS.ai EU PII (~279 MB, best for Polish, 35 entity types). Switch models from settings without reloading
-- **Hybrid detection** - ML model + 100+ regex rules for structured patterns across European regions (AT, BE, CH, DE, DK, ES, FI, FR, GB, IE, IT, NL, NO, PL, PT, SE)
+- **Hybrid detection** - ML model + 100+ regex rules for structured patterns across European regions and the US (AT, BE, CH, DE, DK, ES, FI, FR, GB, IE, IT, NL, NO, PL, PT, SE, US)
 - **Entity propagation** - when a name or company is detected once, DocCloak automatically finds all other occurrences throughout the document
 - **Round-trip de-anonymization** - paste the AI's response back in and DocCloak restores the original names automatically
 

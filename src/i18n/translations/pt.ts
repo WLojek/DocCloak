@@ -43,6 +43,7 @@ export const pt: Translations = {
     regexRegions: {
       all: 'Todas as regiões',
       gb: 'Reino Unido',
+      us: 'Estados Unidos',
       pl: 'Polónia',
       de: 'Alemanha',
       fr: 'França',

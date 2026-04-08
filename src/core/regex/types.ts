@@ -4,7 +4,7 @@ import type { EntityType } from '../types.ts';
 export type PiiDomain = 'financial' | 'medical' | 'legal' | 'hr' | 'identity' | 'contact' | 'technical' | 'general';
 
 /** Region code or 'universal' for patterns that apply globally */
-export type RegionCode = 'universal' | 'gb' | 'pl' | 'de' | 'fr' | 'es' | 'pt' | 'se' | 'no' | 'it' | 'nl' | 'be' | 'at' | 'ch' | 'ie' | 'dk' | 'fi' | (string & {});
+export type RegionCode = 'universal' | 'gb' | 'pl' | 'de' | 'fr' | 'es' | 'pt' | 'se' | 'no' | 'it' | 'nl' | 'be' | 'at' | 'ch' | 'ie' | 'dk' | 'fi' | 'us' | (string & {});
 
 export interface RegexRule {
   /** The regex pattern. MUST use the 'g' flag. */

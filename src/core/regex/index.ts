@@ -18,6 +18,7 @@ import { rules as ch } from './regions/ch.ts';
 import { rules as ie } from './regions/ie.ts';
 import { rules as dk } from './regions/dk.ts';
 import { rules as fi } from './regions/fi.ts';
+import { rules as us } from './regions/us.ts';
 
 export const ALL_REGEX_RULES: RegexRule[] = [
   ...universal,
@@ -37,4 +38,5 @@ export const ALL_REGEX_RULES: RegexRule[] = [
   ...ie,
   ...dk,
   ...fi,
+  ...us,
 ];

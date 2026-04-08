@@ -1,7 +1,7 @@
 {
   "name": "doccloak",
   "private": true,
-  "version": "0.4.5",
+  "version": "0.4.6",
   "type": "module",
   "description": "Offline, open-source document anonymizer. Strip PII before sharing with AI services.",
   "license": "AGPL-3.0",
