@@ -549,27 +549,26 @@ export default function App() {
 
       {/* Footer */}
       <footer className="border-t-2 border-[#111111] bg-[#F9F9F7] px-6 py-5 mt-10">
-        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between items-start gap-3">
-          <div className="flex items-center gap-2.5">
-            <Lock className="w-3.5 h-3.5 text-[#111111]" />
-            <p className="label-meta text-[#111111] leading-none">{t.footer.offlineMessage}</p>
+        <div className="max-w-6xl mx-auto flex flex-col items-start gap-3">
+          <div className="flex items-start gap-2.5">
+            <Lock className="w-3.5 h-3.5 text-[#111111] shrink-0 -translate-y-px" />
+            <p className="label-meta text-[#111111] leading-tight">{t.footer.offlineMessage}</p>
           </div>
           <a
             href="https://github.com/WLojek/DocCloak"
             target="_blank"
             rel="noopener noreferrer"
-            className="label-meta text-[#111111] hover:underline flex items-center gap-1.5 leading-none"
+            className="label-meta text-[#111111] hover:underline flex items-center gap-2.5 leading-none"
           >
-            <Github className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Open source on GitHub · AGPL-3.0</span>
-            <span className="sm:hidden">Open source · GitHub</span>
+            <Github className="w-3.5 h-3.5 shrink-0 -translate-y-px" />
+            <span>Open source on GitHub · AGPL-3.0</span>
           </a>
           <div className="relative">
             <button
               onClick={() => setFooterTooltipOpen(!footerTooltipOpen)}
-              className="label-meta text-muted-foreground hover:text-[#111111] transition-colors cursor-pointer flex items-center gap-1.5 leading-none"
+              className="label-meta text-[#111111] hover:underline cursor-pointer flex items-center gap-2.5 leading-none text-left"
             >
-              <Info className="w-3 h-3" />
+              <Info className="w-3.5 h-3.5 shrink-0 -translate-y-px" />
               {t.footer.verifyText}
             </button>
             {footerTooltipOpen && (
