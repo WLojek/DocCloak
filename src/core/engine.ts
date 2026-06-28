@@ -18,7 +18,7 @@ export const PROVIDERS: ProviderEntry[] = [
   {
     id: 'bardsai',
     label: 'BardS.ai EU PII',
-    description: 'Multilingual EU languages, 35 PII types, high accuracy (~279 MB)',
+    description: '24 EU languages, 35 PII types, high accuracy (~279 MB)',
   },
 ];
 

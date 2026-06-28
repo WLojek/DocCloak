@@ -27,7 +27,7 @@ export const de: Translations = {
     detectionModel: 'Erkennungsmodell',
     models: {
       gliner: { label: 'GLiNER PII Edge', description: 'Leichtgewichtig, mehrsprachig, benutzerdefinierte Labels (~65 MB)' },
-      bardsai: { label: 'BardS.ai EU PII', description: 'Mehrsprachig (EU-Sprachen), 35 PII-Typen, hohe Genauigkeit (~279 MB)' },
+      bardsai: { label: 'BardS.ai EU PII', description: '24 EU-Sprachen, 35 PII-Typen, hohe Genauigkeit (~279 MB)' },
     },
     acceleration: 'Beschleunigung',
     accelAuto: 'Auto',
