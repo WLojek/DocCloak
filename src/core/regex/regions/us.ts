@@ -108,7 +108,8 @@ export const rules: RegexRule[] = [
   // ── Healthcare ──────────────────────────────────────────
   {
     // CMS Medicare Beneficiary Identifier: 11 chars, no S/L/O/I/B/Z letters.
-    pattern: /\b[1-9][A-HJ-NP-Z][A-HJ-NP-Z0-9]\d[A-HJ-NP-Z][A-HJ-NP-Z0-9]\d[A-HJ-NP-Z]{2}\d{2}\b/g,
+    // Optional hyphens cover the CMS display format (4-3-4 grouping).
+    pattern: /\b[1-9][A-HJ-NP-Z][A-HJ-NP-Z0-9]\d-?[A-HJ-NP-Z][A-HJ-NP-Z0-9]\d-?[A-HJ-NP-Z]{2}\d{2}\b/g,
     type: 'SSN',
     detector: 'regex:us:mbi',
     confidence: 0.95,
@@ -125,7 +126,7 @@ export const rules: RegexRule[] = [
     region: 'us',
     domains: ['medical'],
     description: 'US DEA registration number (prescriber identifier, with checksum)',
-    examples: ['BJ1234563', 'AS9876543'],
+    examples: ['BJ1234563', 'AS9876547'],
     validate: validateDea,
   },
   {
@@ -186,8 +187,9 @@ export const rules: RegexRule[] = [
   },
   {
     // US street address: number + street name + USPS street suffix.
-    // Common USPS Publication 28 suffixes covered.
-    pattern: /\b\d{1,5}[A-Z]?\s+(?:[NSEW]\.?\s+|North\s+|South\s+|East\s+|West\s+)?[A-Z][\w]*(?:\s+[A-Z][\w]*)*\s+(?:Street|St|Road|Rd|Avenue|Ave|Boulevard|Blvd|Lane|Ln|Drive|Dr|Court|Ct|Circle|Cir|Place|Pl|Square|Sq|Terrace|Ter|Trail|Trl|Parkway|Pkwy|Highway|Hwy|Way|Plaza|Plz|Loop|Alley|Aly|Crossing|Xing|Expressway|Expy|Freeway|Fwy)\b\.?/gi,
+    // Common USPS Publication 28 suffixes covered. Street names may be
+    // ordinals ("5th Avenue") as well as regular words.
+    pattern: /\b\d{1,5}[A-Z]?\s+(?:[NSEW]\.?\s+|North\s+|South\s+|East\s+|West\s+)?(?:\d{1,4}(?:st|nd|rd|th)|[A-Z]\w*)(?:\s+(?:\d{1,4}(?:st|nd|rd|th)|[A-Z]\w*))*\s+(?:Street|St|Road|Rd|Avenue|Ave|Boulevard|Blvd|Lane|Ln|Drive|Dr|Court|Ct|Circle|Cir|Place|Pl|Square|Sq|Terrace|Ter|Trail|Trl|Parkway|Pkwy|Highway|Hwy|Way|Plaza|Plz|Loop|Alley|Aly|Crossing|Xing|Expressway|Expy|Freeway|Fwy)\b\.?/gi,
     type: 'ADDRESS',
     detector: 'regex:us:street',
     confidence: 0.85,
