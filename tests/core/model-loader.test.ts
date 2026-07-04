@@ -78,6 +78,9 @@ describe('fetchModelBlob', () => {
 
     expect(await blobBytes(blob)).toEqual(bytes(1, 2, 3, 4));
     expect(progress[progress.length - 1]).toEqual([4, 4]);
+    // The total must be known from the response headers on, not only at the
+    // end - the UI progress bar needs it while the body is still streaming.
+    expect(progress.every(([, total]) => total === 4)).toBe(true);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 

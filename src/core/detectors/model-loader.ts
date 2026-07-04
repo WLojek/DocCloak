@@ -106,12 +106,15 @@ interface AttemptResult {
 /**
  * One download attempt. Streams the body through onChunk. A watchdog aborts
  * the request if no bytes arrive for STALL_TIMEOUT_MS, covering both the
- * initial connection and mid-body stalls.
+ * initial connection and mid-body stalls. onHeaders fires as soon as the
+ * response headers are parsed - before the body streams - so callers can
+ * report a correct total alongside per-chunk progress.
  */
 async function downloadAttempt(
   url: string,
   offset: number,
   onChunk: (chunk: Uint8Array) => void,
+  onHeaders?: (info: AttemptResult) => void,
 ): Promise<AttemptResult> {
   const controller = new AbortController();
   let watchdog = setTimeout(() => controller.abort(), STALL_TIMEOUT_MS);
@@ -140,6 +143,7 @@ async function downloadAttempt(
       const contentLength = response.headers.get('content-length');
       if (contentLength) total = parseInt(contentLength, 10);
     }
+    onHeaders?.({ total, resumed });
 
     if (!response.body) {
       // No streaming support - read in one shot (no resume possible, but
@@ -203,11 +207,18 @@ export async function fetchModelBlob(
   for (let attempt = 1; ; attempt++) {
     try {
       const requestedOffset = downloaded;
-      const result = await downloadAttempt(url, requestedOffset, (chunk) => {
-        chunks.push(chunk);
-        downloaded += chunk.length;
-        reportProgress(downloaded, total);
-      });
+      const result = await downloadAttempt(
+        url,
+        requestedOffset,
+        (chunk) => {
+          chunks.push(chunk);
+          downloaded += chunk.length;
+          reportProgress(downloaded, total);
+        },
+        (info) => {
+          if (info.total > 0) total = info.resumed ? info.total : Math.max(total, info.total);
+        },
+      );
 
       if (requestedOffset > 0 && !result.resumed) {
         // Server ignored the Range header and sent the file from the start.
