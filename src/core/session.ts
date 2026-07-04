@@ -26,7 +26,11 @@ export class AnonymizationSession {
       ? '________'
       : `<<REDACTED_${this.counter}>>`;
     this.forwardMap.set(original, placeholder);
-    this.reverseMap.set(placeholder, original);
+    // Blanked placeholders all collide on the same string; they are not
+    // reversible, so keep them out of the restore map.
+    if (this.mode !== 'blanked') {
+      this.reverseMap.set(placeholder, original);
+    }
     this.entityTypeMap.set(original, entityType);
     return placeholder;
   }
@@ -38,7 +42,8 @@ export class AnonymizationSession {
       (a, b) => b[0].length - a[0].length
     );
     for (const [placeholder, original] of entries) {
-      result = result.replaceAll(placeholder, original);
+      // Replacer function keeps '$' sequences in the original value inert
+      result = result.replaceAll(placeholder, () => original);
     }
     return result;
   }
@@ -47,9 +52,15 @@ export class AnonymizationSession {
     // Sort entities by position (end to start) to preserve indices during replacement
     const sorted = [...entities].sort((a, b) => b.start - a.start);
     let result = text;
+    // Clamp overlapping entities (e.g. a manual selection crossing a detected
+    // one) so a later replacement never splices into an already-replaced range.
+    let minStart = text.length;
     for (const entity of sorted) {
+      const effectiveEnd = Math.min(entity.end, minStart);
+      if (effectiveEnd <= entity.start) continue;
       const placeholder = this.anonymize(entity.value, entity.type);
-      result = result.slice(0, entity.start) + placeholder + result.slice(entity.end);
+      result = result.slice(0, entity.start) + placeholder + result.slice(effectiveEnd);
+      minStart = entity.start;
     }
     return result;
   }

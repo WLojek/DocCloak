@@ -1,4 +1,5 @@
 import CFB from 'cfb';
+import { normalizeReplacements } from './docx.ts';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -7,6 +8,17 @@ interface DocPiece {
   cpEnd: number;
   fc: number;          // raw 4-byte PCD fc value (includes compression flag)
   isCompressed: boolean;
+}
+
+interface ParsedDoc {
+  container: CFB.CFB$Container;
+  wordDocEntry: CFB.CFB$Entry;
+  tableEntry: CFB.CFB$Entry;
+  wordDoc: Uint8Array;
+  wordView: DataView;
+  tableDoc: Uint8Array;
+  ccpText: number;
+  pieces: DocPiece[];
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -233,36 +245,139 @@ function readPlcBlob(tableStream: Uint8Array, fc: number, lcb: number): Uint8Arr
   return tableStream.slice(fc, fc + lcb);
 }
 
+// ─── Shared parsing ──────────────────────────────────────────────────────────
+
+function parseDocStreams(buffer: ArrayBuffer): ParsedDoc {
+  const data = new Uint8Array(buffer);
+  const container = CFB.parse(data);
+
+  const wordDocEntry = CFB.find(container, '/WordDocument') ?? CFB.find(container, 'WordDocument');
+  if (!wordDocEntry?.content) throw new Error('Invalid .doc file: missing WordDocument stream');
+  const wordDoc = toUint8Array(wordDocEntry.content);
+  const wordView = new DataView(wordDoc.buffer, wordDoc.byteOffset, wordDoc.byteLength);
+
+  const wIdent = wordView.getUint16(0, true);
+  if (wIdent !== 0xa5ec) {
+    throw new Error('Invalid .doc file: bad magic number');
+  }
+
+  const flags = wordView.getUint16(0x000a, true);
+  const whichTbl = (flags >> 9) & 1;
+  const tblName = whichTbl ? '1Table' : '0Table';
+  const tableEntry = CFB.find(container, '/' + tblName) ?? CFB.find(container, tblName);
+  if (!tableEntry?.content) throw new Error(`Invalid .doc file: missing ${tblName} stream`);
+  const tableDoc = toUint8Array(tableEntry.content);
+
+  const ccpText = wordView.getInt32(0x004c, true);
+  const fcClx = wordView.getInt32(0x01a2, true);
+  const lcbClx = wordView.getInt32(0x01a6, true);
+  if (lcbClx <= 0 || fcClx < 0) {
+    throw new Error('Invalid .doc file: missing CLX data');
+  }
+
+  const pieces = parsePieces(tableDoc, fcClx, lcbClx);
+  return { container, wordDocEntry, tableEntry, wordDoc, wordView, tableDoc, ccpText, pieces };
+}
+
+// ─── Text extraction with CP mapping ─────────────────────────────────────────
+
+interface DocExtraction {
+  /** Normalized plain text (whole document: main text plus footnotes, headers, comments) */
+  text: string;
+  /** For each character of `text`, the CP (character position) it came from */
+  cpMap: number[];
+}
+
+/**
+ * Decode every piece in the piece table (main text and all subdocuments:
+ * footnotes, headers/footers, comments, endnotes, text boxes) and normalize
+ * Word's structural control characters, keeping a map from each normalized
+ * character back to its CP so replacements can be located exactly.
+ */
+function extractDocContent(parsed: ParsedDoc): DocExtraction {
+  const { wordDoc, wordView, pieces } = parsed;
+
+  // Pass 1: decode raw characters with their CPs
+  const chars: string[] = [];
+  const cps: number[] = [];
+  for (const piece of pieces) {
+    const charCount = piece.cpEnd - piece.cpStart;
+    if (charCount <= 0) continue;
+    const rawOffset = piece.fc & 0x3fffffff;
+
+    if (piece.isCompressed) {
+      const byteOffset = rawOffset / 2;
+      for (let j = 0; j < charCount; j++) {
+        const bytePos = byteOffset + j;
+        if (bytePos >= wordDoc.length) break;
+        const ch = cp1252ToChar(wordDoc[bytePos]);
+        if (ch) {
+          chars.push(ch);
+          cps.push(piece.cpStart + j);
+        }
+      }
+    } else {
+      const byteOffset = rawOffset;
+      for (let j = 0; j < charCount; j++) {
+        const pos = byteOffset + j * 2;
+        if (pos + 1 >= wordDoc.length) break;
+        chars.push(String.fromCharCode(wordView.getUint16(pos, true)));
+        cps.push(piece.cpStart + j);
+      }
+    }
+  }
+
+  // Pass 2: normalize control characters. Word's binary format uses them as
+  // structural markers (cell mark, line break, page break, field chars).
+  // Every kept character records the CP it represents.
+  let text = '';
+  const cpMap: number[] = [];
+  for (let i = 0; i < chars.length; i++) {
+    const ch = chars[i];
+    const code = ch.charCodeAt(0);
+    if (ch === '\r') {
+      text += '\n';
+      cpMap.push(cps[i]);
+      if (i + 1 < chars.length && chars[i + 1] === '\n') i++; // collapse \r\n
+    } else if (code === 0x07) {
+      text += '\t';
+      cpMap.push(cps[i]);
+    } else if (code === 0x0b || code === 0x0c) {
+      text += '\n';
+      cpMap.push(cps[i]);
+    } else if (code <= 0x06 || code === 0x08 || (code >= 0x0e && code <= 0x1f)) {
+      // structural marker: dropped from the normalized text
+    } else {
+      text += ch;
+      cpMap.push(cps[i]);
+    }
+  }
+
+  return { text, cpMap };
+}
+
 // ─── Main: write anonymized .doc ─────────────────────────────────────────────
 
 export async function writeAnonymizedDoc(
   buffer: ArrayBuffer,
   replacements: Array<{ start: number; end: number; replacement: string }>,
 ): Promise<Blob> {
+  const parsed = parseDocStreams(buffer);
+  const { container, wordDocEntry, tableEntry, wordDoc: origWordDoc, wordView: wv, tableDoc: origTable, ccpText, pieces } = parsed;
+
+  // Author/title/company metadata lives outside the text streams; scrub it always
+  scrubOleMetadataStreams(container);
+
   if (replacements.length === 0) {
-    return new Blob([buffer], { type: 'application/msword' });
+    // Still scrub the associated-strings table (author, template paths) in place
+    scrubSttbfAssoc(origTable, wv);
+    wordDocEntry.content = origWordDoc;
+    tableEntry.content = origTable;
+    const bytes = CFB.write(container, { type: 'array' }) as number[];
+    return new Blob([new Uint8Array(bytes)], { type: 'application/msword' });
   }
 
-  const data = new Uint8Array(buffer);
-  const container = CFB.parse(data);
-
-  // ── Get streams ──
-  const wordDocEntry = CFB.find(container, '/WordDocument') ?? CFB.find(container, 'WordDocument');
-  if (!wordDocEntry?.content) throw new Error('Missing WordDocument stream');
-  const origWordDoc = toUint8Array(wordDocEntry.content);
-  const wv = new DataView(origWordDoc.buffer, origWordDoc.byteOffset, origWordDoc.byteLength);
-
-  const flags = wv.getUint16(0x000a, true);
-  const whichTbl = (flags >> 9) & 1;
-  const tblName = whichTbl ? '1Table' : '0Table';
-  const tableEntry = CFB.find(container, '/' + tblName) ?? CFB.find(container, tblName);
-  if (!tableEntry?.content) throw new Error(`Missing ${tblName} stream`);
-  const origTable = toUint8Array(tableEntry.content);
-
-  // ── Read FIB ──
-  const ccpText = wv.getInt32(0x004c, true);
-  const fcClx = wv.getInt32(0x01a2, true);
-  const lcbClx = wv.getInt32(0x01a6, true);
+  // ── Read remaining FIB pointers ──
   const fcPlcfBteChpx = wv.getInt32(0x00fa, true);
   const lcbPlcfBteChpx = wv.getInt32(0x00fe, true);
   const fcPlcfBtePapx = wv.getInt32(0x0102, true);
@@ -270,9 +385,32 @@ export async function writeAnonymizedDoc(
   const fcPlcfSed = wv.getInt32(0x00ca, true);
   const lcbPlcfSed = wv.getInt32(0x00ce, true);
 
-  // ── Parse piece table ──
-  const pieces = parsePieces(origTable, fcClx, lcbClx);
-  const sorted = [...replacements].sort((a, b) => a.start - b.start);
+  // ── Map replacement offsets (normalized text space) to CP space ──
+  // The offsets the caller passes are positions in the text produced by
+  // readDocText. Normalization drops/collapses control characters, so those
+  // offsets shift against CPs; apply the recorded map to land exactly.
+  const { text, cpMap } = extractDocContent(parsed);
+  const cpReplacements: Array<{ start: number; end: number; replacement: string }> = [];
+  for (const repl of normalizeReplacements(replacements)) {
+    if (repl.start < 0 || repl.end > text.length || repl.start >= repl.end) {
+      // Offsets that do not match the extracted text indicate a caller bug.
+      // Fail closed: never export a file whose redaction we cannot place.
+      throw new Error('Replacement offsets do not match the document text');
+    }
+    cpReplacements.push({
+      start: cpMap[repl.start],
+      end: cpMap[repl.end - 1] + 1,
+      replacement: repl.replacement,
+    });
+  }
+
+  // Main-text replacements go through the piece table (labeled placeholders).
+  // Replacements in subdocuments (footnotes, headers, comments) are redacted
+  // in place with length-preserving overwrites: shifting CPs there would
+  // require rewriting every subdocument PLC, so we destroy the characters
+  // instead of substituting placeholders.
+  const sorted = cpReplacements.filter((r) => r.end <= ccpText);
+  const subDocReplacements = cpReplacements.filter((r) => r.end > ccpText);
 
   // ── Build new pieces ──
   const appendStart = align512(origWordDoc.length);
@@ -319,7 +457,7 @@ export async function writeAnonymizedDoc(
   const newCcpText = newCp;
   const totalDelta = newCcpText - ccpText;
 
-  // Non-main-text pieces (footnotes, headers, etc.) — keep original FCs, shift CPs
+  // Non-main-text pieces (footnotes, headers, etc.) - keep original FCs, shift CPs
   for (const piece of pieces) {
     if (piece.cpEnd <= ccpText) continue;
     const clampStart = Math.max(piece.cpStart, ccpText);
@@ -352,6 +490,18 @@ export async function writeAnonymizedDoc(
     newWordDoc.set(appendedData, appendStart);
     newWordDoc.set(buildDefaultChpxFkp(appendStart, appendStart + appendedData.length), chpxPageOff);
     newWordDoc.set(buildDefaultPapxFkp(appendStart, appendStart + appendedData.length), papxPageOff);
+  }
+
+  // ── Destroy replaced characters in the copied stream ──
+  // The new piece table stops referencing replaced ranges, but the bytes were
+  // copied above and would remain recoverable (data remanence). Overwrite them.
+  for (const repl of sorted) {
+    overwritePieceBytes(newWordDoc, pieces, repl.start, repl.end, 0x20);
+  }
+  // Subdocument ranges stay referenced by the piece table, so the overwrite
+  // itself is the redaction: the characters render as 'X'.
+  for (const repl of subDocReplacements) {
+    overwritePieceBytes(newWordDoc, pieces, repl.start, repl.end, 0x58);
   }
 
   // ── Build extended PlcBteChpx / PlcBtePapx ──
@@ -409,9 +559,15 @@ export async function writeAnonymizedDoc(
     fv.setInt32(0x00ce, newPlcfSed.length, true);
   }
 
+  // ── Scrub associated strings (author, last-saved-by, template/data paths) ──
+  scrubSttbfAssoc(newTable, fv);
+
   // ── Write back to OLE2 container ──
+  // CFB.write sizes streams from entry.size, not content length; keep in sync
   wordDocEntry.content = newWordDoc;
+  wordDocEntry.size = newWordDoc.length;
   tableEntry.content = newTable;
+  tableEntry.size = newTable.length;
 
   const output = CFB.write(container, { type: 'array' }) as number[];
   return new Blob([new Uint8Array(output)], { type: 'application/msword' });
@@ -422,82 +578,198 @@ export async function writeAnonymizedDoc(
 /**
  * Extract plain text from a legacy .doc (OLE2/Compound File Binary) file.
  * Parses the FIB and piece table to correctly extract text from both
- * compressed (CP1252) and Unicode pieces.
+ * compressed (CP1252) and Unicode pieces. The result covers the whole
+ * document: main text plus footnotes, headers/footers, and comments, so PII
+ * in those regions is visible to detection.
  */
 export function readDocText(buffer: ArrayBuffer): string {
-  const data = new Uint8Array(buffer);
-  const cfb = CFB.parse(data);
+  return extractDocContent(parseDocStreams(buffer)).text;
+}
 
-  const wordDocEntry = CFB.find(cfb, '/WordDocument') ?? CFB.find(cfb, 'WordDocument');
-  if (!wordDocEntry || !wordDocEntry.content) {
-    throw new Error('Invalid .doc file: missing WordDocument stream');
-  }
+// ─── In-place byte redaction ─────────────────────────────────────────────────
 
-  const wordDoc = toUint8Array(wordDocEntry.content);
-  const wordView = new DataView(wordDoc.buffer, wordDoc.byteOffset, wordDoc.byteLength);
-
-  const wIdent = wordView.getUint16(0, true);
-  if (wIdent !== 0xa5ec) {
-    throw new Error('Invalid .doc file: bad magic number');
-  }
-
-  const flags = wordView.getUint16(0x000a, true);
-  const whichTblStm = (flags >> 9) & 1;
-  const tableName = whichTblStm ? '1Table' : '0Table';
-
-  const tableEntry = CFB.find(cfb, '/' + tableName) ?? CFB.find(cfb, tableName);
-  if (!tableEntry || !tableEntry.content) {
-    throw new Error(`Invalid .doc file: missing ${tableName} stream`);
-  }
-
-  const tableDoc = toUint8Array(tableEntry.content);
-  const ccpText = wordView.getInt32(0x004c, true);
-  const fcClx = wordView.getInt32(0x01a2, true);
-  const lcbClx = wordView.getInt32(0x01a6, true);
-
-  if (lcbClx <= 0 || fcClx < 0) {
-    throw new Error('Invalid .doc file: missing CLX data');
-  }
-
-  const pieces = parsePieces(tableDoc, fcClx, lcbClx);
-
-  let text = '';
+/**
+ * Overwrite the bytes backing a CP range with a fill character, following the
+ * piece table (handles both CP1252 and UTF-16 pieces). Used to destroy
+ * original text that would otherwise remain recoverable in the output stream.
+ */
+function overwritePieceBytes(
+  target: Uint8Array,
+  pieces: DocPiece[],
+  cpStart: number,
+  cpEnd: number,
+  fillChar: number,
+): void {
   for (const piece of pieces) {
-    const charCount = piece.cpEnd - piece.cpStart;
-    if (charCount <= 0) continue;
-    if (piece.cpStart >= ccpText) continue; // only main text
+    const overlapStart = Math.max(cpStart, piece.cpStart);
+    const overlapEnd = Math.min(cpEnd, piece.cpEnd);
+    if (overlapStart >= overlapEnd) continue;
 
-    const charsToRead = Math.min(charCount, ccpText - piece.cpStart);
     const rawOffset = piece.fc & 0x3fffffff;
+    const cpDelta = overlapStart - piece.cpStart;
+    const count = overlapEnd - overlapStart;
 
     if (piece.isCompressed) {
-      const byteOffset = rawOffset / 2;
-      for (let j = 0; j < charsToRead; j++) {
-        const bytePos = byteOffset + j;
-        if (bytePos >= wordDoc.length) break;
-        text += cp1252ToChar(wordDoc[bytePos]);
+      const byteStart = rawOffset / 2 + cpDelta;
+      for (let j = 0; j < count; j++) {
+        if (byteStart + j < target.length) target[byteStart + j] = fillChar;
       }
     } else {
-      const byteOffset = rawOffset;
-      for (let j = 0; j < charsToRead; j++) {
-        const pos = byteOffset + j * 2;
-        if (pos + 1 >= wordDoc.length) break;
-        text += String.fromCharCode(wordView.getUint16(pos, true));
+      const byteStart = rawOffset + 2 * cpDelta;
+      for (let j = 0; j < count; j++) {
+        const pos = byteStart + j * 2;
+        if (pos + 1 < target.length) {
+          target[pos] = fillChar;
+          target[pos + 1] = 0;
+        }
       }
     }
   }
+}
 
-  // Control characters are intentional here: Word's binary format uses them
-  // as structural markers (cell mark, line break, page break, field chars).
-  /* eslint-disable no-control-regex */
-  return text.slice(0, ccpText)
-    .replace(/\r\n/g, '\n')
-    .replace(/\r/g, '\n')
-    .replace(/\x07/g, '\t')
-    .replace(/[\x00-\x06\x08\x0e-\x1f]/g, '')
-    .replace(/\x0b/g, '\n')
-    .replace(/\x0c/g, '\n');
-  /* eslint-enable no-control-regex */
+// ─── Metadata scrubbing ──────────────────────────────────────────────────────
+
+const FC_STTBF_ASSOC = 0x019a;
+const LCB_STTBF_ASSOC = 0x019e;
+
+/**
+ * Scrub the associated-strings table (SttbfAssoc) in the Table stream. It
+ * holds the document author, last-saved-by name, attached template path and
+ * mail-merge data source path. Strings are space-filled in place so no
+ * structure moves; if the table cannot be parsed, it is blanked wholesale and
+ * disconnected via the FIB.
+ */
+function scrubSttbfAssoc(table: Uint8Array, fibView: DataView): void {
+  const fc = fibView.getInt32(FC_STTBF_ASSOC, true);
+  const lcb = fibView.getInt32(LCB_STTBF_ASSOC, true);
+  if (lcb <= 0 || fc < 0 || fc + lcb > table.length) return;
+
+  try {
+    const v = new DataView(table.buffer, table.byteOffset + fc, lcb);
+    let offset = 0;
+    const extended = v.getUint16(0, true) === 0xffff;
+    if (extended) offset = 2;
+    const count = v.getUint16(offset, true);
+    const cbExtra = v.getUint16(offset + 2, true);
+    offset += 4;
+    if (count > 4096) throw new Error('bad sttbf');
+
+    for (let i = 0; i < count; i++) {
+      let cch: number;
+      if (extended) {
+        cch = v.getUint16(offset, true);
+        offset += 2;
+        for (let j = 0; j < cch; j++) {
+          v.setUint16(offset + j * 2, 0x0020, true);
+        }
+        offset += cch * 2 + cbExtra;
+      } else {
+        cch = v.getUint8(offset);
+        offset += 1;
+        for (let j = 0; j < cch; j++) {
+          v.setUint8(offset + j, 0x20);
+        }
+        offset += cch + cbExtra;
+      }
+      if (offset > lcb) throw new Error('bad sttbf');
+    }
+  } catch {
+    // Unknown layout: blank the whole range and drop the FIB reference
+    table.fill(0, fc, fc + lcb);
+    fibView.setInt32(LCB_STTBF_ASSOC, 0, true);
+  }
+}
+
+const OLE_META_STREAMS = ['SummaryInformation', 'DocumentSummaryInformation'];
+
+/**
+ * Scrub the OLE property-set streams (author, title, company, manager, ...).
+ * String values are space-filled in place, preserving the structure exactly.
+ * If a stream cannot be parsed, it is deleted from the container instead of
+ * being passed through with unknown content.
+ */
+function scrubOleMetadataStreams(container: CFB.CFB$Container): void {
+  for (const name of OLE_META_STREAMS) {
+    let path = '/' + name;
+    let entry = CFB.find(container, path);
+    if (!entry) {
+      path = name;
+      entry = CFB.find(container, path);
+    }
+    if (!entry?.content) continue;
+
+    const bytes = toUint8Array(entry.content);
+    try {
+      scrubPropertySetStrings(bytes);
+      entry.content = bytes;
+      entry.size = bytes.length;
+    } catch {
+      CFB.utils.cfb_del(container, path);
+    }
+  }
+}
+
+const VT_LPSTR = 0x001e;
+const VT_LPWSTR = 0x001f;
+const VT_VECTOR = 0x1000;
+
+/** Space-fill every string-typed property value in an OLE property set stream. */
+function scrubPropertySetStrings(bytes: Uint8Array): void {
+  const v = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  if (v.getUint16(0, true) !== 0xfffe) throw new Error('bad property set');
+  const sectionCount = v.getUint32(24, true);
+  if (sectionCount < 1 || sectionCount > 4) throw new Error('bad section count');
+
+  for (let s = 0; s < sectionCount; s++) {
+    const sectionOffset = v.getUint32(28 + s * 20 + 16, true);
+    const propCount = v.getUint32(sectionOffset + 4, true);
+    if (propCount > 4096) throw new Error('bad property count');
+
+    for (let p = 0; p < propCount; p++) {
+      const propId = v.getUint32(sectionOffset + 8 + p * 8, true);
+      const propOffset = v.getUint32(sectionOffset + 8 + p * 8 + 4, true);
+      if (propId === 0 || propId === 1) continue; // dictionary / codepage
+      scrubPropertyValue(bytes, v, sectionOffset + propOffset);
+    }
+  }
+}
+
+function scrubPropertyValue(bytes: Uint8Array, v: DataView, offset: number): void {
+  const type = v.getUint32(offset, true) & 0xffff;
+  if (type === VT_LPSTR || type === VT_LPWSTR) {
+    scrubPropertyString(bytes, v, offset + 4, type === VT_LPWSTR);
+  } else if (type === (VT_VECTOR | VT_LPSTR) || type === (VT_VECTOR | VT_LPWSTR)) {
+    const count = v.getUint32(offset + 4, true);
+    if (count > 4096) throw new Error('bad vector');
+    let cursor = offset + 8;
+    for (let i = 0; i < count; i++) {
+      cursor = scrubPropertyString(bytes, v, cursor, type === (VT_VECTOR | VT_LPWSTR));
+    }
+  }
+}
+
+/**
+ * Space-fill one length-prefixed property string, keeping the terminator.
+ * Returns the offset just past the string (padded to 4 bytes, as vector
+ * elements are).
+ */
+function scrubPropertyString(bytes: Uint8Array, v: DataView, offset: number, wide: boolean): number {
+  const cch = v.getUint32(offset, true);
+  const dataStart = offset + 4;
+  const byteLength = wide ? cch * 2 : cch;
+  if (cch > 0x100000 || dataStart + byteLength > bytes.length) throw new Error('bad string');
+
+  if (wide) {
+    for (let i = 0; i + 1 < cch; i++) {
+      bytes[dataStart + i * 2] = 0x20;
+      bytes[dataStart + i * 2 + 1] = 0;
+    }
+  } else {
+    for (let i = 0; i + 1 < cch; i++) {
+      bytes[dataStart + i] = 0x20;
+    }
+  }
+  return dataStart + Math.ceil(byteLength / 4) * 4;
 }
 
 // ─── CP1252 decoding ─────────────────────────────────────────────────────────

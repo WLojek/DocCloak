@@ -91,7 +91,7 @@ export function useAnonymizer() {
     const excluded = new Set<number>();
     setExcludedIndices(excluded);
 
-    // Detection runs in a Web Worker — no need to yield to the browser
+    // Detection runs in a Web Worker - no need to yield to the browser
     detectEntities(text, (progress) => {
       if (requestId === latestRequestRef.current) {
         setDetectionProgress(progress);
@@ -196,7 +196,7 @@ export function useAnonymizer() {
     const oldLabel = sessionRef.current.getForward(original);
     if (!oldLabel) return;
     sessionRef.current.renameLabel(original, newLabel);
-    setAnonymizedText((prev) => prev.replaceAll(oldLabel, newLabel));
+    setAnonymizedText((prev) => prev.replaceAll(oldLabel, () => newLabel));
     setEntries(sessionRef.current.getEntries());
   }, []);
 
@@ -347,17 +347,26 @@ export function useAnonymizer() {
     }
 
     const activeEntities = entities.filter((_, i) => !excludedIndices.has(i));
-    const replacements = activeEntities.map((entity) => ({
-      start: entity.start,
-      end: entity.end,
-      replacement: sessionRef.current.getForward(entity.value) ?? entity.value,
+    const replacements = activeEntities.map((entity) => {
+      const replacement = sessionRef.current.getForward(entity.value);
+      if (replacement === undefined) {
+        // Fail closed: never write an original value into a redacted export
+        throw new Error('Missing replacement mapping for a detected entity');
+      }
+      return { start: entity.start, end: entity.end, replacement };
+    });
+    // Value-level pairs let the writer scrub places offsets cannot reach
+    // (hyperlink targets, field instructions)
+    const valueReplacements = activeEntities.map((entity) => ({
+      value: entity.value,
+      replacement: sessionRef.current.getForward(entity.value) ?? '',
     }));
 
     if (isLegacyDoc(docxFile.name)) {
       // Legacy .doc: try .docx first (renamed files), fall back to .doc binary export
       try {
         const extraction = await readDocx(docxFile);
-        return await writeAnonymizedDocx(extraction, replacements);
+        return await writeAnonymizedDocx(extraction, replacements, valueReplacements);
       } catch {
         const buffer = await docxFile.arrayBuffer();
         return await writeAnonymizedDoc(buffer, replacements);
@@ -365,7 +374,7 @@ export function useAnonymizer() {
     } else {
       // Standard .docx
       const extraction = await readDocx(docxFile);
-      return await writeAnonymizedDocx(extraction, replacements);
+      return await writeAnonymizedDocx(extraction, replacements, valueReplacements);
     }
   }, [docxFile, entities, excludedIndices]);
 
