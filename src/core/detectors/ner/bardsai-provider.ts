@@ -10,6 +10,7 @@
 import * as ort from 'onnxruntime-web';
 import { AutoTokenizer, env } from '@huggingface/transformers';
 import type { DetectedEntity, DetectionProvider, EntityType, ProgressCallback } from '../../types.ts';
+import { fetchModelBlob, retryAsync } from '../model-loader.ts';
 
 // ── Model config ──────────────────────────────────────────
 const MODEL_URL = 'https://huggingface.co/bardsai/eu-pii-anonimization-multilang/resolve/main/onnx/model_quantized.onnx';
@@ -97,11 +98,12 @@ export class BardsaiProvider implements DetectionProvider {
   private _name = MODEL_NAME;
   get name(): string { return this._name; }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private tokenizer: any = null;
   private session: ort.InferenceSession | null = null;
   private loading = false;
   private loadError: Error | null = null;
-  private loadCallbacks: Array<() => void> = [];
+  private loadWaiters: Array<{ resolve: () => void; reject: (err: Error) => void }> = [];
   private progressCallback: ProgressCallback | null = null;
   private threshold = DEFAULT_THRESHOLD;
 
@@ -129,8 +131,8 @@ export class BardsaiProvider implements DetectionProvider {
     if (this.isLoaded()) return;
     if (this.loadError) throw this.loadError;
     if (this.loading) {
-      return new Promise<void>((resolve) => {
-        this.loadCallbacks.push(resolve);
+      return new Promise<void>((resolve, reject) => {
+        this.loadWaiters.push({ resolve, reject });
       });
     }
 
@@ -142,36 +144,44 @@ export class BardsaiProvider implements DetectionProvider {
       // workers (model downloads but session.create never resolves).
       ort.env.wasm.numThreads = 1;
 
-      // Configure @huggingface/transformers — load tokenizer from HF
+      // Configure @huggingface/transformers - load tokenizer from HF
       env.allowLocalModels = false;
       env.allowRemoteModels = true;
 
       // Load tokenizer and model in parallel (skip tokenizer if already loaded from a prior session)
-      const tasks: Promise<unknown>[] = [this.fetchModelWithProgress(MODEL_URL)];
+      const tasks: Promise<unknown>[] = [
+        fetchModelBlob(MODEL_URL, (downloaded, total) => this.progressCallback?.(downloaded, total)),
+      ];
       if (!this.tokenizer) {
         tasks.push(
-          AutoTokenizer.from_pretrained(TOKENIZER_HF).then((t: unknown) => {
+          retryAsync(() => AutoTokenizer.from_pretrained(TOKENIZER_HF), 'Tokenizer download').then((t: unknown) => {
             this.tokenizer = t;
           }),
         );
       }
-      const [blobUrl] = await Promise.all(tasks) as [string];
+      const [modelBlob] = await Promise.all(tasks) as [Blob];
 
-      this.session = await ort.InferenceSession.create(blobUrl, {
-        executionProviders: ['wasm'],
-      });
-
-      // Revoke blob URL — ONNX Runtime has already read the data into WASM heap
-      URL.revokeObjectURL(blobUrl);
+      const blobUrl = URL.createObjectURL(modelBlob);
+      try {
+        this.session = await ort.InferenceSession.create(blobUrl, {
+          executionProviders: ['wasm'],
+        });
+      } finally {
+        // ONNX Runtime has already read the data into the WASM heap
+        URL.revokeObjectURL(blobUrl);
+      }
 
       console.info(`[DocCloak] Model loaded: ${this._name} | inputs: [${this.session.inputNames.join(', ')}] | outputs: [${this.session.outputNames.join(', ')}]`);
 
-      this.loadCallbacks.forEach((cb) => cb());
-      this.loadCallbacks.length = 0;
+      this.loading = false;
+      this.loadWaiters.forEach((w) => w.resolve());
+      this.loadWaiters.length = 0;
     } catch (err) {
       this.session = null;
       this.loadError = err instanceof Error ? err : new Error(String(err));
       this.loading = false;
+      this.loadWaiters.forEach((w) => w.reject(this.loadError!));
+      this.loadWaiters.length = 0;
       throw this.loadError;
     }
   }
@@ -429,69 +439,4 @@ export class BardsaiProvider implements DetectionProvider {
     return result;
   }
 
-  private async fetchModelWithProgress(url: string): Promise<string> {
-    let cache: Cache | null = null;
-    try {
-      cache = await caches.open('doccloak-models');
-    } catch {
-      // Cache API unavailable (e.g. private mode with strict storage). Proceed without caching.
-    }
-
-    if (cache) {
-      try {
-        const cached = await cache.match(url);
-        if (cached) {
-          const blob = await cached.blob();
-          this.progressCallback?.(blob.size, blob.size);
-          return URL.createObjectURL(blob);
-        }
-      } catch {
-        // Cache lookup failed — fall through to network.
-      }
-    }
-
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Failed to download model: ${response.status}`);
-    }
-
-    const contentLength = response.headers.get('content-length');
-    const total = contentLength ? parseInt(contentLength, 10) : 0;
-
-    const reader = response.body?.getReader();
-    if (!reader) {
-      const blob = await response.blob();
-      await tryCachePut(cache, url, blob);
-      return URL.createObjectURL(blob);
-    }
-
-    const chunks: Uint8Array[] = [];
-    let downloaded = 0;
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      chunks.push(value);
-      downloaded += value.length;
-      this.progressCallback?.(downloaded, total);
-    }
-
-    const blob = new Blob(chunks);
-    await tryCachePut(cache, url, blob);
-    return URL.createObjectURL(blob);
-  }
-}
-
-/**
- * Best-effort cache.put — large models often exceed per-origin quota,
- * which surfaces as "Failed to execute 'put' on 'Cache': Unexpected internal error".
- * Caching is an optimisation, not a correctness requirement, so swallow failures.
- */
-async function tryCachePut(cache: Cache | null, url: string, blob: Blob): Promise<void> {
-  if (!cache) return;
-  try {
-    await cache.put(url, new Response(blob));
-  } catch (err) {
-    console.warn('[DocCloak] Model cache put failed (model still loaded in memory):', err);
-  }
 }

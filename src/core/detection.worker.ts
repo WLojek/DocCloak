@@ -18,6 +18,16 @@ function createProvider(id: ProviderId): DetectionProvider {
   return new GlinerProvider();
 }
 
+interface CustomLabelCapable {
+  setCustomLabels(labels: string[]): void;
+  getCustomLabels(): string[];
+  restoreCustomLabels(): void;
+}
+
+function supportsCustomLabels(p: DetectionProvider): p is DetectionProvider & CustomLabelCapable {
+  return 'setCustomLabels' in p;
+}
+
 let activeId: ProviderId = 'bardsai';
 let provider: DetectionProvider = createProvider(activeId);
 let regexEnabled = false;
@@ -164,8 +174,18 @@ self.onmessage = async (e: MessageEvent<any>) => {
   switch (msg.type) {
     case 'init': {
       const { providerId, customLabels } = msg;
-      activeId = providerId;
-      provider = createProvider(activeId);
+      if (activeId === providerId && provider.isLoaded()) {
+        // Already initialized (e.g. duplicate init after a UI remount).
+        // Keep the loaded session instead of re-downloading.
+      } else if (activeId === providerId) {
+        // Same provider, not loaded - a previous attempt may have failed.
+        // release() clears the cached load error so load() can retry
+        // (the model itself is served from the Cache API when available).
+        provider.release();
+      } else {
+        activeId = providerId;
+        provider = createProvider(activeId);
+      }
       if (msg.regexEnabled !== undefined) regexEnabled = msg.regexEnabled;
       if (msg.regexRegion !== undefined) regexRegion = msg.regexRegion;
 
@@ -173,19 +193,15 @@ self.onmessage = async (e: MessageEvent<any>) => {
         self.postMessage({ type: 'downloadProgress', downloaded, total });
       });
 
-      if (customLabels && 'setCustomLabels' in provider) {
-        (provider as any).setCustomLabels(customLabels);
-      }
-      if ('restoreCustomLabels' in provider) {
-        (provider as any).restoreCustomLabels();
+      if (supportsCustomLabels(provider)) {
+        if (customLabels) provider.setCustomLabels(customLabels);
+        provider.restoreCustomLabels();
       }
 
       try {
         await provider.load();
         const threshold = provider.getThreshold();
-        const labels = 'getCustomLabels' in provider
-          ? (provider as any).getCustomLabels()
-          : [];
+        const labels = supportsCustomLabels(provider) ? provider.getCustomLabels() : [];
         self.postMessage({ type: 'loaded', providerId: activeId, threshold, customLabels: labels });
       } catch (err) {
         self.postMessage({
@@ -214,13 +230,10 @@ self.onmessage = async (e: MessageEvent<any>) => {
     case 'switchProvider': {
       const { providerId, customLabels } = msg;
 
-      // Release previous provider's ONNX session to free WASM heap
+      // Release previous provider's ONNX session to free WASM heap.
+      // Cached model files are kept so switching back does not re-download
+      // hundreds of megabytes; the browser evicts them under quota pressure.
       provider.release();
-
-      // Clear cached model from previous provider
-      try {
-        await caches.delete('doccloak-models');
-      } catch { /* ignore */ }
 
       activeId = providerId;
       provider = createProvider(activeId);
@@ -229,19 +242,15 @@ self.onmessage = async (e: MessageEvent<any>) => {
         self.postMessage({ type: 'downloadProgress', downloaded, total });
       });
 
-      if (customLabels && 'setCustomLabels' in provider) {
-        (provider as any).setCustomLabels(customLabels);
-      }
-      if ('restoreCustomLabels' in provider) {
-        (provider as any).restoreCustomLabels();
+      if (supportsCustomLabels(provider)) {
+        if (customLabels) provider.setCustomLabels(customLabels);
+        provider.restoreCustomLabels();
       }
 
       try {
         await provider.load();
         const threshold = provider.getThreshold();
-        const labels = 'getCustomLabels' in provider
-          ? (provider as any).getCustomLabels()
-          : [];
+        const labels = supportsCustomLabels(provider) ? provider.getCustomLabels() : [];
         self.postMessage({ type: 'loaded', providerId: activeId, threshold, customLabels: labels });
       } catch (err) {
         self.postMessage({
@@ -258,8 +267,8 @@ self.onmessage = async (e: MessageEvent<any>) => {
     }
 
     case 'setCustomLabels': {
-      if ('setCustomLabels' in provider) {
-        (provider as any).setCustomLabels(msg.labels);
+      if (supportsCustomLabels(provider)) {
+        provider.setCustomLabels(msg.labels);
       }
       break;
     }

@@ -7,8 +7,12 @@ import { AnonymizationSession } from '../../core/session.ts';
 import type { ReplacementMode } from '../../core/session.ts';
 import { readDocx, writeAnonymizedDocx, isLegacyDoc, isSupportedFile } from '../../core/docx.ts';
 import { readDocText, writeAnonymizedDoc } from '../../core/doc.ts';
+import { isImageFile, loadImageToCanvas, recognizeCanvas, renderRedactedImage } from '../../core/ocr.ts';
+import type { OcrWord } from '../../core/ocr.ts';
+import { useTranslation } from '../../i18n/LanguageContext.tsx';
 
 export function useAnonymizer() {
+  const { language } = useTranslation();
   const [inputText, setInputText] = useState('');
   const [anonymizedText, setAnonymizedText] = useState('');
   const [entities, setEntities] = useState<DetectedEntity[]>([]);
@@ -29,12 +33,17 @@ export function useAnonymizer() {
   const [regexRegion, setRegexRegionState] = useState<RegexRegionId>(getRegexRegion());
   const [docxFile, setDocxFile] = useState<File | null>(null);
   const [docxFileName, setDocxFileName] = useState<string | null>(null);
+  const [imageFileName, setImageFileName] = useState<string | null>(null);
+  const [ocrProgress, setOcrProgress] = useState<number | null>(null);
+  const imageCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const ocrWordsRef = useRef<OcrWord[]>([]);
   const sessionRef = useRef(new AnonymizationSession());
   const latestRequestRef = useRef(0);
 
-  // Preload detection model in the background with progress tracking
-  useEffect(() => {
+  // Load (or retry loading) the detection model with progress tracking
+  const startModelLoad = useCallback(() => {
     setModelLoading(true);
+    setModelError(false);
 
     onDownloadProgress((downloaded, total) => {
       setDownloadProgress({ downloaded, total });
@@ -54,6 +63,11 @@ export function useAnonymizer() {
         setDownloadProgress(null);
       });
   }, []);
+
+  // Preload detection model in the background on mount
+  useEffect(() => {
+    startModelLoad();
+  }, [startModelLoad]);
 
   const rebuildAnonymization = useCallback(
     (text: string, allEntities: DetectedEntity[], excluded: Set<number>) => {
@@ -238,6 +252,12 @@ export function useAnonymizer() {
     }
   }, [entities, inputText, excludedIndices, rebuildAnonymization]);
 
+  const resetImageState = useCallback(() => {
+    setImageFileName(null);
+    imageCanvasRef.current = null;
+    ocrWordsRef.current = [];
+  }, []);
+
   const loadDocxFile = useCallback(async (file: File): Promise<{ success: boolean; error?: string }> => {
     if (!isSupportedFile(file.name)) {
       return { success: false, error: 'unsupported' };
@@ -251,7 +271,7 @@ export function useAnonymizer() {
           const extraction = await readDocx(file);
           plainText = extraction.plainText;
         } catch {
-          // Not a .docx in disguise — parse as real .doc binary
+          // Not a .docx in disguise - parse as real .doc binary
           const buffer = await file.arrayBuffer();
           plainText = readDocText(buffer);
         }
@@ -261,6 +281,7 @@ export function useAnonymizer() {
         plainText = extraction.plainText;
       }
 
+      resetImageState();
       setDocxFile(file);
       setDocxFileName(file.name);
       setInputText(plainText);
@@ -274,7 +295,51 @@ export function useAnonymizer() {
       console.error('[DocCloak] Failed to read file:', err);
       return { success: false, error: err instanceof Error ? err.message : String(err) };
     }
-  }, []);
+  }, [resetImageState]);
+
+  const loadImageFile = useCallback(async (file: File): Promise<{ success: boolean; error?: string }> => {
+    try {
+      setOcrProgress(0);
+      const canvas = await loadImageToCanvas(file);
+      const { text, words } = await recognizeCanvas(canvas, language, (p) => setOcrProgress(p));
+      if (!text.trim()) {
+        return { success: false, error: 'no-text' };
+      }
+
+      imageCanvasRef.current = canvas;
+      ocrWordsRef.current = words;
+      setImageFileName(file.name);
+      setDocxFile(null);
+      setDocxFileName(null);
+      setInputText(text);
+      setAnonymizedText('');
+      setEntities([]);
+      setEntries([]);
+      setExcludedIndices(new Set());
+      sessionRef.current.clear();
+      return { success: true };
+    } catch (err) {
+      console.error('[DocCloak] OCR failed:', err);
+      return { success: false, error: err instanceof Error ? err.message : String(err) };
+    } finally {
+      setOcrProgress(null);
+    }
+  }, [language]);
+
+  // Route uploads by type: images go through OCR, documents through the docx reader
+  const loadFile = useCallback(async (file: File): Promise<{ success: boolean; error?: string }> => {
+    if (isImageFile(file.name)) return loadImageFile(file);
+    return loadDocxFile(file);
+  }, [loadImageFile, loadDocxFile]);
+
+  const exportRedactedImage = useCallback(async (): Promise<Blob> => {
+    const canvas = imageCanvasRef.current;
+    if (!canvas || entities.length === 0) {
+      throw new Error('No image or entities to export');
+    }
+    const activeEntities = entities.filter((_, i) => !excludedIndices.has(i));
+    return renderRedactedImage(canvas, ocrWordsRef.current, activeEntities);
+  }, [entities, excludedIndices]);
 
   const exportDocx = useCallback(async (): Promise<Blob> => {
     if (!docxFile || entities.length === 0) {
@@ -304,16 +369,17 @@ export function useAnonymizer() {
     }
   }, [docxFile, entities, excludedIndices]);
 
-  const removeDocxFile = useCallback(() => {
+  const removeFile = useCallback(() => {
     setDocxFile(null);
     setDocxFileName(null);
+    resetImageState();
     setInputText('');
     setAnonymizedText('');
     setEntities([]);
     setEntries([]);
     setExcludedIndices(new Set());
     sessionRef.current.clear();
-  }, []);
+  }, [resetImageState]);
 
   const clear = useCallback(() => {
     setInputText('');
@@ -323,8 +389,9 @@ export function useAnonymizer() {
     setExcludedIndices(new Set());
     setDocxFile(null);
     setDocxFileName(null);
+    resetImageState();
     sessionRef.current.clear();
-  }, []);
+  }, [resetImageState]);
 
   return {
     inputText,
@@ -343,7 +410,11 @@ export function useAnonymizer() {
     replacementMode,
     customLabels,
     docxFileName,
+    imageFileName,
+    fileName: docxFileName ?? imageFileName,
     hasDocxExtraction: docxFile !== null,
+    hasImage: imageFileName !== null,
+    ocrProgress,
     handleInputChange,
     anonymize,
     addManualEntity,
@@ -361,8 +432,10 @@ export function useAnonymizer() {
     handleRegexChange,
     regexRegion,
     handleRegexRegionChange,
-    loadDocxFile,
+    loadFile,
     exportDocx,
-    removeDocxFile,
+    exportRedactedImage,
+    removeFile,
+    retryModelLoad: startModelLoad,
   };
 }

@@ -36,7 +36,9 @@ The AI never sees the real data. You get the full power of AI assistance without
 - **Runs locally** - ML models run in-browser via ONNX Runtime WebAssembly. Verify: open DevTools → Network tab → zero requests during anonymization
 - **12 entity types** - persons, emails, phones, SSNs, credit cards, dates, currencies, IP addresses, IBANs, addresses, companies, and custom labels
 - **Document support** - upload `.doc` and `.docx` files, redact PII, and download the protected file with all formatting preserved
-- **Multiple detection models** - choose between GLiNER PII Edge (~65 MB, multi-language, custom labels) and BardS.ai EU PII (~279 MB, 24 EU languages, 35 entity types). Switch models from settings without reloading
+- **Image support (OCR)** - upload or paste an image or screenshot (`.png`, `.jpg`, `.webp`, `.bmp`, `.gif`); text is extracted locally with Tesseract WebAssembly, run through the same PII detection, and you can download a redacted copy of the image with the sensitive words blacked out
+- **Multiple detection models** - choose between GLiNER PII Edge (~65 MB, multi-language, custom labels) and BardS.ai EU PII (~279 MB, 24 EU languages, 35 entity types). Switch models from settings without reloading. Phones and other low-memory devices default to the lightweight GLiNER model
+- **Resilient model downloads** - interrupted downloads resume where they left off (HTTP Range), transient network errors are retried with backoff, and a Try again button appears if the download ultimately fails
 - **Hybrid detection** - ML model + 100+ regex rules for structured patterns across European regions and the US (AT, BE, CH, DE, DK, ES, FI, FR, GB, IE, IT, NL, NO, PL, PT, SE, US)
 - **Entity propagation** - when a name or company is detected once, DocCloak automatically finds all other occurrences throughout the document
 - **Round-trip de-anonymization** - paste the AI's response back in and DocCloak restores the original names automatically
@@ -92,7 +94,7 @@ DocCloak doesn't ask you to trust a server, a company, or a privacy policy. It's
 - **Your data never leaves the browser.** There is no backend. No API. No server to get hacked. The ML model and all regex rules run entirely in your browser using WebAssembly. You can verify this yourself: open DevTools → Network tab → paste a document → zero requests.
 - **Nothing sensitive is stored.** All entity mappings live in memory only. Close the tab and everything is gone. Only your model preference is saved to localStorage.
 - **No tracking, no analytics, no telemetry.** DocCloak doesn't know who you are, what you paste, or how often you use it.
-- **Minimal external requests.** The only network activity is loading the app, the ML model, and tokenizer from HuggingFace on first use. No CDN, no Google Fonts, no third-party scripts. No data you paste ever leaves your browser.
+- **Minimal external requests.** The only external network activity is loading the ML model and tokenizer from HuggingFace on first use. The OCR engine and its language data are served from the app's own origin (no third-party CDN), fetched only when you first use image OCR. No Google Fonts, no third-party scripts, no telemetry. No data you paste or upload ever leaves your browser - OCR runs entirely locally.
 - **Open source and auditable.** Every line of code is in this repository. The AGPL-3.0 license guarantees it stays that way - even if someone else hosts it, they must publish their source code too.
 - **Works offline after first load.** Once the model is cached, you can disconnect from the internet and DocCloak keeps working — anonymization runs entirely in WebAssembly.
 

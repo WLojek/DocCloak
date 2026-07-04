@@ -47,3 +47,4 @@ coverage/
 
 # TypeScript
 *.tsbuildinfo
+public/tesseract/

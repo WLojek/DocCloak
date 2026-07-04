@@ -1,9 +1,10 @@
 import { useRef, useCallback, useState } from 'react';
 import type { DetectedEntity, EntityType } from '../../core/types.ts';
 import { ENTITY_COLORS } from '../../core/types.ts';
+import { isImageFile } from '../../core/ocr.ts';
 import { EntityTypePicker } from './EntityTypePicker.tsx';
 import { Button } from '@/components/ui/button';
-import { X, Upload, FileText } from 'lucide-react';
+import { X, Upload, FileText, Image as ImageIcon } from 'lucide-react';
 import { useTranslation } from '../../i18n/LanguageContext.tsx';
 import { useToast } from './Toast.tsx';
 
@@ -14,9 +15,9 @@ interface TextInputProps {
   entities: DetectedEntity[];
   onAddEntity?: (start: number, end: number, type: EntityType) => void;
   onRemoveEntity?: (index: number) => void;
-  docxFileName?: string | null;
-  onLoadDocx?: (file: File) => Promise<{ success: boolean; error?: string }>;
-  onRemoveDocx?: () => void;
+  fileName?: string | null;
+  onLoadFile?: (file: File) => Promise<{ success: boolean; error?: string }>;
+  onRemoveFile?: () => void;
 }
 
 interface WordSpan {
@@ -62,7 +63,7 @@ function buildWordSpans(text: string, entities: DetectedEntity[]): WordSpan[] {
   return spans;
 }
 
-export function TextInput({ value, onChange, onClear, entities, onAddEntity, onRemoveEntity, docxFileName, onLoadDocx, onRemoveDocx }: TextInputProps) {
+export function TextInput({ value, onChange, onClear, entities, onAddEntity, onRemoveEntity, fileName, onLoadFile, onRemoveFile }: TextInputProps) {
   const { t } = useTranslation();
   const { showToast } = useToast();
   const wordCount = value.trim() ? value.trim().split(/\s+/).length : 0;
@@ -76,12 +77,17 @@ export function TextInput({ value, onChange, onClear, entities, onAddEntity, onR
   const hasEntities = entities.length > 0;
 
   const processFile = useCallback(async (file: File) => {
-    if (!onLoadDocx) return;
-    const result = await onLoadDocx(file);
+    if (!onLoadFile) return;
+    const result = await onLoadFile(file);
     if (!result.success) {
-      showToast(result.error === 'unsupported' ? t.textInput.unsupportedFormat : (result.error ?? 'Failed to load file'));
+      const message = result.error === 'unsupported'
+        ? t.textInput.unsupportedFormat
+        : result.error === 'no-text'
+          ? t.textInput.ocrNoText
+          : (result.error ?? 'Failed to load file');
+      showToast(message);
     }
-  }, [onLoadDocx, showToast, t]);
+  }, [onLoadFile, showToast, t]);
 
   const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -171,16 +177,30 @@ export function TextInput({ value, onChange, onClear, entities, onAddEntity, onR
     setPicker(null);
   }, [picker, onAddEntity]);
 
+  // Pasting a screenshot or copied image runs it through OCR
+  const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    if (!onLoadFile) return;
+    const item = Array.from(e.clipboardData.items).find((i) => i.type.startsWith('image/'));
+    if (!item) return;
+    const blob = item.getAsFile();
+    if (!blob) return;
+    e.preventDefault();
+    const ext = item.type.split('/')[1] ?? 'png';
+    const file = blob.name ? blob : new File([blob], `pasted-image.${ext}`, { type: item.type });
+    void processFile(file);
+  }, [onLoadFile, processFile]);
+
   const wordSpans = hasEntities ? buildWordSpans(value, entities) : [];
-  const showEmptyState = !value && !docxFileName;
+  const showEmptyState = !value && !fileName;
+  const isImage = fileName ? isImageFile(fileName) : false;
 
   return (
     <div
       className="flex flex-col h-full"
-      onDragEnter={onLoadDocx ? handleDragEnter : undefined}
-      onDragLeave={onLoadDocx ? handleDragLeave : undefined}
-      onDragOver={onLoadDocx ? handleDragOver : undefined}
-      onDrop={onLoadDocx ? handleDrop : undefined}
+      onDragEnter={onLoadFile ? handleDragEnter : undefined}
+      onDragLeave={onLoadFile ? handleDragLeave : undefined}
+      onDragOver={onLoadFile ? handleDragOver : undefined}
+      onDrop={onLoadFile ? handleDrop : undefined}
     >
       {/* Header bar */}
       <div className="flex items-center justify-between h-11 relative border-b border-[#C8C5BC] px-4 bg-[#F4F3EE]">
@@ -188,7 +208,7 @@ export function TextInput({ value, onChange, onClear, entities, onAddEntity, onR
           {t.textInput.title}
         </h3>
         {value && (
-          <Button variant="ghost" size="sm" onClick={docxFileName ? onRemoveDocx : onClear} className="gap-1.5 h-7 text-[#525252] hover:bg-[#E5E5E0] hover:text-[#111111]">
+          <Button variant="ghost" size="sm" onClick={fileName ? onRemoveFile : onClear} className="gap-1.5 h-7 text-[#525252] hover:bg-[#E5E5E0] hover:text-[#111111]">
             <X className="w-3 h-3" />
             {t.textInput.clear}
           </Button>
@@ -196,7 +216,7 @@ export function TextInput({ value, onChange, onClear, entities, onAddEntity, onR
         <input
           ref={fileInputRef}
           type="file"
-          accept=".doc,.docx"
+          accept=".doc,.docx,.png,.jpg,.jpeg,.webp,.bmp,.gif"
           onChange={handleFileUpload}
           className="hidden"
         />
@@ -261,20 +281,24 @@ export function TextInput({ value, onChange, onClear, entities, onAddEntity, onR
               );
             })}
           </div>
-        ) : docxFileName ? (
-          /* Loaded docx file — read-only text preview */
+        ) : fileName ? (
+          /* Loaded file (document or OCR'd image) - read-only text preview */
           <div className="p-4 text-sm leading-relaxed whitespace-pre-wrap break-words text-foreground font-light overflow-auto max-h-[60vh]">
             {/* File loaded banner */}
             <div className="flex items-center gap-3 mb-4 px-3 py-2.5 bg-[#111111]/5 border border-[#E5E5E0]">
               <div className="w-8 h-8 bg-[#111111] flex items-center justify-center flex-shrink-0">
-                <FileText className="w-4 h-4 text-[#F9F9F7]" />
+                {isImage
+                  ? <ImageIcon className="w-4 h-4 text-[#F9F9F7]" />
+                  : <FileText className="w-4 h-4 text-[#F9F9F7]" />}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-medium text-[#111111] truncate">{docxFileName}</p>
-                <p className="text-[10px] text-muted-foreground">{t.textInput.wordCount(wordCount)}</p>
+                <p className="text-xs font-medium text-[#111111] truncate">{fileName}</p>
+                <p className="text-[10px] text-muted-foreground">
+                  {isImage ? `${t.textInput.ocrExtracted} · ` : ''}{t.textInput.wordCount(wordCount)}
+                </p>
               </div>
               <button
-                onClick={onRemoveDocx}
+                onClick={onRemoveFile}
                 className="text-muted-foreground hover:text-[#CC0000] transition-colors cursor-pointer flex-shrink-0"
                 title={t.textInput.removeFile}
               >
@@ -290,12 +314,13 @@ export function TextInput({ value, onChange, onClear, entities, onAddEntity, onR
               ref={textareaRef}
               value={value}
               onChange={(e) => onChange(e.target.value)}
+              onPaste={handlePaste}
               placeholder={t.textInput.placeholder}
               className={`w-full bg-transparent p-4 text-[#111111] placeholder:text-[#707070] resize-none focus:outline-none text-sm leading-relaxed ${showEmptyState ? 'min-h-[140px]' : 'min-h-[200px]'}`}
               style={{ fieldSizing: 'content' } as React.CSSProperties}
             />
-            {/* Upload section — only visible when empty */}
-            {showEmptyState && onLoadDocx && (
+            {/* Upload section - only visible when empty */}
+            {showEmptyState && onLoadFile && (
               <>
                 <div className="flex items-center gap-3 px-4">
                   <div className="flex-1 border-t border-[#E5E5E0]" />

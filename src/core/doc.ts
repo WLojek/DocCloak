@@ -355,8 +355,8 @@ export async function writeAnonymizedDoc(
   }
 
   // ── Build extended PlcBteChpx / PlcBtePapx ──
-  let origPlcChpx = readPlcBlob(origTable, fcPlcfBteChpx, lcbPlcfBteChpx);
-  let origPlcPapx = readPlcBlob(origTable, fcPlcfBtePapx, lcbPlcfBtePapx);
+  const origPlcChpx = readPlcBlob(origTable, fcPlcfBteChpx, lcbPlcfBteChpx);
+  const origPlcPapx = readPlcBlob(origTable, fcPlcfBtePapx, lcbPlcfBtePapx);
 
   let newPlcChpx: Uint8Array;
   let newPlcPapx: Uint8Array;
@@ -487,6 +487,9 @@ export function readDocText(buffer: ArrayBuffer): string {
     }
   }
 
+  // Control characters are intentional here: Word's binary format uses them
+  // as structural markers (cell mark, line break, page break, field chars).
+  /* eslint-disable no-control-regex */
   return text.slice(0, ccpText)
     .replace(/\r\n/g, '\n')
     .replace(/\r/g, '\n')
@@ -494,6 +497,7 @@ export function readDocText(buffer: ArrayBuffer): string {
     .replace(/[\x00-\x06\x08\x0e-\x1f]/g, '')
     .replace(/\x0b/g, '\n')
     .replace(/\x0c/g, '\n');
+  /* eslint-enable no-control-regex */
 }
 
 // ─── CP1252 decoding ─────────────────────────────────────────────────────────

@@ -46,10 +46,32 @@ export function getExecutionProviders(): { providers: string[]; isExplicit: bool
 }
 
 // ── Saved provider ─────────────────────────────────────────
+
+/**
+ * Heuristic for phones/tablets and other memory-constrained devices.
+ * The BardS.ai model (~279 MB download, ~500+ MB peak RAM while loading)
+ * routinely gets the tab killed on mobile Safari/Chrome, so those devices
+ * default to the lightweight GLiNER model (~65 MB). Users can still switch
+ * models manually in settings.
+ */
+function isConstrainedDevice(): boolean {
+  try {
+    const nav = navigator as Navigator & { userAgentData?: { mobile?: boolean }; deviceMemory?: number };
+    if (nav.userAgentData?.mobile) return true;
+    if (/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)) return true;
+    // iPadOS 13+ reports itself as macOS; tell it apart via touch support
+    if (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1) return true;
+    if (typeof nav.deviceMemory === 'number' && nav.deviceMemory <= 4) return true;
+  } catch { /* ignore - assume unconstrained */ }
+  return false;
+}
+
 function loadSavedProviderId(): ProviderId {
-  const saved = localStorage.getItem(PROVIDER_STORAGE_KEY);
-  if (saved && PROVIDERS.some((p) => p.id === saved)) return saved as ProviderId;
-  return 'bardsai';
+  try {
+    const saved = localStorage.getItem(PROVIDER_STORAGE_KEY);
+    if (saved && PROVIDERS.some((p) => p.id === saved)) return saved as ProviderId;
+  } catch { /* localStorage unavailable */ }
+  return isConstrainedDevice() ? 'gliner' : 'bardsai';
 }
 
 // ── Worker singleton ───────────────────────────────────────
@@ -86,7 +108,25 @@ function getWorker(): Worker {
     );
     worker.onmessage = handleWorkerMessage;
     worker.onerror = (e) => {
+      // The worker itself crashed (commonly WASM out-of-memory on mobile).
+      // Fail every pending promise so the UI can surface an error and offer
+      // a retry instead of hanging forever, and drop the dead worker so the
+      // next call spawns a fresh one.
       console.error('[DocCloak] Worker error:', e);
+      const err = new Error(e.message || 'Detection worker crashed');
+      loading = false;
+      loaded = false;
+      loadReject?.(err);
+      loadResolve = null;
+      loadReject = null;
+      for (const [, pending] of pendingDetections) {
+        pending.reject(err);
+      }
+      pendingDetections.clear();
+      releaseResolve?.();
+      releaseResolve = null;
+      worker?.terminate();
+      worker = null;
     };
   }
   return worker;

@@ -73,6 +73,8 @@ export interface Translations {
     dropzoneHint: string;
     dragging: string;
     readyToRedact: string;
+    ocrNoText: string;
+    ocrExtracted: string;
   };
   textOutput: {
     title: string;
@@ -85,6 +87,7 @@ export interface Translations {
     emptyStateStep3: string;
     emptyStateTip: string;
     downloadDocx: string;
+    downloadImage: string;
     downloaded: string;
     exportFailed: string;
     downloadDocxAction: string;
@@ -141,10 +144,17 @@ export interface Translations {
     oneTimeSetupWithSize: (size: string) => string;
     largeModelWarning: string;
     progress: (downloaded: string, total: string, percent: number) => string;
+    failedTitle: string;
+    failedBody: string;
+    retry: string;
   };
   anonymizing: {
     title: string;
     description: string;
+  };
+  ocr: {
+    processingTitle: string;
+    processingDescription: string;
   };
   landing: {
     hero: {

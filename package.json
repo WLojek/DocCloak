@@ -1,13 +1,13 @@
 {
   "name": "doccloak",
   "private": true,
-  "version": "0.5.2",
+  "version": "0.6.0",
   "type": "module",
   "description": "Offline, open-source document anonymizer. Strip PII before sharing with AI services.",
   "license": "AGPL-3.0",
   "author": "Witold Lojek",
   "scripts": {
-    "postinstall": "node -e \"const fs=require('fs');for(const f of ['ort-wasm-simd-threaded.wasm','ort-wasm-simd-threaded.jsep.wasm','ort-wasm-simd-threaded.mjs','ort-wasm-simd-threaded.jsep.mjs'])fs.copyFileSync('node_modules/onnxruntime-web/dist/'+f,'public/'+f)\"",
+    "postinstall": "node scripts/copy-assets.mjs",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
@@ -32,11 +32,20 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "tailwind-merge": "3.5.0",
-    "tailwindcss-animate": "1.0.7"
+    "tailwindcss-animate": "1.0.7",
+    "tesseract.js": "7.0.0"
   },
   "devDependencies": {
     "@eslint/js": "9.39.4",
     "@tailwindcss/vite": "4.2.1",
+    "@tesseract.js-data/deu": "1.0.0",
+    "@tesseract.js-data/eng": "1.0.0",
+    "@tesseract.js-data/fra": "1.0.0",
+    "@tesseract.js-data/nor": "1.0.0",
+    "@tesseract.js-data/pol": "1.0.0",
+    "@tesseract.js-data/por": "1.0.0",
+    "@tesseract.js-data/spa": "1.0.0",
+    "@tesseract.js-data/swe": "1.0.0",
     "@testing-library/jest-dom": "6.9.1",
     "@testing-library/react": "16.3.2",
     "@types/react": "19.2.14",

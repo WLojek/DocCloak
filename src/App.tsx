@@ -11,7 +11,8 @@ import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
-import { Lock, Settings, ArrowRight, Languages, Check, Plus, X, ChevronDown, Info, FileText, Download, Github } from 'lucide-react';
+import { Lock, Settings, ArrowRight, Languages, Check, Plus, X, ChevronDown, Info, FileText, Image as ImageIcon, Download, Github, RotateCw } from 'lucide-react';
+import { isImageFile } from './core/ocr.ts';
 import logoSrc from './ui/assets/doc-cloak-logo-light.png';
 import { version } from '../package.json';
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -61,10 +62,15 @@ export default function App() {
     regexRegion,
     handleRegexRegionChange,
     docxFileName,
+    fileName,
     hasDocxExtraction,
-    loadDocxFile,
+    hasImage,
+    ocrProgress,
+    loadFile,
     exportDocx,
-    removeDocxFile,
+    exportRedactedImage,
+    removeFile,
+    retryModelLoad,
   } = useAnonymizer();
 
   const { showToast } = useToast();
@@ -86,21 +92,25 @@ export default function App() {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
+  const triggerBlobDownload = useCallback((blob: Blob, downloadName: string) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = downloadName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, []);
+
   const handleDownloadDocx = useCallback(async () => {
     if (!exportDocx) return;
     setDownloading(true);
     try {
       const blob = await exportDocx();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
       const ext = docxFileName?.match(/\.(docx?)$/i)?.[1] ?? 'docx';
       const baseName = docxFileName?.replace(/\.(docx?)$/i, '') ?? 'document';
-      a.href = url;
-      a.download = `${baseName}_redacted.${ext}`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      triggerBlobDownload(blob, `${baseName}_redacted.${ext}`);
       showToast(t.textOutput.downloaded);
     } catch (err) {
       console.error('[DocCloak] Export failed:', err);
@@ -108,7 +118,23 @@ export default function App() {
     } finally {
       setDownloading(false);
     }
-  }, [exportDocx, docxFileName, showToast, t]);
+  }, [exportDocx, docxFileName, triggerBlobDownload, showToast, t]);
+
+  const handleDownloadImage = useCallback(async () => {
+    if (!exportRedactedImage) return;
+    setDownloading(true);
+    try {
+      const blob = await exportRedactedImage();
+      const baseName = fileName?.replace(/\.[^.]+$/, '') ?? 'image';
+      triggerBlobDownload(blob, `${baseName}_redacted.png`);
+      showToast(t.textOutput.downloaded);
+    } catch (err) {
+      console.error('[DocCloak] Image export failed:', err);
+      showToast(t.textOutput.exportFailed ?? 'Export failed.');
+    } finally {
+      setDownloading(false);
+    }
+  }, [exportRedactedImage, fileName, triggerBlobDownload, showToast, t]);
 
   // Keyboard shortcut: Cmd+Enter / Ctrl+Enter to redact
   useEffect(() => {
@@ -194,6 +220,53 @@ export default function App() {
                   {t.loading.largeModelWarning}
                 </p>
               )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Model download failed overlay */}
+      {modelError && !modelLoading && (
+        <div className="fixed inset-0 z-40 bg-[#F9F9F7]/95 flex items-center justify-center">
+          <Card className="max-w-sm w-full mx-6 border-[#111111] shadow-[4px_4px_0px_0px_#111111]">
+            <CardContent className="pt-8 pb-8 text-center">
+              <img src={logoSrc} alt="DocCloak" className="h-14 mx-auto mb-4" />
+              <h2 className="font-serif text-xl tracking-tight uppercase mb-1">
+                <span className="font-bold text-[#111111]">Doc</span>
+                <span className="font-normal text-[#525252]">Cloak</span>
+              </h2>
+              <p className="text-sm font-semibold text-[#CC0000] uppercase tracking-wider mb-2">
+                {t.loading.failedTitle}
+              </p>
+              <p className="text-xs text-[#525252] mb-6 font-body leading-relaxed">
+                {t.loading.failedBody}
+              </p>
+              <Button
+                onClick={retryModelLoad}
+                className="gap-2 px-8 text-xs uppercase tracking-[0.15em] font-semibold bg-[#111111] text-[#F9F9F7] hover:bg-[#222222]"
+              >
+                <RotateCw className="w-3.5 h-3.5" />
+                {t.loading.retry}
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* OCR overlay */}
+      {ocrProgress !== null && (
+        <div className="fixed inset-0 z-40 bg-[#F9F9F7]/80 flex items-center justify-center">
+          <Card className="border-[#111111] shadow-[4px_4px_0px_0px_#111111]">
+            <CardContent className="pt-8 pb-8 px-10 text-center">
+              <div className="w-12 h-12 border border-[#111111] flex items-center justify-center mx-auto mb-5">
+                <ImageIcon className="w-6 h-6 text-[#111111]" />
+              </div>
+              <p className="font-serif text-base font-bold mb-1 uppercase tracking-tight">{t.ocr.processingTitle}</p>
+              <div className="w-48 mx-auto mt-3 mb-2">
+                <Progress value={Math.round(ocrProgress * 100)} className="h-1.5" />
+                <p className="text-[10px] text-muted-foreground mt-1">{Math.round(ocrProgress * 100)}%</p>
+              </div>
+              <p className="text-sm text-[#525252] font-body">{t.ocr.processingDescription}</p>
             </CardContent>
           </Card>
         </div>
@@ -468,14 +541,16 @@ export default function App() {
         </div>
         )}
 
-        {/* File bar — input file (left) + download (right) */}
-        {docxFileName && anonymizedText && (
+        {/* File bar - input file (left) + download (right) */}
+        {fileName && anonymizedText && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-0 border border-b-0 border-[#A8A498] bg-[#F4F3EE] shadow-[0_2px_24px_-6px_rgba(17,17,17,0.08)]">
             <div className="flex items-center gap-2.5 px-4 py-2.5 border-r-0 md:border-r border-[#C8C5BC]">
               <div className="w-7 h-7 bg-[#FFFFFF] border border-[#C8C5BC] flex items-center justify-center flex-shrink-0">
-                <FileText className="w-3.5 h-3.5 text-[#525252]" />
+                {isImageFile(fileName)
+                  ? <ImageIcon className="w-3.5 h-3.5 text-[#525252]" />
+                  : <FileText className="w-3.5 h-3.5 text-[#525252]" />}
               </div>
-              <p className="text-xs text-[#111111] truncate font-medium">{docxFileName}</p>
+              <p className="text-xs text-[#111111] truncate font-medium">{fileName}</p>
             </div>
             <div className="flex items-center justify-end px-4 py-2">
               {hasDocxExtraction && entries.length > 0 && (
@@ -488,14 +563,24 @@ export default function App() {
                   {t.textOutput.downloadDocx}
                 </button>
               )}
+              {hasImage && entries.length > 0 && (
+                <button
+                  onClick={handleDownloadImage}
+                  disabled={downloading}
+                  className="flex items-center gap-2 px-3 py-1.5 border border-[#C8C5BC] bg-[#FFFFFF] text-[#111111] hover:bg-[#111111] hover:text-[#F9F9F7] hover:border-[#111111] transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-xs font-medium"
+                >
+                  <Download className="w-3 h-3" />
+                  {t.textOutput.downloadImage}
+                </button>
+              )}
             </div>
           </div>
         )}
 
         {/* Document panels */}
-        <div className={`grid grid-cols-1 md:grid-cols-2 gap-0 border border-[#A8A498] bg-[#FFFFFF] shadow-[0_2px_24px_-6px_rgba(17,17,17,0.08)] ${docxFileName && anonymizedText ? 'border-t-0' : ''}`}>
+        <div className={`grid grid-cols-1 md:grid-cols-2 gap-0 border border-[#A8A498] bg-[#FFFFFF] shadow-[0_2px_24px_-6px_rgba(17,17,17,0.08)] ${fileName && anonymizedText ? 'border-t-0' : ''}`}>
           <div className="md:border-r border-[#C8C5BC] bg-[#FFFFFF] flex flex-col">
-            <TextInput value={inputText} onChange={handleInputChange} onClear={handleClear} entities={entities} onAddEntity={addManualEntity} onRemoveEntity={removeEntity} docxFileName={docxFileName} onLoadDocx={loadDocxFile} onRemoveDocx={removeDocxFile} />
+            <TextInput value={inputText} onChange={handleInputChange} onClear={handleClear} entities={entities} onAddEntity={addManualEntity} onRemoveEntity={removeEntity} fileName={fileName} onLoadFile={loadFile} onRemoveFile={removeFile} />
           </div>
           <div className="bg-[#FFFFFF] border-t md:border-t-0 border-[#C8C5BC] flex flex-col">
             <TextOutput value={anonymizedText} entries={entries} loading={anonymizing} />
