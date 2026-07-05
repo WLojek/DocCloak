@@ -52,7 +52,7 @@
         "priceCurrency": "USD"
       },
       "license": "https://www.gnu.org/licenses/agpl-3.0.html",
-      "softwareVersion": "0.6.1",
+      "softwareVersion": "0.7.1",
       "author": {
         "@type": "Organization",
         "name": "DocCloak",
@@ -94,7 +94,7 @@
 
         <h2>How it works</h2>
         <ol>
-          <li><strong>Paste</strong> your document or upload a .doc/.docx file</li>
+          <li><strong>Paste</strong> your document or upload a .doc/.docx file or an image (.png, .jpg) - text is extracted locally with OCR</li>
           <li><strong>Redact</strong> - DocCloak detects names, emails, phone numbers, addresses, and other PII using a local ML model and regex patterns</li>
           <li><strong>Copy</strong> the anonymized text into any AI service (ChatGPT, Claude, Gemini, etc.) - or download the redacted document</li>
           <li><strong>Restore</strong> - paste the AI's response back into DocCloak to replace placeholders with the original names</li>
@@ -105,6 +105,7 @@
           <li>Runs locally - ML models run in-browser via ONNX Runtime WebAssembly, zero network requests during anonymization</li>
           <li>12+ entity types: persons, emails, phones, SSNs, credit cards, dates, currencies, IP addresses, IBANs, addresses, companies, custom labels</li>
           <li>Supports .doc and .docx documents with all formatting preserved</li>
+          <li>OCR for images and screenshots (.png, .jpg) - text is extracted locally with Tesseract WebAssembly, with redacted image export</li>
           <li>Regex pattern detection for 17 regions including the US and 16 European countries</li>
           <li>8 UI languages: English, Polish, German, French, Spanish, Portuguese, Swedish, Norwegian</li>
           <li>Open source under AGPL-3.0 - every line of code is auditable on GitHub</li>

@@ -24,7 +24,7 @@ Everything runs in your browser. No server, no API calls, no data leaves your ma
 
 ## How It Works
 
-1. **Paste** your document or **upload** a `.doc`/`.docx` file
+1. **Paste** your document or **upload** a `.doc`/`.docx` file or an image (`.png`, `.jpg`) - image text is extracted locally with OCR
 2. **Redact** - DocCloak detects names, emails, phone numbers, addresses, and other PII using a local ML model + regex patterns
 3. **Copy** the anonymized text and paste it into any AI service (ChatGPT, Claude, Gemini, etc.) - or **download** the redacted document
 4. **Restore** - paste the AI's response back into DocCloak to replace placeholders with the original names
