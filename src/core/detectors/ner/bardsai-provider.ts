@@ -1,442 +1,95 @@
 /**
- * BardS.ai EU PII Anonymization Provider
+ * Web shim for the BardS.ai provider that moved to @doccloak/core.
  *
- * XLM-RoBERTa-base fine-tuned for EU PII detection (24 EU languages, natively multilingual).
- * 35 entity types, ~0.3B parameters, quantized ONNX (~279 MB).
- * Model: bardsai/eu-pii-anonimization-multilang
- * Runs in-browser via ONNX Runtime WebAssembly.
+ * The core implementation receives its environment (wasm paths, model blob
+ * cache, fetch, tokenizer loader) via CoreEnv injection. This shim keeps the
+ * legacy zero-config constructor for the detection worker by building a
+ * temporary web CoreEnv internally: Cache-Storage-backed blob cache,
+ * import.meta.env.BASE_URL wasm paths and an AutoTokenizer-based
+ * loadTokenizer. Temporary until the engine env wiring lands (T009/T010),
+ * after which the worker builds one CoreEnv and this file goes away.
  */
 
-import * as ort from 'onnxruntime-web';
-import { AutoTokenizer, env } from '@huggingface/transformers';
-import type { DetectedEntity, DetectionProvider, EntityType, ProgressCallback } from '../../types.ts';
-import { fetchModelBlob, retryAsync } from '../model-loader.ts';
+import { BardsaiProvider as CoreBardsaiProvider } from '@doccloak/core';
+import type { BlobCache, CoreEnv, KVStore } from '@doccloak/core';
+import { AutoTokenizer, env as hfEnv } from '@huggingface/transformers';
 
-// ── Model config ──────────────────────────────────────────
-const MODEL_URL = 'https://huggingface.co/bardsai/eu-pii-anonimization-multilang/resolve/main/onnx/model_quantized.onnx';
-const TOKENIZER_HF = 'bardsai/eu-pii-anonimization-multilang';
-const MODEL_NAME = 'BardS.ai EU PII';
-const WASM_PATH = import.meta.env.BASE_URL;
-const DEFAULT_THRESHOLD = 0.5;
-const MAX_SEQ_LENGTH = 512;
-const CHUNK_OVERLAP = 30;
+/** The web cache bucket name stays host-side; core never knows it. */
+const CACHE_NAME = 'doccloak-models';
 
-/** id2label — 35 entity types from bardsai eu-pii-anonimization-multilang config.json (69 labels) */
-const ID2LABEL: Record<number, string> = {
-  0: 'O',
-  1: 'B-ACCOUNT_IDENTIFIER', 2: 'B-AUTH_SECRET', 3: 'B-BANK_ACCOUNT_IDENTIFIER',
-  4: 'B-BIOMETRIC_DATA', 5: 'B-CONTACT_HANDLE', 6: 'B-CRIMINAL_OFFENCE_DATA',
-  7: 'B-DATE_OF_BIRTH', 8: 'B-DEVICE_IDENTIFIER', 9: 'B-DOCUMENT_IDENTIFIER',
-  10: 'B-DOCUMENT_REFERENCE', 11: 'B-EMAIL_ADDRESS', 12: 'B-ETHNIC_ORIGIN',
-  13: 'B-FINANCIAL_AMOUNT', 14: 'B-GEO_LOCATION', 15: 'B-HEALTH_DATA',
-  16: 'B-IDENTIFYING_LINK', 17: 'B-IP_ADDRESS', 18: 'B-LOCATION',
-  19: 'B-ORGANIZATION_IDENTIFIER', 20: 'B-ORGANIZATION_NAME', 21: 'B-PAYMENT_CARD',
-  22: 'B-PAYMENT_CARD_SECURITY', 23: 'B-PERSON_ALIAS', 24: 'B-PERSON_ATTRIBUTE',
-  25: 'B-PERSON_IDENTIFIER', 26: 'B-PERSON_NAME', 27: 'B-PERSON_ROLE_OR_TITLE',
-  28: 'B-PHONE_NUMBER', 29: 'B-POLITICAL_OPINION', 30: 'B-POSTAL_ADDRESS',
-  31: 'B-PROPER_NAME', 32: 'B-RELIGION_OR_BELIEF', 33: 'B-SEXUAL_ORIENTATION',
-  34: 'B-TRADE_UNION_MEMBERSHIP', 35: 'B-VEHICLE_IDENTIFIER',
-  36: 'I-ACCOUNT_IDENTIFIER', 37: 'I-AUTH_SECRET', 38: 'I-BANK_ACCOUNT_IDENTIFIER',
-  39: 'I-BIOMETRIC_DATA', 40: 'I-CRIMINAL_OFFENCE_DATA', 41: 'I-DATE_OF_BIRTH',
-  42: 'I-DEVICE_IDENTIFIER', 43: 'I-DOCUMENT_IDENTIFIER', 44: 'I-DOCUMENT_REFERENCE',
-  45: 'I-EMAIL_ADDRESS', 46: 'I-ETHNIC_ORIGIN', 47: 'I-FINANCIAL_AMOUNT',
-  48: 'I-GEO_LOCATION', 49: 'I-HEALTH_DATA', 50: 'I-IDENTIFYING_LINK',
-  51: 'I-IP_ADDRESS', 52: 'I-LOCATION', 53: 'I-ORGANIZATION_IDENTIFIER',
-  54: 'I-ORGANIZATION_NAME', 55: 'I-PAYMENT_CARD', 56: 'I-PAYMENT_CARD_SECURITY',
-  57: 'I-PERSON_ATTRIBUTE', 58: 'I-PERSON_IDENTIFIER', 59: 'I-PERSON_NAME',
-  60: 'I-PERSON_ROLE_OR_TITLE', 61: 'I-PHONE_NUMBER', 62: 'I-POLITICAL_OPINION',
-  63: 'I-POSTAL_ADDRESS', 64: 'I-PROPER_NAME', 65: 'I-RELIGION_OR_BELIEF',
-  66: 'I-SEXUAL_ORIENTATION', 67: 'I-TRADE_UNION_MEMBERSHIP', 68: 'I-VEHICLE_IDENTIFIER',
-};
-
-/** Map bardsai entity labels → DocCloak EntityType */
-const LABEL_TO_ENTITY_TYPE: Record<string, EntityType> = {
-  PERSON_NAME: 'PERSON',
-  PERSON_ALIAS: 'PERSON',
-  PROPER_NAME: 'PERSON',
-  EMAIL_ADDRESS: 'EMAIL',
-  CONTACT_HANDLE: 'EMAIL',
-  PHONE_NUMBER: 'PHONE',
-  PERSON_IDENTIFIER: 'SSN',
-  DATE_OF_BIRTH: 'DATE',
-  PAYMENT_CARD: 'CREDIT_CARD',
-  PAYMENT_CARD_SECURITY: 'CREDIT_CARD',
-  IP_ADDRESS: 'IP_ADDRESS',
-  BANK_ACCOUNT_IDENTIFIER: 'IBAN',
-  ACCOUNT_IDENTIFIER: 'IBAN',
-  POSTAL_ADDRESS: 'ADDRESS',
-  LOCATION: 'ADDRESS',
-  GEO_LOCATION: 'ADDRESS',
-  ORGANIZATION_NAME: 'COMPANY',
-  ORGANIZATION_IDENTIFIER: 'COMPANY',
-  FINANCIAL_AMOUNT: 'OTHER',
-  VEHICLE_IDENTIFIER: 'OTHER',
-  DOCUMENT_REFERENCE: 'OTHER',
-  DOCUMENT_IDENTIFIER: 'OTHER',
-  IDENTIFYING_LINK: 'OTHER',
-  PERSON_ROLE_OR_TITLE: 'OTHER',
-  PERSON_ATTRIBUTE: 'OTHER',
-  AUTH_SECRET: 'OTHER',
-  DEVICE_IDENTIFIER: 'OTHER',
-  BIOMETRIC_DATA: 'OTHER',
-  HEALTH_DATA: 'OTHER',
-  CRIMINAL_OFFENCE_DATA: 'OTHER',
-  ETHNIC_ORIGIN: 'OTHER',
-  POLITICAL_OPINION: 'OTHER',
-  RELIGION_OR_BELIEF: 'OTHER',
-  SEXUAL_ORIENTATION: 'OTHER',
-  TRADE_UNION_MEMBERSHIP: 'OTHER',
-};
-
-/** Extract the bare entity name from a BIO tag like "B-PERSON_NAME" → "PERSON_NAME" */
-function bioToEntity(tag: string): string | null {
-  if (tag === 'O' || !tag.includes('-')) return null;
-  return tag.split('-').slice(1).join('-');
+async function openModelCache(): Promise<Cache | null> {
+  try {
+    return await caches.open(CACHE_NAME);
+  } catch {
+    // Cache API unavailable (private mode with strict storage, insecure
+    // context, jsdom). Proceed without caching.
+    return null;
+  }
 }
 
-export class BardsaiProvider implements DetectionProvider {
-  private _name = MODEL_NAME;
-  get name(): string { return this._name; }
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private tokenizer: any = null;
-  private session: ort.InferenceSession | null = null;
-  private loading = false;
-  private loadError: Error | null = null;
-  private loadWaiters: Array<{ resolve: () => void; reject: (err: Error) => void }> = [];
-  private progressCallback: ProgressCallback | null = null;
-  private threshold = DEFAULT_THRESHOLD;
-
-  isLoaded(): boolean {
-    return this.session !== null && this.tokenizer !== null;
-  }
-
-  isLoading(): boolean {
-    return this.loading;
-  }
-
-  onProgress(callback: ProgressCallback): void {
-    this.progressCallback = callback;
-  }
-
-  setThreshold(value: number): void {
-    this.threshold = Math.max(0.05, Math.min(0.95, value));
-  }
-
-  getThreshold(): number {
-    return this.threshold;
-  }
-
-  async load(): Promise<void> {
-    if (this.isLoaded()) return;
-    if (this.loadError) throw this.loadError;
-    if (this.loading) {
-      return new Promise<void>((resolve, reject) => {
-        this.loadWaiters.push({ resolve, reject });
-      });
-    }
-
-    this.loading = true;
-    try {
-      ort.env.wasm.wasmPaths = WASM_PATH;
-      // Force single-threaded WASM. ORT's multi-threaded path hangs silently
-      // in some cross-origin-isolated browser contexts when spawning pthread
-      // workers (model downloads but session.create never resolves).
-      ort.env.wasm.numThreads = 1;
-
-      // Configure @huggingface/transformers - load tokenizer from HF
-      env.allowLocalModels = false;
-      env.allowRemoteModels = true;
-
-      // Load tokenizer and model in parallel (skip tokenizer if already loaded from a prior session)
-      const tasks: Promise<unknown>[] = [
-        fetchModelBlob(MODEL_URL, (downloaded, total) => this.progressCallback?.(downloaded, total)),
-      ];
-      if (!this.tokenizer) {
-        tasks.push(
-          retryAsync(() => AutoTokenizer.from_pretrained(TOKENIZER_HF), 'Tokenizer download').then((t: unknown) => {
-            this.tokenizer = t;
-          }),
-        );
-      }
-      const [modelBlob] = await Promise.all(tasks) as [Blob];
-
-      const blobUrl = URL.createObjectURL(modelBlob);
-      try {
-        this.session = await ort.InferenceSession.create(blobUrl, {
-          executionProviders: ['wasm'],
-        });
-      } finally {
-        // ONNX Runtime has already read the data into the WASM heap
-        URL.revokeObjectURL(blobUrl);
-      }
-
-      console.info(`[DocCloak] Model loaded: ${this._name} | inputs: [${this.session.inputNames.join(', ')}] | outputs: [${this.session.outputNames.join(', ')}]`);
-
-      this.loading = false;
-      this.loadWaiters.forEach((w) => w.resolve());
-      this.loadWaiters.length = 0;
-    } catch (err) {
-      this.session = null;
-      this.loadError = err instanceof Error ? err : new Error(String(err));
-      this.loading = false;
-      this.loadWaiters.forEach((w) => w.reject(this.loadError!));
-      this.loadWaiters.length = 0;
-      throw this.loadError;
-    }
-  }
-
-  release(): void {
-    if (this.session) {
-      this.session.release();
-      this.session = null;
-    }
-    this.loading = false;
-    this.loadError = null;
-  }
-
-  async detect(text: string, onProgress?: (progress: number) => void): Promise<DetectedEntity[]> {
-    if (!this.isLoaded()) await this.load();
-    if (!this.session || !this.tokenizer) return [];
-    if (!text.trim()) return [];
-
-    // Split into words with character offsets
-    const words: { word: string; start: number; end: number }[] = [];
-    const wordRegex = /\S+/g;
-    let match: RegExpExecArray | null;
-    while ((match = wordRegex.exec(text)) !== null) {
-      words.push({ word: match[0], start: match.index, end: match.index + match[0].length });
-    }
-
-    if (words.length === 0) return [];
-
-    // Tokenize full text once to count subtokens per word via ▁ prefix
-    onProgress?.(0);
-    const fullEncoded = await this.tokenizer(words.map((w) => w.word).join(' '), {
-      add_special_tokens: false,
-    });
-    const tokenIds = Array.from(fullEncoded.input_ids.data as BigInt64Array);
-    const tokenStrings: string[] = this.tokenizer.model.convert_ids_to_tokens(tokenIds.map(Number));
-
-    // Count subtokens per word: ▁ prefix marks word boundaries (SentencePiece)
-    const subtokenCounts: number[] = [];
-    let currentCount = 0;
-    for (const tok of tokenStrings) {
-      if (tok.startsWith('\u2581') && currentCount > 0) {
-        subtokenCounts.push(currentCount);
-        currentCount = 1;
-      } else {
-        currentCount++;
-      }
-    }
-    if (currentCount > 0) subtokenCounts.push(currentCount);
-
-    // Pad if mismatch (rare edge case)
-    while (subtokenCounts.length < words.length) subtokenCounts.push(1);
-    onProgress?.(0.1);
-
-    // Count total chunks for progress tracking
-    const maxSubtokens = MAX_SEQ_LENGTH - 2;
-    const overlapWords = CHUNK_OVERLAP;
-
-    // Pre-count chunks
-    let totalChunks = 0;
-    {
-      let ci = 0;
-      while (ci < words.length) {
-        let sum = 0, ce = ci;
-        while (ce < words.length && sum + subtokenCounts[ce] <= maxSubtokens) { sum += subtokenCounts[ce]; ce++; }
-        if (ce === ci) ce = ci + 1;
-        totalChunks++;
-        const next = Math.max(ci + 1, ce - overlapWords);
-        if (ce >= words.length) break;
-        ci = next;
-      }
-    }
-
-    // Process chunks with progress
-    const allEntities: DetectedEntity[] = [];
-    let i = 0;
-    let chunksDone = 0;
-
-    onProgress?.(0.1); // tokenization done
-
-    while (i < words.length) {
-      let subtokenSum = 0;
-      let end = i;
-      while (end < words.length && subtokenSum + subtokenCounts[end] <= maxSubtokens) {
-        subtokenSum += subtokenCounts[end];
-        end++;
-      }
-      if (end === i) end = i + 1;
-
-      const chunkWords = words.slice(i, end);
-      const chunkEntities = await this.inferChunk(chunkWords, text);
-      allEntities.push(...chunkEntities);
-
-      chunksDone++;
-      onProgress?.(0.1 + 0.9 * (chunksDone / totalChunks)); // inference = 10-100%
-      await new Promise((r) => setTimeout(r, 0));
-
-      const nextStart = Math.max(i + 1, end - overlapWords);
-      i = nextStart;
-      if (end >= words.length) break;
-    }
-
-    return this.deduplicateSpans(allEntities);
-  }
-
-  private async inferChunk(
-    words: { word: string; start: number; end: number }[],
-    fullText: string,
-  ): Promise<DetectedEntity[]> {
-    const chunkText = words.map((w) => w.word).join(' ');
-    const encoded = await this.tokenizer(chunkText, {
-      return_tensors: 'np',
-      truncation: true,
-      max_length: MAX_SEQ_LENGTH,
-      padding: true,
-    });
-
-    const inputIds = encoded.input_ids.data as BigInt64Array;
-    const attentionMask = encoded.attention_mask.data as BigInt64Array;
-    const seqLen = encoded.input_ids.dims[1];
-
-    // Build word→subtoken alignment via ▁ prefix (no per-word tokenization needed)
-    const chunkTokenIds = Array.from(inputIds);
-    const chunkTokenStrings: string[] = this.tokenizer.model.convert_ids_to_tokens(
-      chunkTokenIds.map(Number),
-    );
-    const wordSubtokenStart: number[] = [];
-    // Skip <s> at position 0; first real token at position 1
-    for (let t = 1; t < seqLen - 1; t++) {
-      const tok = chunkTokenStrings[t];
-      if (!tok || tok === '</s>') break;
-      if (tok.startsWith('\u2581')) {
-        wordSubtokenStart.push(t);
-      }
-    }
-
-    // XLM-RoBERTa: only input_ids + attention_mask (no token_type_ids)
-    const feeds: Record<string, ort.Tensor> = {
-      input_ids: new ort.Tensor('int64', inputIds, [1, seqLen]),
-      attention_mask: new ort.Tensor('int64', attentionMask, [1, seqLen]),
-    };
-
-    const results = await this.session!.run(feeds);
-    const logits = results.logits.data as Float32Array;
-    const numLabels = results.logits.dims[2];
-
-    // Per-subtoken predictions: argmax + softmax confidence
-    const predictions: { labelIdx: number; confidence: number }[] = [];
-    for (let t = 0; t < seqLen; t++) {
-      const offset = t * numLabels;
-      let maxIdx = 0;
-      let maxVal = logits[offset];
-      for (let l = 1; l < numLabels; l++) {
-        if (logits[offset + l] > maxVal) {
-          maxVal = logits[offset + l];
-          maxIdx = l;
-        }
-      }
-      let sumExp = 0;
-      for (let l = 0; l < numLabels; l++) {
-        sumExp += Math.exp(logits[offset + l] - maxVal);
-      }
-      predictions.push({ labelIdx: maxIdx, confidence: 1 / sumExp });
-    }
-
-    // Aggregate subtoken predictions to word level (first subtoken wins)
-    const entities: DetectedEntity[] = [];
-    let currentEntity: {
-      entityName: string;
-      entityType: EntityType;
-      startWord: number;
-      endWord: number;
-      confidence: number;
-      tokenCount: number;
-    } | null = null;
-
-    for (let wi = 0; wi < words.length; wi++) {
-      const stIdx = wordSubtokenStart[wi];
-      if (stIdx === undefined || stIdx >= seqLen - 1) break;
-
-      const pred = predictions[stIdx];
-      const label = ID2LABEL[pred.labelIdx] || 'O';
-      const entityName = bioToEntity(label);
-      const isB = label.startsWith('B-');
-      const isI = label.startsWith('I-');
-
-      if (isB) {
-        if (currentEntity) {
-          this.emitEntity(currentEntity, words, fullText, entities);
-        }
-        currentEntity = {
-          entityName: entityName!,
-          entityType: LABEL_TO_ENTITY_TYPE[entityName!] || 'OTHER',
-          startWord: wi,
-          endWord: wi,
-          confidence: pred.confidence,
-          tokenCount: 1,
-        };
-      } else if (isI && currentEntity && entityName === currentEntity.entityName) {
-        currentEntity.endWord = wi;
-        currentEntity.confidence += pred.confidence;
-        currentEntity.tokenCount += 1;
-      } else {
-        if (currentEntity) {
-          this.emitEntity(currentEntity, words, fullText, entities);
-          currentEntity = null;
-        }
-      }
-    }
-
-    if (currentEntity) {
-      this.emitEntity(currentEntity, words, fullText, entities);
-    }
-
-    return entities;
-  }
-
-  private emitEntity(
-    entity: {
-      entityName: string;
-      entityType: EntityType;
-      startWord: number;
-      endWord: number;
-      confidence: number;
-      tokenCount: number;
+/** Cache Storage adapter for the core BlobCache contract. */
+function cacheStorageBlobCache(): BlobCache {
+  return {
+    async match(url: string): Promise<Blob | undefined> {
+      const cache = await openModelCache();
+      if (!cache) return undefined;
+      const cached = await cache.match(url);
+      return cached ? await cached.blob() : undefined;
     },
-    words: { word: string; start: number; end: number }[],
-    fullText: string,
-    entities: DetectedEntity[],
-  ): void {
-    const avgConfidence = entity.confidence / entity.tokenCount;
-    if (avgConfidence < this.threshold) return;
+    async put(url: string, blob: Blob): Promise<boolean> {
+      const cache = await openModelCache();
+      if (!cache) return false;
+      // Large models can exceed per-origin quota; the throw surfaces in core
+      // as a best-effort warning, matching the previous behavior.
+      await cache.put(url, new Response(blob));
+      return true;
+    },
+    async delete(url: string): Promise<void> {
+      const cache = await openModelCache();
+      await cache?.delete(url);
+    },
+  };
+}
 
-    const charStart = words[entity.startWord].start;
-    const charEnd = words[entity.endWord].end;
+/** localStorage-backed KVStore. BardS.ai itself never touches it (custom labels are GLiNER-only). */
+function localStorageKV(): KVStore {
+  return {
+    async get(key: string): Promise<string | null> {
+      try { return localStorage.getItem(key); } catch { return null; }
+    },
+    async set(key: string, value: string): Promise<void> {
+      try { localStorage.setItem(key, value); } catch { /* quota/private mode */ }
+    },
+    async remove(key: string): Promise<void> {
+      try { localStorage.removeItem(key); } catch { /* ignore */ }
+    },
+  };
+}
 
-    entities.push({
-      type: entity.entityType,
-      value: fullText.slice(charStart, charEnd),
-      start: charStart,
-      end: charEnd,
-      confidence: avgConfidence,
-      detector: `bardsai:${entity.entityName}`,
-    });
+function webCoreEnv(): CoreEnv {
+  return {
+    kv: localStorageKV(),
+    modelCache: cacheStorageBlobCache(),
+    // Wrap instead of passing the function reference so fetch keeps its
+    // expected receiver (avoids Illegal invocation in browsers).
+    fetch: (...args: Parameters<typeof fetch>) => fetch(...args),
+    // Same behavior as before the move: BASE_URL wasm assets, single-threaded
+    // WASM (ORT's multi-threaded path hangs in some cross-origin-isolated
+    // contexts).
+    wasm: { paths: import.meta.env.BASE_URL, numThreads: 1 },
+    async loadTokenizer(hfModelId: string): Promise<unknown> {
+      // Configure @huggingface/transformers - load tokenizer from HF
+      hfEnv.allowLocalModels = false;
+      hfEnv.allowRemoteModels = true;
+      return AutoTokenizer.from_pretrained(hfModelId);
+    },
+    persistStorage: async () => (await navigator.storage?.persist?.()) ?? false,
+  };
+}
+
+/** Legacy zero-config provider, backed by the core implementation. */
+export class BardsaiProvider extends CoreBardsaiProvider {
+  constructor() {
+    super(webCoreEnv());
   }
-
-  private deduplicateSpans(entities: DetectedEntity[]): DetectedEntity[] {
-    const sorted = [...entities].sort((a, b) => b.confidence - a.confidence);
-    const result: DetectedEntity[] = [];
-    for (const e of sorted) {
-      const overlaps = result.some(
-        (existing) => e.start < existing.end && e.end > existing.start,
-      );
-      if (!overlaps) result.push(e);
-    }
-    return result;
-  }
-
 }
