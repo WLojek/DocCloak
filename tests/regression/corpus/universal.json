@@ -1,0 +1,313 @@
+{
+  "description": "Universal regex rules: contact, financial (IBAN + Luhn checksums), technical, dates, generic identifiers.",
+  "cases": [
+    {
+      "id": "u-01-contact-technical",
+      "description": "Email, international phone, IPv4, IPv6, MAC, ISO date, plus one stubbed ML person.",
+      "settings": {
+        "regexEnabled": true,
+        "regexRegion": "all",
+        "threshold": 0.35,
+        "mode": "labeled",
+        "renames": []
+      },
+      "input": "Contact Jan Kowalski at jan.kowalski@example.com or +48 600 123 456. Server 192.168.1.1 (backup 2001:0db8:85a3:0000:0000:8a2e:0370:7334, MAC 00:1B:44:11:3A:B7) was accessed on 2025-03-15.",
+      "mlEntities": [
+        {
+          "value": "Jan Kowalski",
+          "type": "PERSON",
+          "confidence": 0.87,
+          "detector": "gliner:person name",
+          "occurrence": 0
+        }
+      ],
+      "expected": {
+        "entities": [
+          {
+            "type": "PERSON",
+            "value": "Jan Kowalski",
+            "start": 8,
+            "end": 20,
+            "confidence": 0.87,
+            "detector": "gliner:person name"
+          },
+          {
+            "type": "EMAIL",
+            "value": "jan.kowalski@example.com",
+            "start": 24,
+            "end": 48,
+            "confidence": 0.95,
+            "detector": "regex:universal:email"
+          },
+          {
+            "type": "PHONE",
+            "value": "+48 600 123 456",
+            "start": 52,
+            "end": 67,
+            "confidence": 0.85,
+            "detector": "regex:universal:phone_intl"
+          },
+          {
+            "type": "IP_ADDRESS",
+            "value": "192.168.1.1",
+            "start": 76,
+            "end": 87,
+            "confidence": 0.9,
+            "detector": "regex:universal:ipv4"
+          },
+          {
+            "type": "IP_ADDRESS",
+            "value": "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+            "start": 96,
+            "end": 135,
+            "confidence": 0.9,
+            "detector": "regex:universal:ipv6"
+          },
+          {
+            "type": "OTHER",
+            "value": "00:1B:44:11:3A:B7",
+            "start": 141,
+            "end": 158,
+            "confidence": 0.85,
+            "detector": "regex:universal:mac_address"
+          },
+          {
+            "type": "DATE",
+            "value": "2025-03-15",
+            "start": 176,
+            "end": 186,
+            "confidence": 0.8,
+            "detector": "regex:universal:date_iso"
+          }
+        ],
+        "anonymized": "Contact <<REDACTED_7>> at <<REDACTED_6>> or <<REDACTED_5>>. Server <<REDACTED_4>> (backup <<REDACTED_3>>, MAC <<REDACTED_2>>) was accessed on <<REDACTED_1>>.",
+        "anonymizedAfterRename": null,
+        "restored": "Contact Jan Kowalski at jan.kowalski@example.com or +48 600 123 456. Server 192.168.1.1 (backup 2001:0db8:85a3:0000:0000:8a2e:0370:7334, MAC 00:1B:44:11:3A:B7) was accessed on 2025-03-15.",
+        "replacements": [
+          {
+            "original": "2025-03-15",
+            "replacement": "<<REDACTED_1>>",
+            "entityType": "DATE"
+          },
+          {
+            "original": "00:1B:44:11:3A:B7",
+            "replacement": "<<REDACTED_2>>",
+            "entityType": "OTHER"
+          },
+          {
+            "original": "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+            "replacement": "<<REDACTED_3>>",
+            "entityType": "IP_ADDRESS"
+          },
+          {
+            "original": "192.168.1.1",
+            "replacement": "<<REDACTED_4>>",
+            "entityType": "IP_ADDRESS"
+          },
+          {
+            "original": "+48 600 123 456",
+            "replacement": "<<REDACTED_5>>",
+            "entityType": "PHONE"
+          },
+          {
+            "original": "jan.kowalski@example.com",
+            "replacement": "<<REDACTED_6>>",
+            "entityType": "EMAIL"
+          },
+          {
+            "original": "Jan Kowalski",
+            "replacement": "<<REDACTED_7>>",
+            "entityType": "PERSON"
+          }
+        ]
+      }
+    },
+    {
+      "id": "u-02-financial-checksums",
+      "description": "IBAN (mod-97 checksum) and credit card (Luhn checksum) plus three currency notations and two date formats.",
+      "settings": {
+        "regexEnabled": true,
+        "regexRegion": "all",
+        "threshold": 0.35,
+        "mode": "labeled",
+        "renames": []
+      },
+      "input": "Payment of $45,000 (about 1,000.00 USD or 8 500,00 zł) was charged to card 4532 0151 1283 0366 on 15.03.2025 and booked 10 March 2025 under IBAN GB29 NWBK 6016 1331 9268 19.",
+      "mlEntities": [],
+      "expected": {
+        "entities": [
+          {
+            "type": "CURRENCY",
+            "value": "$45,000",
+            "start": 11,
+            "end": 18,
+            "confidence": 0.8,
+            "detector": "regex:universal:currency_symbol_prefix"
+          },
+          {
+            "type": "CURRENCY",
+            "value": "1,000.00 USD",
+            "start": 26,
+            "end": 38,
+            "confidence": 0.8,
+            "detector": "regex:universal:currency_code_suffix"
+          },
+          {
+            "type": "CURRENCY",
+            "value": "8 500,00 zł",
+            "start": 42,
+            "end": 53,
+            "confidence": 0.85,
+            "detector": "regex:universal:currency_symbol_suffix"
+          },
+          {
+            "type": "CREDIT_CARD",
+            "value": "4532 0151 1283 0366",
+            "start": 75,
+            "end": 94,
+            "confidence": 0.9,
+            "detector": "regex:universal:credit_card"
+          },
+          {
+            "type": "DATE",
+            "value": "15.03.2025",
+            "start": 98,
+            "end": 108,
+            "confidence": 0.75,
+            "detector": "regex:universal:date_numeric"
+          },
+          {
+            "type": "DATE",
+            "value": "10 March 2025",
+            "start": 120,
+            "end": 133,
+            "confidence": 0.8,
+            "detector": "regex:universal:date_word"
+          },
+          {
+            "type": "IBAN",
+            "value": "GB29 NWBK 6016 1331 9268 19",
+            "start": 145,
+            "end": 172,
+            "confidence": 0.9,
+            "detector": "regex:universal:iban"
+          }
+        ],
+        "anonymized": "Payment of <<REDACTED_7>> (about <<REDACTED_6>> or <<REDACTED_5>>) was charged to card <<REDACTED_4>> on <<REDACTED_3>> and booked <<REDACTED_2>> under IBAN <<REDACTED_1>>.",
+        "anonymizedAfterRename": null,
+        "restored": "Payment of $45,000 (about 1,000.00 USD or 8 500,00 zł) was charged to card 4532 0151 1283 0366 on 15.03.2025 and booked 10 March 2025 under IBAN GB29 NWBK 6016 1331 9268 19.",
+        "replacements": [
+          {
+            "original": "GB29 NWBK 6016 1331 9268 19",
+            "replacement": "<<REDACTED_1>>",
+            "entityType": "IBAN"
+          },
+          {
+            "original": "10 March 2025",
+            "replacement": "<<REDACTED_2>>",
+            "entityType": "DATE"
+          },
+          {
+            "original": "15.03.2025",
+            "replacement": "<<REDACTED_3>>",
+            "entityType": "DATE"
+          },
+          {
+            "original": "4532 0151 1283 0366",
+            "replacement": "<<REDACTED_4>>",
+            "entityType": "CREDIT_CARD"
+          },
+          {
+            "original": "8 500,00 zł",
+            "replacement": "<<REDACTED_5>>",
+            "entityType": "CURRENCY"
+          },
+          {
+            "original": "1,000.00 USD",
+            "replacement": "<<REDACTED_6>>",
+            "entityType": "CURRENCY"
+          },
+          {
+            "original": "$45,000",
+            "replacement": "<<REDACTED_7>>",
+            "entityType": "CURRENCY"
+          }
+        ]
+      }
+    },
+    {
+      "id": "u-03-generic-identifiers",
+      "description": "Labeled identifier, standalone long number, postal-code-plus-city, month-first date.",
+      "settings": {
+        "regexEnabled": true,
+        "regexRegion": "all",
+        "threshold": 0.35,
+        "mode": "labeled",
+        "renames": []
+      },
+      "input": "Ref: ABC 12345678 filed at 00-950 Warszawa. Case number 987654321 remains open until March 15, 2025.",
+      "mlEntities": [],
+      "expected": {
+        "entities": [
+          {
+            "type": "SSN",
+            "value": "ABC 12345678",
+            "start": 5,
+            "end": 17,
+            "confidence": 0.7,
+            "detector": "regex:universal:labeled_id"
+          },
+          {
+            "type": "ADDRESS",
+            "value": "00-950 Warszawa",
+            "start": 27,
+            "end": 42,
+            "confidence": 0.8,
+            "detector": "regex:pl:postal"
+          },
+          {
+            "type": "ADDRESS",
+            "value": "987654321 remains",
+            "start": 56,
+            "end": 73,
+            "confidence": 0.65,
+            "detector": "regex:universal:postal_city"
+          },
+          {
+            "type": "DATE",
+            "value": "March 15, 2025",
+            "start": 85,
+            "end": 99,
+            "confidence": 0.85,
+            "detector": "regex:universal:date_month_first"
+          }
+        ],
+        "anonymized": "Ref: <<REDACTED_4>> filed at <<REDACTED_3>>. Case number <<REDACTED_2>> open until <<REDACTED_1>>.",
+        "anonymizedAfterRename": null,
+        "restored": "Ref: ABC 12345678 filed at 00-950 Warszawa. Case number 987654321 remains open until March 15, 2025.",
+        "replacements": [
+          {
+            "original": "March 15, 2025",
+            "replacement": "<<REDACTED_1>>",
+            "entityType": "DATE"
+          },
+          {
+            "original": "987654321 remains",
+            "replacement": "<<REDACTED_2>>",
+            "entityType": "ADDRESS"
+          },
+          {
+            "original": "00-950 Warszawa",
+            "replacement": "<<REDACTED_3>>",
+            "entityType": "ADDRESS"
+          },
+          {
+            "original": "ABC 12345678",
+            "replacement": "<<REDACTED_4>>",
+            "entityType": "SSN"
+          }
+        ]
+      }
+    }
+  ]
+}

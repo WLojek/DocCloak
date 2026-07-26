@@ -1,0 +1,202 @@
+{
+  "description": "Entity propagation: repeated full names, multi-word splits, case-insensitive matching.",
+  "cases": [
+    {
+      "id": "prop-01-repeated-name",
+      "description": "ML detects only the first occurrence; propagation must cover the repeat and the bare surname.",
+      "settings": {
+        "regexEnabled": false,
+        "regexRegion": "all",
+        "threshold": 0.35,
+        "mode": "labeled",
+        "renames": []
+      },
+      "input": "Anna Kowalska signed the agreement on Monday. Two weeks later Anna Kowalska confirmed the terms, and Kowalska received the keys.",
+      "mlEntities": [
+        {
+          "value": "Anna Kowalska",
+          "type": "PERSON",
+          "confidence": 0.9,
+          "detector": "gliner:person name",
+          "occurrence": 0
+        }
+      ],
+      "expected": {
+        "entities": [
+          {
+            "type": "PERSON",
+            "value": "Anna Kowalska",
+            "start": 0,
+            "end": 13,
+            "confidence": 0.9,
+            "detector": "gliner:person name"
+          },
+          {
+            "type": "PERSON",
+            "value": "Anna Kowalska",
+            "start": 62,
+            "end": 75,
+            "confidence": 0.95,
+            "detector": "propagated"
+          },
+          {
+            "type": "PERSON",
+            "value": "Kowalska",
+            "start": 101,
+            "end": 109,
+            "confidence": 0.95,
+            "detector": "propagated"
+          }
+        ],
+        "anonymized": "<<REDACTED_2>> signed the agreement on Monday. Two weeks later <<REDACTED_2>> confirmed the terms, and <<REDACTED_1>> received the keys.",
+        "anonymizedAfterRename": null,
+        "restored": "Anna Kowalska signed the agreement on Monday. Two weeks later Anna Kowalska confirmed the terms, and Kowalska received the keys.",
+        "replacements": [
+          {
+            "original": "Kowalska",
+            "replacement": "<<REDACTED_1>>",
+            "entityType": "PERSON"
+          },
+          {
+            "original": "Anna Kowalska",
+            "replacement": "<<REDACTED_2>>",
+            "entityType": "PERSON"
+          }
+        ]
+      }
+    },
+    {
+      "id": "prop-02-multiword-split",
+      "description": "Multi-word name split into words (min 4 chars) that reappear separately.",
+      "settings": {
+        "regexEnabled": false,
+        "regexRegion": "all",
+        "threshold": 0.35,
+        "mode": "labeled",
+        "renames": []
+      },
+      "input": "Maria van den Berg attended the hearing. Ms. Berg replied later, and the van den Berg archive was updated.",
+      "mlEntities": [
+        {
+          "value": "Maria van den Berg",
+          "type": "PERSON",
+          "confidence": 0.88,
+          "detector": "gliner:person name",
+          "occurrence": 0
+        }
+      ],
+      "expected": {
+        "entities": [
+          {
+            "type": "PERSON",
+            "value": "Maria van den Berg",
+            "start": 0,
+            "end": 18,
+            "confidence": 0.88,
+            "detector": "gliner:person name"
+          },
+          {
+            "type": "PERSON",
+            "value": "Berg",
+            "start": 45,
+            "end": 49,
+            "confidence": 0.95,
+            "detector": "propagated"
+          },
+          {
+            "type": "PERSON",
+            "value": "Berg",
+            "start": 81,
+            "end": 85,
+            "confidence": 0.95,
+            "detector": "propagated"
+          }
+        ],
+        "anonymized": "<<REDACTED_2>> attended the hearing. Ms. <<REDACTED_1>> replied later, and the van den <<REDACTED_1>> archive was updated.",
+        "anonymizedAfterRename": null,
+        "restored": "Maria van den Berg attended the hearing. Ms. Berg replied later, and the van den Berg archive was updated.",
+        "replacements": [
+          {
+            "original": "Berg",
+            "replacement": "<<REDACTED_1>>",
+            "entityType": "PERSON"
+          },
+          {
+            "original": "Maria van den Berg",
+            "replacement": "<<REDACTED_2>>",
+            "entityType": "PERSON"
+          }
+        ]
+      }
+    },
+    {
+      "id": "prop-03-case-insensitive",
+      "description": "Propagation matches case-insensitively but keeps the original casing of each occurrence.",
+      "settings": {
+        "regexEnabled": false,
+        "regexRegion": "all",
+        "threshold": 0.35,
+        "mode": "labeled",
+        "renames": []
+      },
+      "input": "ERIK JOHANSSON logged in at dawn. Later erik johansson logged out; Johansson forgot his badge.",
+      "mlEntities": [
+        {
+          "value": "ERIK JOHANSSON",
+          "type": "PERSON",
+          "confidence": 0.86,
+          "detector": "gliner:person name",
+          "occurrence": 0
+        }
+      ],
+      "expected": {
+        "entities": [
+          {
+            "type": "PERSON",
+            "value": "ERIK JOHANSSON",
+            "start": 0,
+            "end": 14,
+            "confidence": 0.86,
+            "detector": "gliner:person name"
+          },
+          {
+            "type": "PERSON",
+            "value": "erik johansson",
+            "start": 40,
+            "end": 54,
+            "confidence": 0.95,
+            "detector": "propagated"
+          },
+          {
+            "type": "PERSON",
+            "value": "Johansson",
+            "start": 67,
+            "end": 76,
+            "confidence": 0.95,
+            "detector": "propagated"
+          }
+        ],
+        "anonymized": "<<REDACTED_3>> logged in at dawn. Later <<REDACTED_2>> logged out; <<REDACTED_1>> forgot his badge.",
+        "anonymizedAfterRename": null,
+        "restored": "ERIK JOHANSSON logged in at dawn. Later erik johansson logged out; Johansson forgot his badge.",
+        "replacements": [
+          {
+            "original": "Johansson",
+            "replacement": "<<REDACTED_1>>",
+            "entityType": "PERSON"
+          },
+          {
+            "original": "erik johansson",
+            "replacement": "<<REDACTED_2>>",
+            "entityType": "PERSON"
+          },
+          {
+            "original": "ERIK JOHANSSON",
+            "replacement": "<<REDACTED_3>>",
+            "entityType": "PERSON"
+          }
+        ]
+      }
+    }
+  ]
+}

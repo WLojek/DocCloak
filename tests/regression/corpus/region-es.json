@@ -1,0 +1,139 @@
+{
+  "description": "Spain: DNI, NIE, street, postal code, phone, company, amount in words.",
+  "cases": [
+    {
+      "id": "es-01",
+      "description": "Spain: DNI, NIE, street, postal code, phone, company, amount in words.",
+      "settings": {
+        "regexEnabled": true,
+        "regexRegion": "es",
+        "threshold": 0.35,
+        "mode": "labeled",
+        "renames": []
+      },
+      "input": "D. Carlos Garcia, DNI 12345678Z, NIE X1234567L, domicilio Calle Mayor 15, 28001 Madrid, telefono +34 612 345 678. Empresa: Construcciones García S.L. Importe en letras: ocho mil quinientos euros.",
+      "mlEntities": [
+        {
+          "value": "Carlos Garcia",
+          "type": "PERSON",
+          "confidence": 0.89,
+          "detector": "gliner:person name",
+          "occurrence": 0
+        }
+      ],
+      "expected": {
+        "entities": [
+          {
+            "type": "PERSON",
+            "value": "Carlos Garcia",
+            "start": 3,
+            "end": 16,
+            "confidence": 0.89,
+            "detector": "gliner:person name"
+          },
+          {
+            "type": "SSN",
+            "value": "12345678Z",
+            "start": 22,
+            "end": 31,
+            "confidence": 0.9,
+            "detector": "regex:es:dni"
+          },
+          {
+            "type": "SSN",
+            "value": "X1234567L",
+            "start": 37,
+            "end": 46,
+            "confidence": 0.9,
+            "detector": "regex:es:nie"
+          },
+          {
+            "type": "ADDRESS",
+            "value": "Calle Mayor 15",
+            "start": 58,
+            "end": 72,
+            "confidence": 0.85,
+            "detector": "regex:es:street"
+          },
+          {
+            "type": "ADDRESS",
+            "value": "28001 Madrid",
+            "start": 74,
+            "end": 86,
+            "confidence": 0.75,
+            "detector": "regex:es:postal"
+          },
+          {
+            "type": "PHONE",
+            "value": "+34 612 345 678",
+            "start": 97,
+            "end": 112,
+            "confidence": 0.85,
+            "detector": "regex:universal:phone_intl"
+          },
+          {
+            "type": "COMPANY",
+            "value": "Construcciones García S.L",
+            "start": 123,
+            "end": 148,
+            "confidence": 0.9,
+            "detector": "regex:es:company"
+          },
+          {
+            "type": "CURRENCY",
+            "value": "en letras: ocho mil quinientos euros",
+            "start": 158,
+            "end": 194,
+            "confidence": 0.9,
+            "detector": "regex:es:currency_words"
+          }
+        ],
+        "anonymized": "D. <<REDACTED_8>>, DNI <<REDACTED_7>>, NIE <<REDACTED_6>>, domicilio <<REDACTED_5>>, <<REDACTED_4>>, telefono <<REDACTED_3>>. Empresa: <<REDACTED_2>>. Importe <<REDACTED_1>>.",
+        "anonymizedAfterRename": null,
+        "restored": "D. Carlos Garcia, DNI 12345678Z, NIE X1234567L, domicilio Calle Mayor 15, 28001 Madrid, telefono +34 612 345 678. Empresa: Construcciones García S.L. Importe en letras: ocho mil quinientos euros.",
+        "replacements": [
+          {
+            "original": "en letras: ocho mil quinientos euros",
+            "replacement": "<<REDACTED_1>>",
+            "entityType": "CURRENCY"
+          },
+          {
+            "original": "Construcciones García S.L",
+            "replacement": "<<REDACTED_2>>",
+            "entityType": "COMPANY"
+          },
+          {
+            "original": "+34 612 345 678",
+            "replacement": "<<REDACTED_3>>",
+            "entityType": "PHONE"
+          },
+          {
+            "original": "28001 Madrid",
+            "replacement": "<<REDACTED_4>>",
+            "entityType": "ADDRESS"
+          },
+          {
+            "original": "Calle Mayor 15",
+            "replacement": "<<REDACTED_5>>",
+            "entityType": "ADDRESS"
+          },
+          {
+            "original": "X1234567L",
+            "replacement": "<<REDACTED_6>>",
+            "entityType": "SSN"
+          },
+          {
+            "original": "12345678Z",
+            "replacement": "<<REDACTED_7>>",
+            "entityType": "SSN"
+          },
+          {
+            "original": "Carlos Garcia",
+            "replacement": "<<REDACTED_8>>",
+            "entityType": "PERSON"
+          }
+        ]
+      }
+    }
+  ]
+}

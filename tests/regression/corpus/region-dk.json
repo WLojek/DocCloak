@@ -1,0 +1,87 @@
+{
+  "description": "Denmark: CPR number, postal code and city, phone.",
+  "cases": [
+    {
+      "id": "dk-01",
+      "description": "Denmark: CPR number, postal code and city, phone.",
+      "settings": {
+        "regexEnabled": true,
+        "regexRegion": "dk",
+        "threshold": 0.35,
+        "mode": "labeled",
+        "renames": []
+      },
+      "input": "Hr. Lars Jensen, CPR-nummer 010190-1234, adresse 2100 København, telefon 32 12 34 56.",
+      "mlEntities": [
+        {
+          "value": "Lars Jensen",
+          "type": "PERSON",
+          "confidence": 0.9,
+          "detector": "gliner:person name",
+          "occurrence": 0
+        }
+      ],
+      "expected": {
+        "entities": [
+          {
+            "type": "PERSON",
+            "value": "Lars Jensen",
+            "start": 4,
+            "end": 15,
+            "confidence": 0.9,
+            "detector": "gliner:person name"
+          },
+          {
+            "type": "SSN",
+            "value": "010190-1234",
+            "start": 28,
+            "end": 39,
+            "confidence": 0.8,
+            "detector": "regex:dk:cpr-number"
+          },
+          {
+            "type": "ADDRESS",
+            "value": "2100 København",
+            "start": 49,
+            "end": 63,
+            "confidence": 0.8,
+            "detector": "regex:dk:postal-city"
+          },
+          {
+            "type": "PHONE",
+            "value": "32 12 34 56",
+            "start": 73,
+            "end": 84,
+            "confidence": 0.75,
+            "detector": "regex:dk:phone"
+          }
+        ],
+        "anonymized": "Hr. <<REDACTED_4>>, CPR-nummer <<REDACTED_3>>, adresse <<REDACTED_2>>, telefon <<REDACTED_1>>.",
+        "anonymizedAfterRename": null,
+        "restored": "Hr. Lars Jensen, CPR-nummer 010190-1234, adresse 2100 København, telefon 32 12 34 56.",
+        "replacements": [
+          {
+            "original": "32 12 34 56",
+            "replacement": "<<REDACTED_1>>",
+            "entityType": "PHONE"
+          },
+          {
+            "original": "2100 København",
+            "replacement": "<<REDACTED_2>>",
+            "entityType": "ADDRESS"
+          },
+          {
+            "original": "010190-1234",
+            "replacement": "<<REDACTED_3>>",
+            "entityType": "SSN"
+          },
+          {
+            "original": "Lars Jensen",
+            "replacement": "<<REDACTED_4>>",
+            "entityType": "PERSON"
+          }
+        ]
+      }
+    }
+  ]
+}

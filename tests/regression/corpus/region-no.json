@@ -1,0 +1,126 @@
+{
+  "description": "Norway: fodselsnummer, street, postal code, phone, company, amount in words.",
+  "cases": [
+    {
+      "id": "no-01",
+      "description": "Norway: fodselsnummer, street, postal code, phone, company, amount in words.",
+      "settings": {
+        "regexEnabled": true,
+        "regexRegion": "no",
+        "threshold": 0.35,
+        "mode": "labeled",
+        "renames": []
+      },
+      "input": "Ola Nordmann, fødselsnummer 01019912368, adresse Karl Johans gate 22, 0001 Oslo, telefon +47 12 34 56 78. Selskap: Fjellvann ASA. Beløp med bokstaver: åtte tusen fem hundre kroner.",
+      "mlEntities": [
+        {
+          "value": "Ola Nordmann",
+          "type": "PERSON",
+          "confidence": 0.9,
+          "detector": "gliner:person name",
+          "occurrence": 0
+        }
+      ],
+      "expected": {
+        "entities": [
+          {
+            "type": "PERSON",
+            "value": "Ola Nordmann",
+            "start": 0,
+            "end": 12,
+            "confidence": 0.9,
+            "detector": "gliner:person name"
+          },
+          {
+            "type": "SSN",
+            "value": "01019912368",
+            "start": 28,
+            "end": 39,
+            "confidence": 0.8,
+            "detector": "regex:no:fodselsnummer"
+          },
+          {
+            "type": "ADDRESS",
+            "value": "adresse Karl Johans gate 22",
+            "start": 41,
+            "end": 68,
+            "confidence": 0.9,
+            "detector": "regex:no:street"
+          },
+          {
+            "type": "ADDRESS",
+            "value": "0001 Oslo",
+            "start": 70,
+            "end": 79,
+            "confidence": 0.8,
+            "detector": "regex:no:postal"
+          },
+          {
+            "type": "PHONE",
+            "value": "+47 12 34 56 78",
+            "start": 89,
+            "end": 104,
+            "confidence": 0.85,
+            "detector": "regex:universal:phone_intl"
+          },
+          {
+            "type": "COMPANY",
+            "value": "Fjellvann ASA",
+            "start": 115,
+            "end": 128,
+            "confidence": 0.8,
+            "detector": "regex:no:company"
+          },
+          {
+            "type": "CURRENCY",
+            "value": "med bokstaver: åtte tusen fem hundre kroner",
+            "start": 136,
+            "end": 179,
+            "confidence": 0.9,
+            "detector": "regex:no:currency_words"
+          }
+        ],
+        "anonymized": "<<REDACTED_7>>, fødselsnummer <<REDACTED_6>>, <<REDACTED_5>>, <<REDACTED_4>>, telefon <<REDACTED_3>>. Selskap: <<REDACTED_2>>. Beløp <<REDACTED_1>>.",
+        "anonymizedAfterRename": null,
+        "restored": "Ola Nordmann, fødselsnummer 01019912368, adresse Karl Johans gate 22, 0001 Oslo, telefon +47 12 34 56 78. Selskap: Fjellvann ASA. Beløp med bokstaver: åtte tusen fem hundre kroner.",
+        "replacements": [
+          {
+            "original": "med bokstaver: åtte tusen fem hundre kroner",
+            "replacement": "<<REDACTED_1>>",
+            "entityType": "CURRENCY"
+          },
+          {
+            "original": "Fjellvann ASA",
+            "replacement": "<<REDACTED_2>>",
+            "entityType": "COMPANY"
+          },
+          {
+            "original": "+47 12 34 56 78",
+            "replacement": "<<REDACTED_3>>",
+            "entityType": "PHONE"
+          },
+          {
+            "original": "0001 Oslo",
+            "replacement": "<<REDACTED_4>>",
+            "entityType": "ADDRESS"
+          },
+          {
+            "original": "adresse Karl Johans gate 22",
+            "replacement": "<<REDACTED_5>>",
+            "entityType": "ADDRESS"
+          },
+          {
+            "original": "01019912368",
+            "replacement": "<<REDACTED_6>>",
+            "entityType": "SSN"
+          },
+          {
+            "original": "Ola Nordmann",
+            "replacement": "<<REDACTED_7>>",
+            "entityType": "PERSON"
+          }
+        ]
+      }
+    }
+  ]
+}

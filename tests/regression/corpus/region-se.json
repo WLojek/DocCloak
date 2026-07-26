@@ -1,0 +1,126 @@
+{
+  "description": "Sweden: 12-digit personnummer, street, postal code, phone, company, amount in words.",
+  "cases": [
+    {
+      "id": "se-01",
+      "description": "Sweden: 12-digit personnummer, street, postal code, phone, company, amount in words.",
+      "settings": {
+        "regexEnabled": true,
+        "regexRegion": "se",
+        "threshold": 0.35,
+        "mode": "labeled",
+        "renames": []
+      },
+      "input": "Sven Svensson, personnummer 19850523-1478, adress Drottninggatan 42, 111 22 Stockholm, telefon 070-123 45 67. Bolag: Fjällbyggen AB. Belopp med bokstäver: åttatusen femhundra kronor.",
+      "mlEntities": [
+        {
+          "value": "Sven Svensson",
+          "type": "PERSON",
+          "confidence": 0.9,
+          "detector": "gliner:person name",
+          "occurrence": 0
+        }
+      ],
+      "expected": {
+        "entities": [
+          {
+            "type": "PERSON",
+            "value": "Sven Svensson",
+            "start": 0,
+            "end": 13,
+            "confidence": 0.9,
+            "detector": "gliner:person name"
+          },
+          {
+            "type": "SSN",
+            "value": "19850523-1478",
+            "start": 28,
+            "end": 41,
+            "confidence": 0.9,
+            "detector": "regex:se:personnummer_12"
+          },
+          {
+            "type": "ADDRESS",
+            "value": "adress Drottninggatan 42",
+            "start": 43,
+            "end": 67,
+            "confidence": 0.9,
+            "detector": "regex:se:street"
+          },
+          {
+            "type": "ADDRESS",
+            "value": "111 22 Stockholm",
+            "start": 69,
+            "end": 85,
+            "confidence": 0.8,
+            "detector": "regex:se:postal"
+          },
+          {
+            "type": "PHONE",
+            "value": "070-123 45 67",
+            "start": 95,
+            "end": 108,
+            "confidence": 0.75,
+            "detector": "regex:se:phone"
+          },
+          {
+            "type": "COMPANY",
+            "value": "Fjällbyggen AB",
+            "start": 117,
+            "end": 131,
+            "confidence": 0.8,
+            "detector": "regex:se:company"
+          },
+          {
+            "type": "CURRENCY",
+            "value": "med bokstäver: åttatusen femhundra kronor",
+            "start": 140,
+            "end": 181,
+            "confidence": 0.9,
+            "detector": "regex:se:currency_words"
+          }
+        ],
+        "anonymized": "<<REDACTED_7>>, personnummer <<REDACTED_6>>, <<REDACTED_5>>, <<REDACTED_4>>, telefon <<REDACTED_3>>. Bolag: <<REDACTED_2>>. Belopp <<REDACTED_1>>.",
+        "anonymizedAfterRename": null,
+        "restored": "Sven Svensson, personnummer 19850523-1478, adress Drottninggatan 42, 111 22 Stockholm, telefon 070-123 45 67. Bolag: Fjällbyggen AB. Belopp med bokstäver: åttatusen femhundra kronor.",
+        "replacements": [
+          {
+            "original": "med bokstäver: åttatusen femhundra kronor",
+            "replacement": "<<REDACTED_1>>",
+            "entityType": "CURRENCY"
+          },
+          {
+            "original": "Fjällbyggen AB",
+            "replacement": "<<REDACTED_2>>",
+            "entityType": "COMPANY"
+          },
+          {
+            "original": "070-123 45 67",
+            "replacement": "<<REDACTED_3>>",
+            "entityType": "PHONE"
+          },
+          {
+            "original": "111 22 Stockholm",
+            "replacement": "<<REDACTED_4>>",
+            "entityType": "ADDRESS"
+          },
+          {
+            "original": "adress Drottninggatan 42",
+            "replacement": "<<REDACTED_5>>",
+            "entityType": "ADDRESS"
+          },
+          {
+            "original": "19850523-1478",
+            "replacement": "<<REDACTED_6>>",
+            "entityType": "SSN"
+          },
+          {
+            "original": "Sven Svensson",
+            "replacement": "<<REDACTED_7>>",
+            "entityType": "PERSON"
+          }
+        ]
+      }
+    }
+  ]
+}

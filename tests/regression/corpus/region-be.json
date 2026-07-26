@@ -1,0 +1,100 @@
+{
+  "description": "Belgium: national register number, street, postal code, phone.",
+  "cases": [
+    {
+      "id": "be-01",
+      "description": "Belgium: national register number, street, postal code, phone.",
+      "settings": {
+        "regexEnabled": true,
+        "regexRegion": "be",
+        "threshold": 0.35,
+        "mode": "labeled",
+        "renames": []
+      },
+      "input": "Mevr. Marie Peeters, rijksregisternummer 85.07.15-123.97, adres Kerkstraat 12, 2000 Antwerpen, tel +32 475 12 34 56.",
+      "mlEntities": [
+        {
+          "value": "Marie Peeters",
+          "type": "PERSON",
+          "confidence": 0.9,
+          "detector": "gliner:person name",
+          "occurrence": 0
+        }
+      ],
+      "expected": {
+        "entities": [
+          {
+            "type": "PERSON",
+            "value": "Marie Peeters",
+            "start": 6,
+            "end": 19,
+            "confidence": 0.9,
+            "detector": "gliner:person name"
+          },
+          {
+            "type": "SSN",
+            "value": "85.07.15-123.97",
+            "start": 41,
+            "end": 56,
+            "confidence": 0.9,
+            "detector": "regex:be:national_register"
+          },
+          {
+            "type": "ADDRESS",
+            "value": "adres Kerkstraat 12",
+            "start": 58,
+            "end": 77,
+            "confidence": 0.85,
+            "detector": "regex:be:street"
+          },
+          {
+            "type": "ADDRESS",
+            "value": "2000 Antwerpen",
+            "start": 79,
+            "end": 93,
+            "confidence": 0.75,
+            "detector": "regex:be:postal"
+          },
+          {
+            "type": "PHONE",
+            "value": "+32 475 12 34 56",
+            "start": 99,
+            "end": 115,
+            "confidence": 0.85,
+            "detector": "regex:universal:phone_intl"
+          }
+        ],
+        "anonymized": "Mevr. <<REDACTED_5>>, rijksregisternummer <<REDACTED_4>>, <<REDACTED_3>>, <<REDACTED_2>>, tel <<REDACTED_1>>.",
+        "anonymizedAfterRename": null,
+        "restored": "Mevr. Marie Peeters, rijksregisternummer 85.07.15-123.97, adres Kerkstraat 12, 2000 Antwerpen, tel +32 475 12 34 56.",
+        "replacements": [
+          {
+            "original": "+32 475 12 34 56",
+            "replacement": "<<REDACTED_1>>",
+            "entityType": "PHONE"
+          },
+          {
+            "original": "2000 Antwerpen",
+            "replacement": "<<REDACTED_2>>",
+            "entityType": "ADDRESS"
+          },
+          {
+            "original": "adres Kerkstraat 12",
+            "replacement": "<<REDACTED_3>>",
+            "entityType": "ADDRESS"
+          },
+          {
+            "original": "85.07.15-123.97",
+            "replacement": "<<REDACTED_4>>",
+            "entityType": "SSN"
+          },
+          {
+            "original": "Marie Peeters",
+            "replacement": "<<REDACTED_5>>",
+            "entityType": "PERSON"
+          }
+        ]
+      }
+    }
+  ]
+}

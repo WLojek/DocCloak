@@ -1,0 +1,113 @@
+{
+  "description": "Netherlands: BSN (11-test), street, postcode, mobile phone, company.",
+  "cases": [
+    {
+      "id": "nl-01",
+      "description": "Netherlands: BSN (11-test), street, postcode, mobile phone, company.",
+      "settings": {
+        "regexEnabled": true,
+        "regexRegion": "nl",
+        "threshold": 0.35,
+        "mode": "labeled",
+        "renames": []
+      },
+      "input": "Dhr. Jan de Vries, BSN 123456782, adres Keizersgracht 123, 1012 AB Amsterdam, mobiel 06 12345678. Bedrijf: Tulpenhandel B.V.",
+      "mlEntities": [
+        {
+          "value": "Jan de Vries",
+          "type": "PERSON",
+          "confidence": 0.9,
+          "detector": "gliner:person name",
+          "occurrence": 0
+        }
+      ],
+      "expected": {
+        "entities": [
+          {
+            "type": "PERSON",
+            "value": "Jan de Vries",
+            "start": 5,
+            "end": 17,
+            "confidence": 0.9,
+            "detector": "gliner:person name"
+          },
+          {
+            "type": "SSN",
+            "value": "123456782",
+            "start": 23,
+            "end": 32,
+            "confidence": 0.85,
+            "detector": "regex:nl:bsn"
+          },
+          {
+            "type": "ADDRESS",
+            "value": "adres Keizersgracht 123",
+            "start": 34,
+            "end": 57,
+            "confidence": 0.85,
+            "detector": "regex:nl:street"
+          },
+          {
+            "type": "ADDRESS",
+            "value": "1012 AB",
+            "start": 59,
+            "end": 66,
+            "confidence": 0.8,
+            "detector": "regex:nl:postal"
+          },
+          {
+            "type": "PHONE",
+            "value": "06 12345678",
+            "start": 85,
+            "end": 96,
+            "confidence": 0.85,
+            "detector": "regex:nl:phone_mobile"
+          },
+          {
+            "type": "COMPANY",
+            "value": "Tulpenhandel B.V",
+            "start": 107,
+            "end": 123,
+            "confidence": 0.9,
+            "detector": "regex:nl:company"
+          }
+        ],
+        "anonymized": "Dhr. <<REDACTED_6>>, BSN <<REDACTED_5>>, <<REDACTED_4>>, <<REDACTED_3>> Amsterdam, mobiel <<REDACTED_2>>. Bedrijf: <<REDACTED_1>>.",
+        "anonymizedAfterRename": null,
+        "restored": "Dhr. Jan de Vries, BSN 123456782, adres Keizersgracht 123, 1012 AB Amsterdam, mobiel 06 12345678. Bedrijf: Tulpenhandel B.V.",
+        "replacements": [
+          {
+            "original": "Tulpenhandel B.V",
+            "replacement": "<<REDACTED_1>>",
+            "entityType": "COMPANY"
+          },
+          {
+            "original": "06 12345678",
+            "replacement": "<<REDACTED_2>>",
+            "entityType": "PHONE"
+          },
+          {
+            "original": "1012 AB",
+            "replacement": "<<REDACTED_3>>",
+            "entityType": "ADDRESS"
+          },
+          {
+            "original": "adres Keizersgracht 123",
+            "replacement": "<<REDACTED_4>>",
+            "entityType": "ADDRESS"
+          },
+          {
+            "original": "123456782",
+            "replacement": "<<REDACTED_5>>",
+            "entityType": "SSN"
+          },
+          {
+            "original": "Jan de Vries",
+            "replacement": "<<REDACTED_6>>",
+            "entityType": "PERSON"
+          }
+        ]
+      }
+    }
+  ]
+}

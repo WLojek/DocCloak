@@ -1,0 +1,195 @@
+{
+  "description": "Confidence threshold edges (provider keeps score >= threshold) and the min-length false-positive filter.",
+  "cases": [
+    {
+      "id": "th-01-default-threshold-edges",
+      "description": "Confidences 0.3499 / 0.35 / 0.3501 around the default 0.35 threshold.",
+      "settings": {
+        "regexEnabled": false,
+        "regexRegion": "all",
+        "threshold": 0.35,
+        "mode": "labeled",
+        "renames": []
+      },
+      "input": "Attendees: Bela Nagy, Edit Szabo and Aron Toth joined the call.",
+      "mlEntities": [
+        {
+          "value": "Bela Nagy",
+          "type": "PERSON",
+          "confidence": 0.3499,
+          "detector": "gliner:person name",
+          "occurrence": 0
+        },
+        {
+          "value": "Edit Szabo",
+          "type": "PERSON",
+          "confidence": 0.35,
+          "detector": "gliner:person name",
+          "occurrence": 0
+        },
+        {
+          "value": "Aron Toth",
+          "type": "PERSON",
+          "confidence": 0.3501,
+          "detector": "gliner:person name",
+          "occurrence": 0
+        }
+      ],
+      "expected": {
+        "entities": [
+          {
+            "type": "PERSON",
+            "value": "Edit Szabo",
+            "start": 22,
+            "end": 32,
+            "confidence": 0.35,
+            "detector": "gliner:person name"
+          },
+          {
+            "type": "PERSON",
+            "value": "Aron Toth",
+            "start": 37,
+            "end": 46,
+            "confidence": 0.3501,
+            "detector": "gliner:person name"
+          }
+        ],
+        "anonymized": "Attendees: Bela Nagy, <<REDACTED_2>> and <<REDACTED_1>> joined the call.",
+        "anonymizedAfterRename": null,
+        "restored": "Attendees: Bela Nagy, Edit Szabo and Aron Toth joined the call.",
+        "replacements": [
+          {
+            "original": "Aron Toth",
+            "replacement": "<<REDACTED_1>>",
+            "entityType": "PERSON"
+          },
+          {
+            "original": "Edit Szabo",
+            "replacement": "<<REDACTED_2>>",
+            "entityType": "PERSON"
+          }
+        ]
+      }
+    },
+    {
+      "id": "th-02-raised-threshold",
+      "description": "Threshold raised to 0.5: 0.49 dropped, 0.5 and 0.9 kept.",
+      "settings": {
+        "regexEnabled": false,
+        "regexRegion": "all",
+        "threshold": 0.5,
+        "mode": "labeled",
+        "renames": []
+      },
+      "input": "Reviewers: Lena Berg, Nils Falk and Karl Voss approved the draft.",
+      "mlEntities": [
+        {
+          "value": "Lena Berg",
+          "type": "PERSON",
+          "confidence": 0.49,
+          "detector": "gliner:person name",
+          "occurrence": 0
+        },
+        {
+          "value": "Nils Falk",
+          "type": "PERSON",
+          "confidence": 0.5,
+          "detector": "gliner:person name",
+          "occurrence": 0
+        },
+        {
+          "value": "Karl Voss",
+          "type": "PERSON",
+          "confidence": 0.9,
+          "detector": "gliner:person name",
+          "occurrence": 0
+        }
+      ],
+      "expected": {
+        "entities": [
+          {
+            "type": "PERSON",
+            "value": "Nils Falk",
+            "start": 22,
+            "end": 31,
+            "confidence": 0.5,
+            "detector": "gliner:person name"
+          },
+          {
+            "type": "PERSON",
+            "value": "Karl Voss",
+            "start": 36,
+            "end": 45,
+            "confidence": 0.9,
+            "detector": "gliner:person name"
+          }
+        ],
+        "anonymized": "Reviewers: Lena Berg, <<REDACTED_2>> and <<REDACTED_1>> approved the draft.",
+        "anonymizedAfterRename": null,
+        "restored": "Reviewers: Lena Berg, Nils Falk and Karl Voss approved the draft.",
+        "replacements": [
+          {
+            "original": "Karl Voss",
+            "replacement": "<<REDACTED_1>>",
+            "entityType": "PERSON"
+          },
+          {
+            "original": "Nils Falk",
+            "replacement": "<<REDACTED_2>>",
+            "entityType": "PERSON"
+          }
+        ]
+      }
+    },
+    {
+      "id": "th-03-min-length-filter",
+      "description": "Values shorter than 3 chars are removed by the false-positive filter even at high confidence.",
+      "settings": {
+        "regexEnabled": false,
+        "regexRegion": "all",
+        "threshold": 0.35,
+        "mode": "labeled",
+        "renames": []
+      },
+      "input": "Al met Eva Long at the office.",
+      "mlEntities": [
+        {
+          "value": "Al",
+          "type": "PERSON",
+          "confidence": 0.95,
+          "detector": "gliner:person name",
+          "occurrence": 0
+        },
+        {
+          "value": "Eva Long",
+          "type": "PERSON",
+          "confidence": 0.9,
+          "detector": "gliner:person name",
+          "occurrence": 0
+        }
+      ],
+      "expected": {
+        "entities": [
+          {
+            "type": "PERSON",
+            "value": "Eva Long",
+            "start": 7,
+            "end": 15,
+            "confidence": 0.9,
+            "detector": "gliner:person name"
+          }
+        ],
+        "anonymized": "Al met <<REDACTED_1>> at the office.",
+        "anonymizedAfterRename": null,
+        "restored": "Al met Eva Long at the office.",
+        "replacements": [
+          {
+            "original": "Eva Long",
+            "replacement": "<<REDACTED_1>>",
+            "entityType": "PERSON"
+          }
+        ]
+      }
+    }
+  ]
+}

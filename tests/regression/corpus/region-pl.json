@@ -1,0 +1,152 @@
+{
+  "description": "Poland: PESEL (checksum), NIP (checksum), street, postal code, phone, company, amount in words, court case.",
+  "cases": [
+    {
+      "id": "pl-01",
+      "description": "Poland: PESEL (checksum), NIP (checksum), street, postal code, phone, company, amount in words, court case.",
+      "settings": {
+        "regexEnabled": true,
+        "regexRegion": "pl",
+        "threshold": 0.35,
+        "mode": "labeled",
+        "renames": []
+      },
+      "input": "Pani Anna Nowak, PESEL 89052310002, NIP 123-456-78-19, zamieszkała ul. Floriańska 27/3, 31-501 Kraków, tel. +48 600 123 456. Faktura od Bursztynek S.A. na kwotę słownie: osiem tysięcy pięćset złotych. Sygnatura akt III K 123/24.",
+      "mlEntities": [
+        {
+          "value": "Anna Nowak",
+          "type": "PERSON",
+          "confidence": 0.9,
+          "detector": "gliner:person name",
+          "occurrence": 0
+        }
+      ],
+      "expected": {
+        "entities": [
+          {
+            "type": "PERSON",
+            "value": "Anna Nowak",
+            "start": 5,
+            "end": 15,
+            "confidence": 0.9,
+            "detector": "gliner:person name"
+          },
+          {
+            "type": "SSN",
+            "value": "89052310002",
+            "start": 23,
+            "end": 34,
+            "confidence": 0.9,
+            "detector": "regex:pl:pesel"
+          },
+          {
+            "type": "SSN",
+            "value": "123-456-78-19",
+            "start": 40,
+            "end": 53,
+            "confidence": 0.85,
+            "detector": "regex:pl:nip"
+          },
+          {
+            "type": "ADDRESS",
+            "value": "ul. Floriańska 27/3",
+            "start": 67,
+            "end": 86,
+            "confidence": 0.9,
+            "detector": "regex:pl:street"
+          },
+          {
+            "type": "ADDRESS",
+            "value": "31-501 Kraków",
+            "start": 88,
+            "end": 101,
+            "confidence": 0.8,
+            "detector": "regex:pl:postal"
+          },
+          {
+            "type": "PHONE",
+            "value": "+48 600 123 456",
+            "start": 108,
+            "end": 123,
+            "confidence": 0.85,
+            "detector": "regex:universal:phone_intl"
+          },
+          {
+            "type": "COMPANY",
+            "value": "Faktura od Bursztynek S.A.",
+            "start": 125,
+            "end": 151,
+            "confidence": 0.9,
+            "detector": "regex:pl:company"
+          },
+          {
+            "type": "CURRENCY",
+            "value": "słownie: osiem tysięcy pięćset złotych",
+            "start": 161,
+            "end": 199,
+            "confidence": 0.9,
+            "detector": "regex:pl:currency_words"
+          },
+          {
+            "type": "OTHER",
+            "value": "III K 123/24",
+            "start": 215,
+            "end": 227,
+            "confidence": 0.9,
+            "detector": "regex:pl:court_case"
+          }
+        ],
+        "anonymized": "Pani <<REDACTED_9>>, PESEL <<REDACTED_8>>, NIP <<REDACTED_7>>, zamieszkała <<REDACTED_6>>, <<REDACTED_5>>, tel. <<REDACTED_4>>. <<REDACTED_3>> na kwotę <<REDACTED_2>>. Sygnatura akt <<REDACTED_1>>.",
+        "anonymizedAfterRename": null,
+        "restored": "Pani Anna Nowak, PESEL 89052310002, NIP 123-456-78-19, zamieszkała ul. Floriańska 27/3, 31-501 Kraków, tel. +48 600 123 456. Faktura od Bursztynek S.A. na kwotę słownie: osiem tysięcy pięćset złotych. Sygnatura akt III K 123/24.",
+        "replacements": [
+          {
+            "original": "III K 123/24",
+            "replacement": "<<REDACTED_1>>",
+            "entityType": "OTHER"
+          },
+          {
+            "original": "słownie: osiem tysięcy pięćset złotych",
+            "replacement": "<<REDACTED_2>>",
+            "entityType": "CURRENCY"
+          },
+          {
+            "original": "Faktura od Bursztynek S.A.",
+            "replacement": "<<REDACTED_3>>",
+            "entityType": "COMPANY"
+          },
+          {
+            "original": "+48 600 123 456",
+            "replacement": "<<REDACTED_4>>",
+            "entityType": "PHONE"
+          },
+          {
+            "original": "31-501 Kraków",
+            "replacement": "<<REDACTED_5>>",
+            "entityType": "ADDRESS"
+          },
+          {
+            "original": "ul. Floriańska 27/3",
+            "replacement": "<<REDACTED_6>>",
+            "entityType": "ADDRESS"
+          },
+          {
+            "original": "123-456-78-19",
+            "replacement": "<<REDACTED_7>>",
+            "entityType": "SSN"
+          },
+          {
+            "original": "89052310002",
+            "replacement": "<<REDACTED_8>>",
+            "entityType": "SSN"
+          },
+          {
+            "original": "Anna Nowak",
+            "replacement": "<<REDACTED_9>>",
+            "entityType": "PERSON"
+          }
+        ]
+      }
+    }
+  ]
+}

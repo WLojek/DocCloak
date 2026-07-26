@@ -1,0 +1,139 @@
+{
+  "description": "UK: NINO (validated), NHS number (mod-11 checksum), street, postcode, mobile phone, VAT, company.",
+  "cases": [
+    {
+      "id": "gb-01",
+      "description": "UK: NINO (validated), NHS number (mod-11 checksum), street, postcode, mobile phone, VAT, company.",
+      "settings": {
+        "regexEnabled": true,
+        "regexRegion": "gb",
+        "threshold": 0.35,
+        "mode": "labeled",
+        "renames": []
+      },
+      "input": "Mr. Oliver Grant, NINO AB 12 34 56 C, NHS number 943 476 5919, lives at 221B Baker Street, London SW1A 1AA, phone 07911 123456, VAT GB123 4567 89. Employer: Tesco Ltd.",
+      "mlEntities": [
+        {
+          "value": "Oliver Grant",
+          "type": "PERSON",
+          "confidence": 0.91,
+          "detector": "gliner:person name",
+          "occurrence": 0
+        }
+      ],
+      "expected": {
+        "entities": [
+          {
+            "type": "PERSON",
+            "value": "Oliver Grant",
+            "start": 4,
+            "end": 16,
+            "confidence": 0.91,
+            "detector": "gliner:person name"
+          },
+          {
+            "type": "SSN",
+            "value": "AB 12 34 56 C",
+            "start": 23,
+            "end": 36,
+            "confidence": 0.9,
+            "detector": "regex:gb:nino"
+          },
+          {
+            "type": "SSN",
+            "value": "943 476 5919",
+            "start": 49,
+            "end": 61,
+            "confidence": 0.6,
+            "detector": "regex:gb:nhs"
+          },
+          {
+            "type": "ADDRESS",
+            "value": "221B Baker Street",
+            "start": 72,
+            "end": 89,
+            "confidence": 0.85,
+            "detector": "regex:gb:street"
+          },
+          {
+            "type": "ADDRESS",
+            "value": "SW1A 1AA",
+            "start": 98,
+            "end": 106,
+            "confidence": 0.8,
+            "detector": "regex:gb:postcode"
+          },
+          {
+            "type": "PHONE",
+            "value": "07911 123456",
+            "start": 114,
+            "end": 126,
+            "confidence": 0.85,
+            "detector": "regex:gb:phone_mobile"
+          },
+          {
+            "type": "SSN",
+            "value": "GB123 4567 89",
+            "start": 132,
+            "end": 145,
+            "confidence": 0.75,
+            "detector": "regex:gb:vat"
+          },
+          {
+            "type": "COMPANY",
+            "value": "Tesco Ltd",
+            "start": 157,
+            "end": 166,
+            "confidence": 0.85,
+            "detector": "regex:gb:company"
+          }
+        ],
+        "anonymized": "Mr. <<REDACTED_8>>, NINO <<REDACTED_7>>, NHS number <<REDACTED_6>>, lives at <<REDACTED_5>>, London <<REDACTED_4>>, phone <<REDACTED_3>>, VAT <<REDACTED_2>>. Employer: <<REDACTED_1>>.",
+        "anonymizedAfterRename": null,
+        "restored": "Mr. Oliver Grant, NINO AB 12 34 56 C, NHS number 943 476 5919, lives at 221B Baker Street, London SW1A 1AA, phone 07911 123456, VAT GB123 4567 89. Employer: Tesco Ltd.",
+        "replacements": [
+          {
+            "original": "Tesco Ltd",
+            "replacement": "<<REDACTED_1>>",
+            "entityType": "COMPANY"
+          },
+          {
+            "original": "GB123 4567 89",
+            "replacement": "<<REDACTED_2>>",
+            "entityType": "SSN"
+          },
+          {
+            "original": "07911 123456",
+            "replacement": "<<REDACTED_3>>",
+            "entityType": "PHONE"
+          },
+          {
+            "original": "SW1A 1AA",
+            "replacement": "<<REDACTED_4>>",
+            "entityType": "ADDRESS"
+          },
+          {
+            "original": "221B Baker Street",
+            "replacement": "<<REDACTED_5>>",
+            "entityType": "ADDRESS"
+          },
+          {
+            "original": "943 476 5919",
+            "replacement": "<<REDACTED_6>>",
+            "entityType": "SSN"
+          },
+          {
+            "original": "AB 12 34 56 C",
+            "replacement": "<<REDACTED_7>>",
+            "entityType": "SSN"
+          },
+          {
+            "original": "Oliver Grant",
+            "replacement": "<<REDACTED_8>>",
+            "entityType": "PERSON"
+          }
+        ]
+      }
+    }
+  ]
+}

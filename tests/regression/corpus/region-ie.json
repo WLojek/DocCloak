@@ -1,0 +1,87 @@
+{
+  "description": "Ireland: PPS number, Eircode, phone.",
+  "cases": [
+    {
+      "id": "ie-01",
+      "description": "Ireland: PPS number, Eircode, phone.",
+      "settings": {
+        "regexEnabled": true,
+        "regexRegion": "ie",
+        "threshold": 0.35,
+        "mode": "labeled",
+        "renames": []
+      },
+      "input": "Ms. Aoife Byrne, PPS number 1234567T, Eircode A65 F4E2, phone 01 234 5678.",
+      "mlEntities": [
+        {
+          "value": "Aoife Byrne",
+          "type": "PERSON",
+          "confidence": 0.9,
+          "detector": "gliner:person name",
+          "occurrence": 0
+        }
+      ],
+      "expected": {
+        "entities": [
+          {
+            "type": "PERSON",
+            "value": "Aoife Byrne",
+            "start": 4,
+            "end": 15,
+            "confidence": 0.9,
+            "detector": "gliner:person name"
+          },
+          {
+            "type": "SSN",
+            "value": "1234567T",
+            "start": 28,
+            "end": 36,
+            "confidence": 0.9,
+            "detector": "regex:ie:pps-number"
+          },
+          {
+            "type": "ADDRESS",
+            "value": "A65 F4E2",
+            "start": 46,
+            "end": 54,
+            "confidence": 0.8,
+            "detector": "regex:ie:eircode"
+          },
+          {
+            "type": "PHONE",
+            "value": "01 234 5678",
+            "start": 62,
+            "end": 73,
+            "confidence": 0.8,
+            "detector": "regex:ie:phone"
+          }
+        ],
+        "anonymized": "Ms. <<REDACTED_4>>, PPS number <<REDACTED_3>>, Eircode <<REDACTED_2>>, phone <<REDACTED_1>>.",
+        "anonymizedAfterRename": null,
+        "restored": "Ms. Aoife Byrne, PPS number 1234567T, Eircode A65 F4E2, phone 01 234 5678.",
+        "replacements": [
+          {
+            "original": "01 234 5678",
+            "replacement": "<<REDACTED_1>>",
+            "entityType": "PHONE"
+          },
+          {
+            "original": "A65 F4E2",
+            "replacement": "<<REDACTED_2>>",
+            "entityType": "ADDRESS"
+          },
+          {
+            "original": "1234567T",
+            "replacement": "<<REDACTED_3>>",
+            "entityType": "SSN"
+          },
+          {
+            "original": "Aoife Byrne",
+            "replacement": "<<REDACTED_4>>",
+            "entityType": "PERSON"
+          }
+        ]
+      }
+    }
+  ]
+}

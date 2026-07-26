@@ -1,0 +1,77 @@
+{
+  "description": "renameLabel: custom placeholder names keep the round trip intact.",
+  "cases": [
+    {
+      "id": "lr-01-rename",
+      "description": "Rename two placeholders to [CLIENT] and [CLIENT_EMAIL]; restore must return the original text.",
+      "settings": {
+        "regexEnabled": false,
+        "regexRegion": "all",
+        "threshold": 0.35,
+        "mode": "labeled",
+        "renames": [
+          {
+            "original": "Jan Kowalski",
+            "newLabel": "[CLIENT]"
+          },
+          {
+            "original": "jan.kowalski@example.com",
+            "newLabel": "[CLIENT_EMAIL]"
+          }
+        ]
+      },
+      "input": "Jan Kowalski <jan.kowalski@example.com> approved the budget for Q3.",
+      "mlEntities": [
+        {
+          "value": "Jan Kowalski",
+          "type": "PERSON",
+          "confidence": 0.9,
+          "detector": "gliner:person name",
+          "occurrence": 0
+        },
+        {
+          "value": "jan.kowalski@example.com",
+          "type": "EMAIL",
+          "confidence": 0.95,
+          "detector": "gliner:email address",
+          "occurrence": 0
+        }
+      ],
+      "expected": {
+        "entities": [
+          {
+            "type": "PERSON",
+            "value": "Jan Kowalski",
+            "start": 0,
+            "end": 12,
+            "confidence": 0.9,
+            "detector": "gliner:person name"
+          },
+          {
+            "type": "EMAIL",
+            "value": "jan.kowalski@example.com",
+            "start": 14,
+            "end": 38,
+            "confidence": 0.95,
+            "detector": "gliner:email address"
+          }
+        ],
+        "anonymized": "<<REDACTED_2>> <<<REDACTED_1>>> approved the budget for Q3.",
+        "anonymizedAfterRename": "[CLIENT] <[CLIENT_EMAIL]> approved the budget for Q3.",
+        "restored": "Jan Kowalski <jan.kowalski@example.com> approved the budget for Q3.",
+        "replacements": [
+          {
+            "original": "jan.kowalski@example.com",
+            "replacement": "[CLIENT_EMAIL]",
+            "entityType": "EMAIL"
+          },
+          {
+            "original": "Jan Kowalski",
+            "replacement": "[CLIENT]",
+            "entityType": "PERSON"
+          }
+        ]
+      }
+    }
+  ]
+}

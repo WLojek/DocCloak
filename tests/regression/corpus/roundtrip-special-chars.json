@@ -1,0 +1,169 @@
+{
+  "description": "Anonymize/restore round trips over text containing $ sequences and regex metacharacters.",
+  "cases": [
+    {
+      "id": "rt-01-dollar-values",
+      "description": "Entity values and surrounding text containing $, $&, $1, backticks and quotes must restore exactly.",
+      "settings": {
+        "regexEnabled": false,
+        "regexRegion": "all",
+        "threshold": 0.35,
+        "mode": "labeled",
+        "renames": []
+      },
+      "input": "Vendor ACME $ Corp billed $1,250.50 via account X$&Y. The regex (a+b)*\\1 and token $` stay intact. Signed: Zoe O'Hara-Smith.",
+      "mlEntities": [
+        {
+          "value": "ACME $ Corp",
+          "type": "COMPANY",
+          "confidence": 0.85,
+          "detector": "gliner:company name",
+          "occurrence": 0
+        },
+        {
+          "value": "$1,250.50",
+          "type": "CURRENCY",
+          "confidence": 0.8,
+          "detector": "gliner:money amount",
+          "occurrence": 0
+        },
+        {
+          "value": "X$&Y",
+          "type": "OTHER",
+          "confidence": 0.7,
+          "detector": "gliner:account id",
+          "occurrence": 0
+        },
+        {
+          "value": "Zoe O'Hara-Smith",
+          "type": "PERSON",
+          "confidence": 0.9,
+          "detector": "gliner:person name",
+          "occurrence": 0
+        }
+      ],
+      "expected": {
+        "entities": [
+          {
+            "type": "COMPANY",
+            "value": "ACME $ Corp",
+            "start": 7,
+            "end": 18,
+            "confidence": 0.85,
+            "detector": "gliner:company name"
+          },
+          {
+            "type": "CURRENCY",
+            "value": "$1,250.50",
+            "start": 26,
+            "end": 35,
+            "confidence": 0.8,
+            "detector": "gliner:money amount"
+          },
+          {
+            "type": "OTHER",
+            "value": "X$&Y",
+            "start": 48,
+            "end": 52,
+            "confidence": 0.7,
+            "detector": "gliner:account id"
+          },
+          {
+            "type": "PERSON",
+            "value": "Zoe O'Hara-Smith",
+            "start": 107,
+            "end": 123,
+            "confidence": 0.9,
+            "detector": "gliner:person name"
+          }
+        ],
+        "anonymized": "Vendor <<REDACTED_4>> billed <<REDACTED_3>> via account <<REDACTED_2>>. The regex (a+b)*\\1 and token $` stay intact. Signed: <<REDACTED_1>>.",
+        "anonymizedAfterRename": null,
+        "restored": "Vendor ACME $ Corp billed $1,250.50 via account X$&Y. The regex (a+b)*\\1 and token $` stay intact. Signed: Zoe O'Hara-Smith.",
+        "replacements": [
+          {
+            "original": "Zoe O'Hara-Smith",
+            "replacement": "<<REDACTED_1>>",
+            "entityType": "PERSON"
+          },
+          {
+            "original": "X$&Y",
+            "replacement": "<<REDACTED_2>>",
+            "entityType": "OTHER"
+          },
+          {
+            "original": "$1,250.50",
+            "replacement": "<<REDACTED_3>>",
+            "entityType": "CURRENCY"
+          },
+          {
+            "original": "ACME $ Corp",
+            "replacement": "<<REDACTED_4>>",
+            "entityType": "COMPANY"
+          }
+        ]
+      }
+    },
+    {
+      "id": "rt-02-regex-metachars",
+      "description": "Regex detection over text full of metacharacters; IBAN checksum value restores exactly.",
+      "settings": {
+        "regexEnabled": true,
+        "regexRegion": "all",
+        "threshold": 0.35,
+        "mode": "labeled",
+        "renames": []
+      },
+      "input": "Send €1.234,56 to IBAN DE89 3704 0044 0532 0130 00 before 2025-12-31; escape chars: $$, $&, $', \\d+ and (foo|bar)?",
+      "mlEntities": [],
+      "expected": {
+        "entities": [
+          {
+            "type": "CURRENCY",
+            "value": "€1.234,56",
+            "start": 5,
+            "end": 14,
+            "confidence": 0.8,
+            "detector": "regex:universal:currency_symbol_prefix"
+          },
+          {
+            "type": "IBAN",
+            "value": "DE89 3704 0044 0532 0130 00 ",
+            "start": 23,
+            "end": 51,
+            "confidence": 0.9,
+            "detector": "regex:universal:iban"
+          },
+          {
+            "type": "DATE",
+            "value": "2025-12-31",
+            "start": 58,
+            "end": 68,
+            "confidence": 0.8,
+            "detector": "regex:universal:date_iso"
+          }
+        ],
+        "anonymized": "Send <<REDACTED_3>> to IBAN <<REDACTED_2>>before <<REDACTED_1>>; escape chars: $$, $&, $', \\d+ and (foo|bar)?",
+        "anonymizedAfterRename": null,
+        "restored": "Send €1.234,56 to IBAN DE89 3704 0044 0532 0130 00 before 2025-12-31; escape chars: $$, $&, $', \\d+ and (foo|bar)?",
+        "replacements": [
+          {
+            "original": "2025-12-31",
+            "replacement": "<<REDACTED_1>>",
+            "entityType": "DATE"
+          },
+          {
+            "original": "DE89 3704 0044 0532 0130 00 ",
+            "replacement": "<<REDACTED_2>>",
+            "entityType": "IBAN"
+          },
+          {
+            "original": "€1.234,56",
+            "replacement": "<<REDACTED_3>>",
+            "entityType": "CURRENCY"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,126 @@
+{
+  "description": "Italy: codice fiscale, partita IVA, street, postal code, mobile phone, company.",
+  "cases": [
+    {
+      "id": "it-01",
+      "description": "Italy: codice fiscale, partita IVA, street, postal code, mobile phone, company.",
+      "settings": {
+        "regexEnabled": true,
+        "regexRegion": "it",
+        "threshold": 0.35,
+        "mode": "labeled",
+        "renames": []
+      },
+      "input": "Sig. Mario Bianchi, codice fiscale RSSMRA85M01H501Q, partita IVA IT12345678903, residente in Via Roma, 42, 00100 Roma, cellulare +39 345 123 4567. Ditta: Ristorante Da Mario S.r.l.",
+      "mlEntities": [
+        {
+          "value": "Mario Bianchi",
+          "type": "PERSON",
+          "confidence": 0.9,
+          "detector": "gliner:person name",
+          "occurrence": 0
+        }
+      ],
+      "expected": {
+        "entities": [
+          {
+            "type": "PERSON",
+            "value": "Mario Bianchi",
+            "start": 5,
+            "end": 18,
+            "confidence": 0.9,
+            "detector": "gliner:person name"
+          },
+          {
+            "type": "SSN",
+            "value": "RSSMRA85M01H501Q",
+            "start": 35,
+            "end": 51,
+            "confidence": 0.9,
+            "detector": "regex:it:codice_fiscale"
+          },
+          {
+            "type": "SSN",
+            "value": "IT12345678903",
+            "start": 65,
+            "end": 78,
+            "confidence": 0.75,
+            "detector": "regex:it:partita_iva"
+          },
+          {
+            "type": "ADDRESS",
+            "value": "Via Roma, 42",
+            "start": 93,
+            "end": 105,
+            "confidence": 0.9,
+            "detector": "regex:it:street"
+          },
+          {
+            "type": "ADDRESS",
+            "value": "00100 Roma",
+            "start": 107,
+            "end": 117,
+            "confidence": 0.8,
+            "detector": "regex:it:postal"
+          },
+          {
+            "type": "PHONE",
+            "value": "+39 345 123 4567",
+            "start": 129,
+            "end": 145,
+            "confidence": 0.85,
+            "detector": "regex:universal:phone_intl"
+          },
+          {
+            "type": "COMPANY",
+            "value": "Ristorante Da Mario S.r.l",
+            "start": 154,
+            "end": 179,
+            "confidence": 0.9,
+            "detector": "regex:it:company"
+          }
+        ],
+        "anonymized": "Sig. <<REDACTED_7>>, codice fiscale <<REDACTED_6>>, partita IVA <<REDACTED_5>>, residente in <<REDACTED_4>>, <<REDACTED_3>>, cellulare <<REDACTED_2>>. Ditta: <<REDACTED_1>>.",
+        "anonymizedAfterRename": null,
+        "restored": "Sig. Mario Bianchi, codice fiscale RSSMRA85M01H501Q, partita IVA IT12345678903, residente in Via Roma, 42, 00100 Roma, cellulare +39 345 123 4567. Ditta: Ristorante Da Mario S.r.l.",
+        "replacements": [
+          {
+            "original": "Ristorante Da Mario S.r.l",
+            "replacement": "<<REDACTED_1>>",
+            "entityType": "COMPANY"
+          },
+          {
+            "original": "+39 345 123 4567",
+            "replacement": "<<REDACTED_2>>",
+            "entityType": "PHONE"
+          },
+          {
+            "original": "00100 Roma",
+            "replacement": "<<REDACTED_3>>",
+            "entityType": "ADDRESS"
+          },
+          {
+            "original": "Via Roma, 42",
+            "replacement": "<<REDACTED_4>>",
+            "entityType": "ADDRESS"
+          },
+          {
+            "original": "IT12345678903",
+            "replacement": "<<REDACTED_5>>",
+            "entityType": "SSN"
+          },
+          {
+            "original": "RSSMRA85M01H501Q",
+            "replacement": "<<REDACTED_6>>",
+            "entityType": "SSN"
+          },
+          {
+            "original": "Mario Bianchi",
+            "replacement": "<<REDACTED_7>>",
+            "entityType": "PERSON"
+          }
+        ]
+      }
+    }
+  ]
+}

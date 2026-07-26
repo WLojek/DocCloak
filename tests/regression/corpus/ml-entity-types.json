@@ -1,0 +1,268 @@
+{
+  "description": "All 12 entity types produced by the (stubbed) ML provider, regex disabled.",
+  "cases": [
+    {
+      "id": "ml-01-all-types",
+      "description": "One entity of each of the 12 EntityType values through the full pipeline and session.",
+      "settings": {
+        "regexEnabled": false,
+        "regexRegion": "all",
+        "threshold": 0.35,
+        "mode": "labeled",
+        "renames": []
+      },
+      "input": "Maria Silva (maria.silva@example.pt, +351 912 345 678) born 1985-05-23, SSN 900-12-3456, card 4532015112830366, paid $2,500.00 from IBAN PT50000201231234567890154 at 10.0.0.8, living at Rua Augusta 42, Lisboa, works for Contoso Lda under badge OPS-7741.",
+      "mlEntities": [
+        {
+          "value": "Maria Silva",
+          "type": "PERSON",
+          "confidence": 0.92,
+          "detector": "gliner:person name",
+          "occurrence": 0
+        },
+        {
+          "value": "maria.silva@example.pt",
+          "type": "EMAIL",
+          "confidence": 0.95,
+          "detector": "gliner:email address",
+          "occurrence": 0
+        },
+        {
+          "value": "+351 912 345 678",
+          "type": "PHONE",
+          "confidence": 0.9,
+          "detector": "gliner:phone number",
+          "occurrence": 0
+        },
+        {
+          "value": "1985-05-23",
+          "type": "DATE",
+          "confidence": 0.85,
+          "detector": "gliner:calendar date",
+          "occurrence": 0
+        },
+        {
+          "value": "900-12-3456",
+          "type": "SSN",
+          "confidence": 0.8,
+          "detector": "gliner:social security number",
+          "occurrence": 0
+        },
+        {
+          "value": "4532015112830366",
+          "type": "CREDIT_CARD",
+          "confidence": 0.88,
+          "detector": "gliner:credit card number",
+          "occurrence": 0
+        },
+        {
+          "value": "$2,500.00",
+          "type": "CURRENCY",
+          "confidence": 0.8,
+          "detector": "gliner:money amount",
+          "occurrence": 0
+        },
+        {
+          "value": "PT50000201231234567890154",
+          "type": "IBAN",
+          "confidence": 0.9,
+          "detector": "gliner:iban",
+          "occurrence": 0
+        },
+        {
+          "value": "10.0.0.8",
+          "type": "IP_ADDRESS",
+          "confidence": 0.82,
+          "detector": "gliner:ip address",
+          "occurrence": 0
+        },
+        {
+          "value": "Rua Augusta 42, Lisboa",
+          "type": "ADDRESS",
+          "confidence": 0.75,
+          "detector": "gliner:street address",
+          "occurrence": 0
+        },
+        {
+          "value": "Contoso Lda",
+          "type": "COMPANY",
+          "confidence": 0.8,
+          "detector": "gliner:company name",
+          "occurrence": 0
+        },
+        {
+          "value": "OPS-7741",
+          "type": "OTHER",
+          "confidence": 0.6,
+          "detector": "gliner:employee id",
+          "occurrence": 0
+        }
+      ],
+      "expected": {
+        "entities": [
+          {
+            "type": "PERSON",
+            "value": "Maria Silva",
+            "start": 0,
+            "end": 11,
+            "confidence": 0.92,
+            "detector": "gliner:person name"
+          },
+          {
+            "type": "EMAIL",
+            "value": "maria.silva@example.pt",
+            "start": 13,
+            "end": 35,
+            "confidence": 0.95,
+            "detector": "gliner:email address"
+          },
+          {
+            "type": "PHONE",
+            "value": "+351 912 345 678",
+            "start": 37,
+            "end": 53,
+            "confidence": 0.9,
+            "detector": "gliner:phone number"
+          },
+          {
+            "type": "DATE",
+            "value": "1985-05-23",
+            "start": 60,
+            "end": 70,
+            "confidence": 0.85,
+            "detector": "gliner:calendar date"
+          },
+          {
+            "type": "SSN",
+            "value": "900-12-3456",
+            "start": 76,
+            "end": 87,
+            "confidence": 0.8,
+            "detector": "gliner:social security number"
+          },
+          {
+            "type": "CREDIT_CARD",
+            "value": "4532015112830366",
+            "start": 94,
+            "end": 110,
+            "confidence": 0.88,
+            "detector": "gliner:credit card number"
+          },
+          {
+            "type": "CURRENCY",
+            "value": "$2,500.00",
+            "start": 117,
+            "end": 126,
+            "confidence": 0.8,
+            "detector": "gliner:money amount"
+          },
+          {
+            "type": "IBAN",
+            "value": "PT50000201231234567890154",
+            "start": 137,
+            "end": 162,
+            "confidence": 0.9,
+            "detector": "gliner:iban"
+          },
+          {
+            "type": "IP_ADDRESS",
+            "value": "10.0.0.8",
+            "start": 166,
+            "end": 174,
+            "confidence": 0.82,
+            "detector": "gliner:ip address"
+          },
+          {
+            "type": "ADDRESS",
+            "value": "Rua Augusta 42, Lisboa",
+            "start": 186,
+            "end": 208,
+            "confidence": 0.75,
+            "detector": "gliner:street address"
+          },
+          {
+            "type": "COMPANY",
+            "value": "Contoso Lda",
+            "start": 220,
+            "end": 231,
+            "confidence": 0.8,
+            "detector": "gliner:company name"
+          },
+          {
+            "type": "OTHER",
+            "value": "OPS-7741",
+            "start": 244,
+            "end": 252,
+            "confidence": 0.6,
+            "detector": "gliner:employee id"
+          }
+        ],
+        "anonymized": "<<REDACTED_12>> (<<REDACTED_11>>, <<REDACTED_10>>) born <<REDACTED_9>>, SSN <<REDACTED_8>>, card <<REDACTED_7>>, paid <<REDACTED_6>> from IBAN <<REDACTED_5>> at <<REDACTED_4>>, living at <<REDACTED_3>>, works for <<REDACTED_2>> under badge <<REDACTED_1>>.",
+        "anonymizedAfterRename": null,
+        "restored": "Maria Silva (maria.silva@example.pt, +351 912 345 678) born 1985-05-23, SSN 900-12-3456, card 4532015112830366, paid $2,500.00 from IBAN PT50000201231234567890154 at 10.0.0.8, living at Rua Augusta 42, Lisboa, works for Contoso Lda under badge OPS-7741.",
+        "replacements": [
+          {
+            "original": "OPS-7741",
+            "replacement": "<<REDACTED_1>>",
+            "entityType": "OTHER"
+          },
+          {
+            "original": "Contoso Lda",
+            "replacement": "<<REDACTED_2>>",
+            "entityType": "COMPANY"
+          },
+          {
+            "original": "Rua Augusta 42, Lisboa",
+            "replacement": "<<REDACTED_3>>",
+            "entityType": "ADDRESS"
+          },
+          {
+            "original": "10.0.0.8",
+            "replacement": "<<REDACTED_4>>",
+            "entityType": "IP_ADDRESS"
+          },
+          {
+            "original": "PT50000201231234567890154",
+            "replacement": "<<REDACTED_5>>",
+            "entityType": "IBAN"
+          },
+          {
+            "original": "$2,500.00",
+            "replacement": "<<REDACTED_6>>",
+            "entityType": "CURRENCY"
+          },
+          {
+            "original": "4532015112830366",
+            "replacement": "<<REDACTED_7>>",
+            "entityType": "CREDIT_CARD"
+          },
+          {
+            "original": "900-12-3456",
+            "replacement": "<<REDACTED_8>>",
+            "entityType": "SSN"
+          },
+          {
+            "original": "1985-05-23",
+            "replacement": "<<REDACTED_9>>",
+            "entityType": "DATE"
+          },
+          {
+            "original": "+351 912 345 678",
+            "replacement": "<<REDACTED_10>>",
+            "entityType": "PHONE"
+          },
+          {
+            "original": "maria.silva@example.pt",
+            "replacement": "<<REDACTED_11>>",
+            "entityType": "EMAIL"
+          },
+          {
+            "original": "Maria Silva",
+            "replacement": "<<REDACTED_12>>",
+            "entityType": "PERSON"
+          }
+        ]
+      }
+    }
+  ]
+}

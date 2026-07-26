@@ -1,0 +1,87 @@
+{
+  "description": "Finland: HETU, postal code and city, phone.",
+  "cases": [
+    {
+      "id": "fi-01",
+      "description": "Finland: HETU, postal code and city, phone.",
+      "settings": {
+        "regexEnabled": true,
+        "regexRegion": "fi",
+        "threshold": 0.35,
+        "mode": "labeled",
+        "renames": []
+      },
+      "input": "Matti Virtanen, henkilötunnus 131052-308T, osoite 00100 Helsinki, puhelin 040 123 4567.",
+      "mlEntities": [
+        {
+          "value": "Matti Virtanen",
+          "type": "PERSON",
+          "confidence": 0.9,
+          "detector": "gliner:person name",
+          "occurrence": 0
+        }
+      ],
+      "expected": {
+        "entities": [
+          {
+            "type": "PERSON",
+            "value": "Matti Virtanen",
+            "start": 0,
+            "end": 14,
+            "confidence": 0.9,
+            "detector": "gliner:person name"
+          },
+          {
+            "type": "SSN",
+            "value": "131052-308T",
+            "start": 30,
+            "end": 41,
+            "confidence": 0.9,
+            "detector": "regex:fi:hetu"
+          },
+          {
+            "type": "ADDRESS",
+            "value": "00100 Helsinki",
+            "start": 50,
+            "end": 64,
+            "confidence": 0.8,
+            "detector": "regex:fi:postal-city"
+          },
+          {
+            "type": "PHONE",
+            "value": "040 123 4567",
+            "start": 74,
+            "end": 86,
+            "confidence": 0.8,
+            "detector": "regex:fi:phone"
+          }
+        ],
+        "anonymized": "<<REDACTED_4>>, henkilötunnus <<REDACTED_3>>, osoite <<REDACTED_2>>, puhelin <<REDACTED_1>>.",
+        "anonymizedAfterRename": null,
+        "restored": "Matti Virtanen, henkilötunnus 131052-308T, osoite 00100 Helsinki, puhelin 040 123 4567.",
+        "replacements": [
+          {
+            "original": "040 123 4567",
+            "replacement": "<<REDACTED_1>>",
+            "entityType": "PHONE"
+          },
+          {
+            "original": "00100 Helsinki",
+            "replacement": "<<REDACTED_2>>",
+            "entityType": "ADDRESS"
+          },
+          {
+            "original": "131052-308T",
+            "replacement": "<<REDACTED_3>>",
+            "entityType": "SSN"
+          },
+          {
+            "original": "Matti Virtanen",
+            "replacement": "<<REDACTED_4>>",
+            "entityType": "PERSON"
+          }
+        ]
+      }
+    }
+  ]
+}

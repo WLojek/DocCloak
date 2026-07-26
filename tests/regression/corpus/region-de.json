@@ -1,0 +1,126 @@
+{
+  "description": "Germany: Steuer-ID, street, postal code, phone, company, amount in words.",
+  "cases": [
+    {
+      "id": "de-01",
+      "description": "Germany: Steuer-ID, street, postal code, phone, company, amount in words.",
+      "settings": {
+        "regexEnabled": true,
+        "regexRegion": "de",
+        "threshold": 0.35,
+        "mode": "labeled",
+        "renames": []
+      },
+      "input": "Frau Erika Musterfrau, Steuer-ID 12 345 678 903, wohnhaft Friedrichstraße 43, 10115 Berlin, Telefon +49 30 12345678. Arbeitgeber: Musterbau GmbH. Rechnungsbetrag in Höhe von achttausendfünfhundert Euro.",
+      "mlEntities": [
+        {
+          "value": "Erika Musterfrau",
+          "type": "PERSON",
+          "confidence": 0.9,
+          "detector": "gliner:person name",
+          "occurrence": 0
+        }
+      ],
+      "expected": {
+        "entities": [
+          {
+            "type": "PERSON",
+            "value": "Erika Musterfrau",
+            "start": 5,
+            "end": 21,
+            "confidence": 0.9,
+            "detector": "gliner:person name"
+          },
+          {
+            "type": "SSN",
+            "value": "12 345 678 903",
+            "start": 33,
+            "end": 47,
+            "confidence": 0.8,
+            "detector": "regex:de:steuerid"
+          },
+          {
+            "type": "ADDRESS",
+            "value": "wohnhaft Friedrichstraße 43",
+            "start": 49,
+            "end": 76,
+            "confidence": 0.9,
+            "detector": "regex:de:street"
+          },
+          {
+            "type": "ADDRESS",
+            "value": "10115 Berlin",
+            "start": 78,
+            "end": 90,
+            "confidence": 0.8,
+            "detector": "regex:de:postal"
+          },
+          {
+            "type": "PHONE",
+            "value": "+49 30 12345678",
+            "start": 100,
+            "end": 115,
+            "confidence": 0.85,
+            "detector": "regex:universal:phone_intl"
+          },
+          {
+            "type": "COMPANY",
+            "value": "Musterbau GmbH",
+            "start": 130,
+            "end": 144,
+            "confidence": 0.9,
+            "detector": "regex:de:company"
+          },
+          {
+            "type": "CURRENCY",
+            "value": "in Höhe von achttausendfünfhundert Euro",
+            "start": 162,
+            "end": 201,
+            "confidence": 0.9,
+            "detector": "regex:de:currency_words"
+          }
+        ],
+        "anonymized": "Frau <<REDACTED_7>>, Steuer-ID <<REDACTED_6>>, <<REDACTED_5>>, <<REDACTED_4>>, Telefon <<REDACTED_3>>. Arbeitgeber: <<REDACTED_2>>. Rechnungsbetrag <<REDACTED_1>>.",
+        "anonymizedAfterRename": null,
+        "restored": "Frau Erika Musterfrau, Steuer-ID 12 345 678 903, wohnhaft Friedrichstraße 43, 10115 Berlin, Telefon +49 30 12345678. Arbeitgeber: Musterbau GmbH. Rechnungsbetrag in Höhe von achttausendfünfhundert Euro.",
+        "replacements": [
+          {
+            "original": "in Höhe von achttausendfünfhundert Euro",
+            "replacement": "<<REDACTED_1>>",
+            "entityType": "CURRENCY"
+          },
+          {
+            "original": "Musterbau GmbH",
+            "replacement": "<<REDACTED_2>>",
+            "entityType": "COMPANY"
+          },
+          {
+            "original": "+49 30 12345678",
+            "replacement": "<<REDACTED_3>>",
+            "entityType": "PHONE"
+          },
+          {
+            "original": "10115 Berlin",
+            "replacement": "<<REDACTED_4>>",
+            "entityType": "ADDRESS"
+          },
+          {
+            "original": "wohnhaft Friedrichstraße 43",
+            "replacement": "<<REDACTED_5>>",
+            "entityType": "ADDRESS"
+          },
+          {
+            "original": "12 345 678 903",
+            "replacement": "<<REDACTED_6>>",
+            "entityType": "SSN"
+          },
+          {
+            "original": "Erika Musterfrau",
+            "replacement": "<<REDACTED_7>>",
+            "entityType": "PERSON"
+          }
+        ]
+      }
+    }
+  ]
+}

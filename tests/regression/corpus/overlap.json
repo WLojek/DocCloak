@@ -1,0 +1,167 @@
+{
+  "description": "Overlap resolution: regex vs ML collisions on partial, identical and nested spans.",
+  "cases": [
+    {
+      "id": "ov-01-ml-inside-regex",
+      "description": "ML person span nested inside a longer regex email match; longer span wins.",
+      "settings": {
+        "regexEnabled": true,
+        "regexRegion": "all",
+        "threshold": 0.35,
+        "mode": "labeled",
+        "renames": []
+      },
+      "input": "Reach anna.lindberg@example.org for scheduling details.",
+      "mlEntities": [
+        {
+          "value": "anna.lindberg",
+          "type": "PERSON",
+          "confidence": 0.9,
+          "detector": "gliner:person name",
+          "occurrence": 0
+        }
+      ],
+      "expected": {
+        "entities": [
+          {
+            "type": "EMAIL",
+            "value": "anna.lindberg@example.org",
+            "start": 6,
+            "end": 31,
+            "confidence": 0.95,
+            "detector": "regex:universal:email"
+          }
+        ],
+        "anonymized": "Reach <<REDACTED_1>> for scheduling details.",
+        "anonymizedAfterRename": null,
+        "restored": "Reach anna.lindberg@example.org for scheduling details.",
+        "replacements": [
+          {
+            "original": "anna.lindberg@example.org",
+            "replacement": "<<REDACTED_1>>",
+            "entityType": "EMAIL"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ov-02-same-span-confidence",
+      "description": "Regex PESEL (0.90) and ML SSN (0.55) on the identical span; higher confidence wins.",
+      "settings": {
+        "regexEnabled": true,
+        "regexRegion": "pl",
+        "threshold": 0.35,
+        "mode": "labeled",
+        "renames": []
+      },
+      "input": "PESEL: 89052310002 belongs to the applicant.",
+      "mlEntities": [
+        {
+          "value": "89052310002",
+          "type": "SSN",
+          "confidence": 0.55,
+          "detector": "gliner:national id number",
+          "occurrence": 0
+        }
+      ],
+      "expected": {
+        "entities": [
+          {
+            "type": "SSN",
+            "value": "89052310002",
+            "start": 7,
+            "end": 18,
+            "confidence": 0.9,
+            "detector": "regex:pl:pesel"
+          }
+        ],
+        "anonymized": "PESEL: <<REDACTED_1>> belongs to the applicant.",
+        "anonymizedAfterRename": null,
+        "restored": "PESEL: 89052310002 belongs to the applicant.",
+        "replacements": [
+          {
+            "original": "89052310002",
+            "replacement": "<<REDACTED_1>>",
+            "entityType": "SSN"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ov-03-duplicate-detections",
+      "description": "ML and regex both detect the same card number (Luhn) and phone; person survives untouched.",
+      "settings": {
+        "regexEnabled": true,
+        "regexRegion": "us",
+        "threshold": 0.35,
+        "mode": "labeled",
+        "renames": []
+      },
+      "input": "Billing contact: Olaf Berg, card 4532 0151 1283 0366, office +1 415 555 2671.",
+      "mlEntities": [
+        {
+          "value": "Olaf Berg",
+          "type": "PERSON",
+          "confidence": 0.9,
+          "detector": "gliner:person name",
+          "occurrence": 0
+        },
+        {
+          "value": "4532 0151 1283 0366",
+          "type": "CREDIT_CARD",
+          "confidence": 0.7,
+          "detector": "gliner:credit card number",
+          "occurrence": 0
+        }
+      ],
+      "expected": {
+        "entities": [
+          {
+            "type": "PERSON",
+            "value": "Olaf Berg",
+            "start": 17,
+            "end": 26,
+            "confidence": 0.9,
+            "detector": "gliner:person name"
+          },
+          {
+            "type": "CREDIT_CARD",
+            "value": "4532 0151 1283 0366",
+            "start": 33,
+            "end": 52,
+            "confidence": 0.9,
+            "detector": "regex:universal:credit_card"
+          },
+          {
+            "type": "PHONE",
+            "value": "+1 415 555 2671",
+            "start": 61,
+            "end": 76,
+            "confidence": 0.85,
+            "detector": "regex:universal:phone_intl"
+          }
+        ],
+        "anonymized": "Billing contact: <<REDACTED_3>>, card <<REDACTED_2>>, office <<REDACTED_1>>.",
+        "anonymizedAfterRename": null,
+        "restored": "Billing contact: Olaf Berg, card 4532 0151 1283 0366, office +1 415 555 2671.",
+        "replacements": [
+          {
+            "original": "+1 415 555 2671",
+            "replacement": "<<REDACTED_1>>",
+            "entityType": "PHONE"
+          },
+          {
+            "original": "4532 0151 1283 0366",
+            "replacement": "<<REDACTED_2>>",
+            "entityType": "CREDIT_CARD"
+          },
+          {
+            "original": "Olaf Berg",
+            "replacement": "<<REDACTED_3>>",
+            "entityType": "PERSON"
+          }
+        ]
+      }
+    }
+  ]
+}
