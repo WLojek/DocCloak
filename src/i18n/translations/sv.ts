@@ -59,6 +59,8 @@ export const sv: Translations = {
       ie: 'Irland',
       dk: 'Danmark',
       fi: 'Finland',
+      jp: 'Japan',
+      cn: 'Kina',
     },
   },
   howItWorks: {
