@@ -1,29 +1,30 @@
+/**
+ * Detection engine adapter (web main thread).
+ *
+ * Thin facade over the @doccloak/core engine that runs inside the detection
+ * Web Worker: it keeps the synchronous settings mirrors (loaded from the
+ * same localStorage keys as before the extraction), spawns the worker and
+ * talks to it through connectEngine. The export surface is unchanged so
+ * useAnonymizer.ts and App.tsx compile as-is; engine logic and the message
+ * protocol now live in @doccloak/core.
+ */
+
 import type { DetectedEntity, ProgressCallback } from './types.ts';
+import {
+  PROVIDERS,
+  REGEX_REGIONS,
+  ENGINE_SETTINGS_KEYS,
+  clampThreshold,
+  defaultThresholdFor,
+  pickDefaultProvider,
+  connectEngine,
+} from '@doccloak/core';
+import type { EngineClient, HardwareHints, ProviderId, ProviderEntry, RegexRegionId } from '@doccloak/core';
 
-// ── Provider registry ──────────────────────────────────────
-export type ProviderId = 'gliner' | 'bardsai';
-
-export interface ProviderEntry {
-  id: ProviderId;
-  label: string;
-  description: string;
-}
-
-export const PROVIDERS: ProviderEntry[] = [
-  {
-    id: 'gliner',
-    label: 'GLiNER PII Edge',
-    description: 'Lightweight, multi-language, supports custom labels (~65 MB)',
-  },
-  {
-    id: 'bardsai',
-    label: 'BardS.ai EU PII',
-    description: '24 EU languages, 35 PII types, high accuracy (~279 MB)',
-  },
-];
-
-const PROVIDER_STORAGE_KEY = 'doccloak-active-provider';
-const CUSTOM_LABELS_STORAGE_KEY = 'doccloak-custom-labels';
+// Re-export the registry and region catalog (moved to core in T009) under
+// the names App.tsx and useAnonymizer.ts have always imported.
+export { PROVIDERS, REGEX_REGIONS };
+export type { ProviderId, ProviderEntry, RegexRegionId };
 
 // ── Acceleration setting ───────────────────────────────────
 export type AccelMode = 'auto' | 'webgpu' | 'wasm';
@@ -48,66 +49,77 @@ export function getExecutionProviders(): { providers: string[]; isExplicit: bool
 // ── Saved provider ─────────────────────────────────────────
 
 /**
- * Heuristic for phones/tablets and other memory-constrained devices.
- * The BardS.ai model (~279 MB download, ~500+ MB peak RAM while loading)
- * routinely gets the tab killed on mobile Safari/Chrome, so those devices
- * default to the lightweight GLiNER model (~65 MB). Users can still switch
- * models manually in settings.
+ * Hardware hints for core's default-model heuristic (mobile/low-memory
+ * devices default to the lightweight GLiNER model; the decision lives in
+ * core's pickDefaultProvider). Twin of webHardwareHints in
+ * src/engine-env.web.ts, duplicated here on purpose: that module statically
+ * imports @huggingface/transformers, which must stay out of the main bundle.
  */
-function isConstrainedDevice(): boolean {
+function mainThreadHardwareHints(): HardwareHints {
+  const hints: HardwareHints = {};
   try {
     const nav = navigator as Navigator & { userAgentData?: { mobile?: boolean }; deviceMemory?: number };
-    if (nav.userAgentData?.mobile) return true;
-    if (/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)) return true;
+    let isMobile = false;
+    if (nav.userAgentData?.mobile) isMobile = true;
+    if (/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)) isMobile = true;
     // iPadOS 13+ reports itself as macOS; tell it apart via touch support
-    if (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1) return true;
-    if (typeof nav.deviceMemory === 'number' && nav.deviceMemory <= 4) return true;
+    if (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1) isMobile = true;
+    hints.isMobile = isMobile;
+    if (typeof nav.deviceMemory === 'number') hints.deviceMemoryGB = nav.deviceMemory;
   } catch { /* ignore - assume unconstrained */ }
-  return false;
+  return hints;
 }
 
 function loadSavedProviderId(): ProviderId {
   try {
-    const saved = localStorage.getItem(PROVIDER_STORAGE_KEY);
+    const saved = localStorage.getItem(ENGINE_SETTINGS_KEYS.provider);
     if (saved && PROVIDERS.some((p) => p.id === saved)) return saved as ProviderId;
   } catch { /* localStorage unavailable */ }
-  return isConstrainedDevice() ? 'gliner' : 'bardsai';
+  return pickDefaultProvider(mainThreadHardwareHints());
 }
 
-// ── Worker singleton ───────────────────────────────────────
+// ── Worker connection + settings mirrors ──────────────────
 let worker: Worker | null = null;
+let client: EngineClient | null = null;
 let activeId: ProviderId = loadSavedProviderId();
 let loaded = false;
 let loading = false;
-let threshold = activeId === 'bardsai' ? 0.5 : 0.35;
+let inflightLoad: Promise<void> | null = null;
+let threshold = defaultThresholdFor(activeId);
 let customLabels: string[] = [];
 let regexEnabled = loadRegexSetting();
 let regexRegion = loadRegexRegion();
 
 // Callbacks
 let downloadProgressCallback: ProgressCallback | null = null;
-let loadResolve: (() => void) | null = null;
-let loadReject: ((err: Error) => void) | null = null;
 
-// Release tracking
-let releaseResolve: (() => void) | null = null;
-
-// Detection request tracking
-let requestCounter = 0;
-const pendingDetections = new Map<number, {
-  resolve: (entities: DetectedEntity[]) => void;
-  reject: (err: Error) => void;
-  onProgress?: (progress: number) => void;
-}>();
-
-function getWorker(): Worker {
-  if (!worker) {
-    worker = new Worker(
+function getClient(): EngineClient {
+  if (!client) {
+    const w = new Worker(
       new URL('./detection.worker.ts', import.meta.url),
       { type: 'module' },
     );
-    worker.onmessage = handleWorkerMessage;
-    worker.onerror = (e) => {
+    worker = w;
+    const c = connectEngine(
+      {
+        postMessage: (msg) => w.postMessage(msg),
+        onMessage: (cb) => {
+          w.onmessage = (e) => { void cb(e.data); };
+          return () => { w.onmessage = null; };
+        },
+      },
+      {
+        providerId: activeId,
+        threshold,
+        regexEnabled,
+        regexRegion,
+        customLabels: loadCustomLabelsFromStorage(),
+      },
+    );
+    c.onDownloadProgress(({ loaded: downloaded, total }) => {
+      downloadProgressCallback?.(downloaded, total);
+    });
+    w.onerror = (e) => {
       // The worker itself crashed (commonly WASM out-of-memory on mobile).
       // Fail every pending promise so the UI can surface an error and offer
       // a retry instead of hanging forever, and drop the dead worker so the
@@ -116,83 +128,15 @@ function getWorker(): Worker {
       const err = new Error(e.message || 'Detection worker crashed');
       loading = false;
       loaded = false;
-      loadReject?.(err);
-      loadResolve = null;
-      loadReject = null;
-      for (const [, pending] of pendingDetections) {
-        pending.reject(err);
-      }
-      pendingDetections.clear();
-      releaseResolve?.();
-      releaseResolve = null;
-      worker?.terminate();
-      worker = null;
+      inflightLoad = null;
+      c.close(err);
+      if (client === c) client = null;
+      w.terminate();
+      if (worker === w) worker = null;
     };
+    client = c;
   }
-  return worker;
-}
-
-function handleWorkerMessage(e: MessageEvent) {
-  const msg = e.data;
-
-  switch (msg.type) {
-    case 'downloadProgress': {
-      downloadProgressCallback?.(msg.downloaded, msg.total);
-      break;
-    }
-
-    case 'loaded': {
-      loaded = true;
-      loading = false;
-      activeId = msg.providerId;
-      threshold = msg.threshold;
-      customLabels = msg.customLabels ?? [];
-      loadResolve?.();
-      loadResolve = null;
-      loadReject = null;
-      break;
-    }
-
-    case 'loadError': {
-      loaded = false;
-      loading = false;
-      loadReject?.(new Error(msg.error));
-      loadResolve = null;
-      loadReject = null;
-      break;
-    }
-
-    case 'detectionProgress': {
-      const pending = pendingDetections.get(msg.requestId);
-      pending?.onProgress?.(msg.progress);
-      break;
-    }
-
-    case 'detected': {
-      const pending = pendingDetections.get(msg.requestId);
-      if (pending) {
-        pendingDetections.delete(msg.requestId);
-        pending.resolve(msg.entities);
-      }
-      break;
-    }
-
-    case 'detectError': {
-      const pending = pendingDetections.get(msg.requestId);
-      if (pending) {
-        pendingDetections.delete(msg.requestId);
-        pending.reject(new Error(msg.error));
-      }
-      break;
-    }
-
-    case 'released': {
-      loaded = false;
-      releaseResolve?.();
-      releaseResolve = null;
-      break;
-    }
-  }
+  return client;
 }
 
 // ── Public API (same signatures as before) ─────────────────
@@ -204,13 +148,7 @@ export function detectEntities(
   text: string,
   onProgress?: (progress: number) => void,
 ): Promise<DetectedEntity[]> {
-  const requestId = ++requestCounter;
-  const w = getWorker();
-
-  return new Promise<DetectedEntity[]>((resolve, reject) => {
-    pendingDetections.set(requestId, { resolve, reject, onProgress });
-    w.postMessage({ type: 'detect', requestId, text });
-  });
+  return getClient().detect(text, undefined, onProgress);
 }
 
 /**
@@ -218,27 +156,27 @@ export function detectEntities(
  */
 export function preloadModel(): Promise<void> {
   if (loaded) return Promise.resolve();
-  if (loading) {
-    return new Promise<void>((resolve, reject) => {
-      loadResolve = resolve;
-      loadReject = reject;
-    });
-  }
+  if (inflightLoad) return inflightLoad;
 
   loading = true;
-  const savedLabels = loadCustomLabelsFromStorage();
-
-  return new Promise<void>((resolve, reject) => {
-    loadResolve = resolve;
-    loadReject = reject;
-    getWorker().postMessage({
-      type: 'init',
-      providerId: activeId,
-      customLabels: savedLabels,
-      regexEnabled,
-      regexRegion,
+  const c = getClient();
+  inflightLoad = c.preload()
+    .then(() => {
+      const s = c.getSettings();
+      loaded = true;
+      activeId = s.providerId;
+      threshold = s.threshold;
+      customLabels = [...s.customLabels];
+    })
+    .catch((err: unknown) => {
+      loaded = false;
+      throw err;
+    })
+    .finally(() => {
+      loading = false;
+      inflightLoad = null;
     });
-  });
+  return inflightLoad;
 }
 
 /**
@@ -295,27 +233,29 @@ export async function switchProvider(
     downloadProgressCallback = progressCallback;
   }
 
-  localStorage.setItem(PROVIDER_STORAGE_KEY, id);
+  localStorage.setItem(ENGINE_SETTINGS_KEYS.provider, id);
   const savedLabels = loadCustomLabelsFromStorage();
 
-  return new Promise<void>((resolve, reject) => {
-    loadResolve = resolve;
-    loadReject = reject;
-    getWorker().postMessage({
-      type: 'switchProvider',
-      providerId: id,
-      customLabels: savedLabels,
-    });
-  });
+  const c = getClient();
+  try {
+    await c.switchProvider(id, savedLabels);
+    const s = c.getSettings();
+    activeId = s.providerId;
+    threshold = s.threshold;
+    customLabels = [...s.customLabels];
+    loaded = true;
+  } finally {
+    loading = false;
+  }
 }
 
 /**
- * Set the detection confidence threshold (0.05–0.95).
+ * Set the detection confidence threshold (0.05-0.95).
  */
 export function setDetectionThreshold(value: number): void {
-  threshold = Math.max(0.05, Math.min(0.95, value));
-  if (worker) {
-    worker.postMessage({ type: 'setThreshold', value: threshold });
+  threshold = clampThreshold(value);
+  if (client) {
+    void client.updateSettings({ threshold });
   }
 }
 
@@ -338,9 +278,9 @@ export function getCustomLabels(): string[] {
  */
 export function setCustomLabels(labels: string[]): void {
   customLabels = labels.filter((l) => l.trim().length > 0);
-  localStorage.setItem(CUSTOM_LABELS_STORAGE_KEY, JSON.stringify(customLabels));
-  if (worker) {
-    worker.postMessage({ type: 'setCustomLabels', labels: customLabels });
+  localStorage.setItem(ENGINE_SETTINGS_KEYS.customLabels, JSON.stringify(customLabels));
+  if (client) {
+    void client.updateSettings({ customLabels });
   }
 }
 
@@ -348,22 +288,11 @@ export function setCustomLabels(labels: string[]): void {
  * Release the ONNX session to free memory. The model will be re-loaded on next detection.
  */
 export function releaseModel(): Promise<void> {
-  if (!worker || !loaded) return Promise.resolve();
-  return new Promise<void>((resolve) => {
-    releaseResolve = resolve;
-    worker!.postMessage({ type: 'releaseModel' });
+  if (!client || !loaded) return Promise.resolve();
+  return client.release().then(() => {
+    loaded = false;
   });
 }
-
-const REGEX_STORAGE_KEY = 'doccloak-regex-enabled';
-const REGEX_REGION_STORAGE_KEY = 'doccloak-regex-region';
-
-export const REGEX_REGIONS = [
-  'all', 'gb', 'us', 'pl', 'de', 'fr', 'es', 'pt', 'se', 'no',
-  'it', 'nl', 'be', 'at', 'ch', 'ie', 'dk', 'fi',
-] as const;
-
-export type RegexRegionId = typeof REGEX_REGIONS[number];
 
 /**
  * Whether regex pattern detection is enabled.
@@ -377,9 +306,9 @@ export function isRegexEnabled(): boolean {
  */
 export function setRegexEnabled(enabled: boolean): void {
   regexEnabled = enabled;
-  localStorage.setItem(REGEX_STORAGE_KEY, JSON.stringify(enabled));
-  if (worker) {
-    worker.postMessage({ type: 'setRegex', enabled, region: regexRegion });
+  localStorage.setItem(ENGINE_SETTINGS_KEYS.regexEnabled, JSON.stringify(enabled));
+  if (client) {
+    void client.updateSettings({ regexEnabled: enabled, regexRegion });
   }
 }
 
@@ -395,9 +324,9 @@ export function getRegexRegion(): RegexRegionId {
  */
 export function setRegexRegionSetting(region: RegexRegionId): void {
   regexRegion = region;
-  localStorage.setItem(REGEX_REGION_STORAGE_KEY, region);
-  if (worker) {
-    worker.postMessage({ type: 'setRegexRegion', region });
+  localStorage.setItem(ENGINE_SETTINGS_KEYS.regexRegion, region);
+  if (client) {
+    void client.updateSettings({ regexRegion: region });
   }
 }
 
@@ -405,7 +334,7 @@ export function setRegexRegionSetting(region: RegexRegionId): void {
 
 function loadRegexRegion(): RegexRegionId {
   try {
-    const saved = localStorage.getItem(REGEX_REGION_STORAGE_KEY);
+    const saved = localStorage.getItem(ENGINE_SETTINGS_KEYS.regexRegion);
     if (saved && REGEX_REGIONS.includes(saved as RegexRegionId)) return saved as RegexRegionId;
   } catch { /* ignore */ }
   return 'all';
@@ -413,7 +342,7 @@ function loadRegexRegion(): RegexRegionId {
 
 function loadRegexSetting(): boolean {
   try {
-    const saved = localStorage.getItem(REGEX_STORAGE_KEY);
+    const saved = localStorage.getItem(ENGINE_SETTINGS_KEYS.regexEnabled);
     if (saved !== null) return JSON.parse(saved);
   } catch { /* ignore */ }
   return false;
@@ -421,7 +350,7 @@ function loadRegexSetting(): boolean {
 
 function loadCustomLabelsFromStorage(): string[] {
   try {
-    const saved = localStorage.getItem(CUSTOM_LABELS_STORAGE_KEY);
+    const saved = localStorage.getItem(ENGINE_SETTINGS_KEYS.customLabels);
     if (saved) return JSON.parse(saved);
   } catch { /* ignore */ }
   return [];

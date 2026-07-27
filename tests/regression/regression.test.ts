@@ -2,11 +2,11 @@
  * Detection regression corpus replay (T029).
  *
  * Replays tests/regression/corpus/*.json through the CURRENT engine:
- * the real detection worker pipeline (regex rules, overlap resolution,
- * false-positive filter, propagation) plus the real AnonymizationSession,
- * with ONLY the ML providers replaced by a deterministic stub that returns
- * a fixed entity list per case. No model is ever downloaded; the network
- * is hard-disabled for the whole suite.
+ * the real @doccloak/core engine served over the real worker protocol
+ * (regex rules, overlap resolution, false-positive filter, propagation)
+ * plus the real AnonymizationSession, with ONLY the ML providers replaced
+ * by a deterministic stub that returns a fixed entity list per case.
+ * No model is ever downloaded; the env's fetch is hard-disabled.
  *
  * The suite fails on ANY diff: span, type, rounded confidence, detector id,
  * placeholder text, restored text or replacement table.
@@ -14,7 +14,9 @@
  * Recapture goldens intentionally with:
  *   DOCCLOAK_CAPTURE=1 npm test -- tests/regression/regression.test.ts
  */
-import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { createEngine, serveEngine, memoryKV, memoryBlobCache } from '@doccloak/core';
+import type { CoreEnv, PortLike } from '@doccloak/core';
 import type { DetectedEntity, EntityType } from '../../src/core/types.ts';
 import {
   loadCorpus,
@@ -26,47 +28,35 @@ import {
 import { CAPTURE_MODE, writeGolden } from './capture.ts';
 
 // ── Deterministic ML provider stub ─────────────────────────
-// Replaces both real providers so importing the worker never pulls in
-// @huggingface/transformers or onnxruntime-web.
+// Injected through the engine's provider factory override so the suite
+// never pulls in @huggingface/transformers or downloads a model.
 
-const stub = vi.hoisted(() => {
-  const state = {
-    entities: [] as Array<{
-      type: string; value: string; start: number; end: number;
-      confidence: number; detector: string;
-    }>,
-    threshold: 0.35,
-  };
+const state = {
+  entities: [] as DetectedEntity[],
+  threshold: 0.35,
+};
 
-  class StubNerProvider {
-    readonly name = 'Stub NER (fixed entities)';
-    load(): Promise<void> { return Promise.resolve(); }
-    isLoaded(): boolean { return true; }
-    isLoading(): boolean { return false; }
-    onProgress(): void { /* no download to report */ }
-    detect(): Promise<typeof state.entities> {
-      // Mirror the real providers: spans scoring below the confidence
-      // threshold never leave the provider (gliner keeps score >= threshold).
-      return Promise.resolve(state.entities.filter((e) => e.confidence >= state.threshold));
-    }
-    setThreshold(value: number): void {
-      state.threshold = Math.max(0.05, Math.min(0.95, value));
-    }
-    getThreshold(): number { return state.threshold; }
-    release(): void { /* nothing to free */ }
+class StubNerProvider {
+  readonly name = 'Stub NER (fixed entities)';
+  load(): Promise<void> { return Promise.resolve(); }
+  isLoaded(): boolean { return true; }
+  isLoading(): boolean { return false; }
+  onProgress(): void { /* no download to report */ }
+  detect(): Promise<DetectedEntity[]> {
+    // Mirror the real providers: spans scoring below the confidence
+    // threshold never leave the provider (gliner keeps score >= threshold).
+    return Promise.resolve(state.entities.filter((e) => e.confidence >= state.threshold));
   }
+  setThreshold(value: number): void {
+    state.threshold = Math.max(0.05, Math.min(0.95, value));
+  }
+  getThreshold(): number { return state.threshold; }
+  release(): void { /* nothing to free */ }
+}
 
-  return { state, StubNerProvider };
-});
-
-vi.mock('../../src/core/detectors/ner/index.ts', () => ({
-  GlinerProvider: stub.StubNerProvider,
-  BardsaiProvider: stub.StubNerProvider,
-}));
-
-// ── Worker driver ──────────────────────────────────────────
-// The worker module assigns self.onmessage at import time (jsdom provides
-// self); we call the handler directly and capture self.postMessage output.
+// ── Protocol driver ────────────────────────────────────────
+// serveEngine registers its handler on this in-memory port; we send the
+// same raw messages the old worker received and capture every reply.
 
 interface WorkerReply {
   type: string;
@@ -77,13 +67,19 @@ interface WorkerReply {
 
 const posted: WorkerReply[] = [];
 let requestId = 0;
+let handleRequest: ((msg: unknown) => void | Promise<void>) | null = null;
+
+const port: PortLike = {
+  postMessage: (msg) => { posted.push(msg as WorkerReply); },
+  onMessage: (cb) => {
+    handleRequest = cb;
+    return () => { handleRequest = null; };
+  },
+};
 
 async function send(msg: Record<string, unknown>): Promise<void> {
-  const handler = (globalThis as unknown as {
-    onmessage: ((e: { data: unknown }) => Promise<void>) | null;
-  }).onmessage;
-  if (!handler) throw new Error('Detection worker registered no onmessage handler');
-  await handler({ data: msg });
+  if (!handleRequest) throw new Error('serveEngine registered no message handler');
+  await handleRequest(msg);
 }
 
 async function detect(text: string): Promise<DetectedEntity[]> {
@@ -127,15 +123,27 @@ const CHECKSUM_DETECTORS = [
 const corpus = loadCorpus();
 
 beforeAll(async () => {
-  // Capture worker replies instead of letting jsdom's postMessage run.
-  vi.stubGlobal('postMessage', (msg: WorkerReply) => { posted.push(msg); });
-  // Hard-disable the network: the deterministic suite must never download
-  // a model or anything else.
-  vi.stubGlobal('fetch', () => {
-    throw new Error('Network access is forbidden in the deterministic regression suite');
+  // In-memory env with the network hard-disabled: the deterministic suite
+  // must never download a model or anything else.
+  const env: CoreEnv = {
+    kv: memoryKV(),
+    modelCache: memoryBlobCache(),
+    fetch: (() => {
+      throw new Error('Network access is forbidden in the deterministic regression suite');
+    }) as unknown as typeof fetch,
+    wasm: { paths: '/' },
+    loadTokenizer: async () => {
+      throw new Error('Network access is forbidden in the deterministic regression suite');
+    },
+  };
+  const engine = createEngine(env, undefined, {
+    providers: {
+      gliner: () => new StubNerProvider(),
+      bardsai: () => new StubNerProvider(),
+    },
   });
+  serveEngine(engine, port);
 
-  await import('../../src/core/detection.worker.ts');
   await send({
     type: 'init',
     providerId: 'gliner',
@@ -147,17 +155,13 @@ beforeAll(async () => {
   if (!loaded) throw new Error('Stubbed provider failed to initialize');
 });
 
-afterAll(() => {
-  vi.unstubAllGlobals();
-});
-
 for (const { fileName, filePath, doc } of corpus) {
   describe(`corpus: ${fileName}`, () => {
     for (const testCase of doc.cases) {
       it(`${testCase.id}: ${testCase.description}`, async () => {
         const { input, settings } = testCase;
 
-        stub.state.entities = resolveStubEntities(input, testCase.mlEntities);
+        state.entities = resolveStubEntities(input, testCase.mlEntities);
         await send({ type: 'setRegex', enabled: settings.regexEnabled, region: settings.regexRegion });
         await send({ type: 'setThreshold', value: settings.threshold });
 
