@@ -1,15 +1,15 @@
 /**
- * Migration shim (T011): OCR logic lives in @doccloak/core/dom. This file
- * re-exports it and keeps the web-specific pieces here:
+ * Web OCR adapter over @doccloak/core/dom.
+ *
+ * Keeps the web-specific pieces of the OCR flow out of core:
  * - the tesseract.js asset locations derived from Vite's BASE_URL (core takes
  *   them as a parameter; per architecture 4.1 principle 1, core never reads
  *   import.meta.env)
  * - the HTMLCanvasElement-typed loadImageToCanvas the UI expects (in a DOM
  *   window core's feature detection always yields an HTMLCanvasElement)
- * T010 deletes this shim and rewires callers.
+ * Pure OCR helpers (isImageFile, renderRedactedImage, OcrWord, ...) are
+ * imported from '@doccloak/core/dom' directly.
  */
-
-export * from '@doccloak/core/dom';
 
 import {
   loadImageToCanvas as coreLoadImageToCanvas,

@@ -9,8 +9,7 @@
  * tokenizer loading, userAgent/deviceMemory hardware hints for the
  * default-model heuristic and navigator.storage.persist().
  *
- * Consumed by the detection worker bootstrap; supersedes the per-provider
- * shims in src/core/detectors/ner/ for the worker path (T010 deletes those).
+ * Consumed by the detection worker bootstrap (src/detection.worker.ts).
  * Note: this module statically imports @huggingface/transformers, so only
  * worker-side code should import it - the main-thread engine adapter keeps
  * its own copy of the hardware sniffing to stay out of the main bundle.

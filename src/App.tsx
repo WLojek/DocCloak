@@ -12,14 +12,14 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { Lock, Settings, ArrowRight, Languages, Check, Plus, X, ChevronDown, Info, FileText, Image as ImageIcon, Download, Github, RotateCw } from 'lucide-react';
-import { isImageFile } from './core/ocr.ts';
+import { isImageFile } from '@doccloak/core/dom';
 import logoSrc from './ui/assets/doc-cloak-logo-light.png';
 import { version } from '../package.json';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useToast } from './ui/components/Toast.tsx';
 import { Hero, Audience, HowItWorks, FAQ } from './ui/components/Landing.tsx';
-import { PROVIDERS, REGEX_REGIONS } from './core/engine.ts';
-import type { RegexRegionId } from './core/engine.ts';
+import { PROVIDERS, REGEX_REGIONS } from '@doccloak/core';
+import type { RegexRegionId } from '@doccloak/core';
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;

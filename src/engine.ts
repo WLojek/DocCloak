@@ -9,7 +9,6 @@
  * protocol now live in @doccloak/core.
  */
 
-import type { DetectedEntity, ProgressCallback } from './types.ts';
 import {
   PROVIDERS,
   REGEX_REGIONS,
@@ -19,10 +18,18 @@ import {
   pickDefaultProvider,
   connectEngine,
 } from '@doccloak/core';
-import type { EngineClient, HardwareHints, ProviderId, ProviderEntry, RegexRegionId } from '@doccloak/core';
+import type {
+  DetectedEntity,
+  ProgressCallback,
+  EngineClient,
+  HardwareHints,
+  ProviderId,
+  ProviderEntry,
+  RegexRegionId,
+} from '@doccloak/core';
 
-// Re-export the registry and region catalog (moved to core in T009) under
-// the names App.tsx and useAnonymizer.ts have always imported.
+// Re-export the registry and region catalog (moved to core in T009) so the
+// adapter keeps the full legacy engine surface in one module.
 export { PROVIDERS, REGEX_REGIONS };
 export type { ProviderId, ProviderEntry, RegexRegionId };
 

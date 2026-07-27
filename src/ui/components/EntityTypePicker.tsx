@@ -1,5 +1,5 @@
-import type { EntityType } from '../../core/types.ts';
-import { ENTITY_COLORS } from '../../core/types.ts';
+import type { EntityType } from '@doccloak/core';
+import { ENTITY_COLORS } from '@doccloak/core';
 import { Card } from '@/components/ui/card';
 import { useTranslation } from '../../i18n/LanguageContext.tsx';
 

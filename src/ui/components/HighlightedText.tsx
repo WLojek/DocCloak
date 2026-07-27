@@ -1,5 +1,5 @@
-import type { DetectedEntity } from '../../core/types.ts';
-import { ENTITY_COLORS } from '../../core/types.ts';
+import type { DetectedEntity } from '@doccloak/core';
+import { ENTITY_COLORS } from '@doccloak/core';
 
 interface Segment {
   text: string;

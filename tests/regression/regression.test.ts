@@ -17,7 +17,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createEngine, serveEngine, memoryKV, memoryBlobCache } from '@doccloak/core';
 import type { CoreEnv, PortLike } from '@doccloak/core';
-import type { DetectedEntity, EntityType } from '../../src/core/types.ts';
+import type { DetectedEntity, EntityType } from '@doccloak/core';
 import {
   loadCorpus,
   resolveStubEntities,

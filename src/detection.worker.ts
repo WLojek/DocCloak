@@ -8,7 +8,7 @@
 
 import { createEngine, serveEngine } from '@doccloak/core';
 import type { PortLike } from '@doccloak/core';
-import { createWebCoreEnv } from '../engine-env.web.ts';
+import { createWebCoreEnv } from './engine-env.web.ts';
 
 const workerPort: PortLike = {
   postMessage: (msg) => self.postMessage(msg),
