@@ -1,4 +1,4 @@
-import type { EntityType } from '../core/types.ts';
+import type { EntityType } from '@doccloak/core';
 
 export interface Translations {
   header: {

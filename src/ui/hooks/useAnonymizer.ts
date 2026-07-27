@@ -1,14 +1,15 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import type { DetectedEntity, EntityType, ReplacementEntry } from '../../core/types.ts';
-import { detectEntities, preloadModel, onDownloadProgress, setDetectionThreshold, getDetectionThreshold, getCustomLabels, setCustomLabels, switchProvider as engineSwitchProvider, getActiveProviderId, isRegexEnabled, setRegexEnabled, getRegexRegion, setRegexRegionSetting } from '../../core/engine.ts';
-import type { RegexRegionId } from '../../core/engine.ts';
-import type { ProviderId } from '../../core/engine.ts';
-import { AnonymizationSession } from '../../core/session.ts';
-import type { ReplacementMode } from '../../core/session.ts';
-import { readDocx, writeAnonymizedDocx, isLegacyDoc, isSupportedFile } from '../../core/docx.ts';
-import { readDocText, writeAnonymizedDoc } from '../../core/doc.ts';
-import { isImageFile, loadImageToCanvas, recognizeCanvas, renderRedactedImage } from '../../core/ocr.ts';
-import type { OcrWord } from '../../core/ocr.ts';
+import type { DetectedEntity, EntityType, ReplacementEntry } from '@doccloak/core';
+import { detectEntities, preloadModel, onDownloadProgress, setDetectionThreshold, getDetectionThreshold, getCustomLabels, setCustomLabels, switchProvider as engineSwitchProvider, getActiveProviderId, isRegexEnabled, setRegexEnabled, getRegexRegion, setRegexRegionSetting } from '../../engine.ts';
+import type { RegexRegionId } from '@doccloak/core';
+import type { ProviderId } from '@doccloak/core';
+import { AnonymizationSession } from '@doccloak/core';
+import type { ReplacementMode } from '@doccloak/core';
+import { readDocx, writeAnonymizedDocx, isLegacyDoc, isSupportedFile } from '@doccloak/core/dom';
+import { readDocText, writeAnonymizedDoc } from '@doccloak/core';
+import { isImageFile, renderRedactedImage } from '@doccloak/core/dom';
+import { loadImageToCanvas, recognizeCanvas } from '../../ocr.web.ts';
+import type { OcrWord } from '@doccloak/core/dom';
 import { useTranslation } from '../../i18n/LanguageContext.tsx';
 
 export function useAnonymizer() {

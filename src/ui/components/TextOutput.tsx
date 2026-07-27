@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
-import { ENTITY_COLORS } from '../../core/types.ts';
-import type { ReplacementEntry } from '../../core/types.ts';
+import { ENTITY_COLORS } from '@doccloak/core';
+import type { ReplacementEntry } from '@doccloak/core';
 import { Button } from '@/components/ui/button';
 import { Copy, Check, Shield } from 'lucide-react';
 import { useTranslation } from '../../i18n/LanguageContext.tsx';

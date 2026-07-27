@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import type { DetectedEntity, ReplacementEntry } from '../../core/types.ts';
-import { ENTITY_COLORS } from '../../core/types.ts';
+import type { DetectedEntity, ReplacementEntry } from '@doccloak/core';
+import { ENTITY_COLORS } from '@doccloak/core';
 import { Card } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ChevronDown } from 'lucide-react';

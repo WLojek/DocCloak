@@ -1,7 +1,7 @@
 import { useRef, useCallback, useState } from 'react';
-import type { DetectedEntity, EntityType } from '../../core/types.ts';
-import { ENTITY_COLORS } from '../../core/types.ts';
-import { isImageFile } from '../../core/ocr.ts';
+import type { DetectedEntity, EntityType } from '@doccloak/core';
+import { ENTITY_COLORS } from '@doccloak/core';
+import { isImageFile } from '@doccloak/core/dom';
 import { EntityTypePicker } from './EntityTypePicker.tsx';
 import { Button } from '@/components/ui/button';
 import { X, Upload, FileText, Image as ImageIcon } from 'lucide-react';

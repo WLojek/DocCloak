@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { AnonymizationSession } from '../../src/core/session.ts';
-import type { DetectedEntity } from '../../src/core/types.ts';
+import { AnonymizationSession } from '@doccloak/core';
+import type { DetectedEntity } from '@doccloak/core';
 
 describe('engine: overlap resolution via session', () => {
   it('anonymizes non-overlapping entities correctly', () => {

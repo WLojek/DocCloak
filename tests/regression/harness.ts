@@ -8,8 +8,8 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { AnonymizationSession, type ReplacementMode } from '../../src/core/session.ts';
-import type { DetectedEntity, EntityType, ReplacementEntry } from '../../src/core/types.ts';
+import { AnonymizationSession, type ReplacementMode } from '@doccloak/core';
+import type { DetectedEntity, EntityType, ReplacementEntry } from '@doccloak/core';
 
 export const CORPUS_DIR = path.join(
   path.dirname(fileURLToPath(import.meta.url)),

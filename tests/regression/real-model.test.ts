@@ -16,7 +16,7 @@
  */
 import { describe, it, expect, beforeAll, vi } from 'vitest';
 import process from 'node:process';
-import type { DetectedEntity } from '../../src/core/types.ts';
+import type { DetectedEntity } from '@doccloak/core';
 
 const RUN_REAL_MODEL = process.env.DOCCLOAK_REAL_MODEL === '1';
 const describeReal = RUN_REAL_MODEL ? describe : describe.skip;
@@ -56,7 +56,7 @@ async function detect(text: string): Promise<DetectedEntity[]> {
 describeReal('regression: real GLiNER model end to end (manual gate)', () => {
   beforeAll(async () => {
     vi.stubGlobal('postMessage', (msg: WorkerReply) => { posted.push(msg); });
-    await import('../../src/core/detection.worker.ts');
+    await import('../../src/detection.worker.ts');
     await send({
       type: 'init',
       providerId: 'gliner',

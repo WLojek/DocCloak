@@ -39,7 +39,7 @@ The AI never sees the real data. You get the full power of AI assistance without
 - **Image support (OCR)** - upload or paste an image or screenshot (`.png`, `.jpg`, `.webp`, `.bmp`, `.gif`); text is extracted locally with Tesseract WebAssembly, run through the same PII detection, and you can download a redacted copy of the image with the sensitive words blacked out
 - **Multiple detection models** - choose between GLiNER PII Edge (~65 MB, multi-language, custom labels) and BardS.ai EU PII (~279 MB, 24 EU languages, 35 entity types). Switch models from settings without reloading. Phones and other low-memory devices default to the lightweight GLiNER model
 - **Resilient model downloads** - interrupted downloads resume where they left off (HTTP Range), transient network errors are retried with backoff, and a Try again button appears if the download ultimately fails
-- **Hybrid detection** - ML model + 100+ regex rules for structured patterns across European regions and the US (AT, BE, CH, DE, DK, ES, FI, FR, GB, IE, IT, NL, NO, PL, PT, SE, US)
+- **Hybrid detection** - ML model + 160+ regex rules for structured patterns across 19 regions (AT, BE, CH, CN, DE, DK, ES, FI, FR, GB, IE, IT, JP, NL, NO, PL, PT, SE, US)
 - **Entity propagation** - when a name or company is detected once, DocCloak automatically finds all other occurrences throughout the document
 - **Round-trip de-anonymization** - paste the AI's response back in and DocCloak restores the original names automatically
 - **Editable labels** - rename any placeholder (e.g., `<<REDACTED_3>>` → `<<Client_Name>>`) for clearer AI prompts
@@ -82,10 +82,26 @@ The output in `dist/` is a static SPA that can be deployed to any static hosting
 | Language | TypeScript 5.8 |
 | Build | Vite 6 |
 | Styling | Tailwind CSS v4 + shadcn/ui (Radix primitives) |
+| PII Engine | [@doccloak/core](https://www.npmjs.com/package/@doccloak/core) (Apache-2.0, [source](https://github.com/WLojek/DocCloak.Core)) |
 | ML Runtime | ONNX Runtime WebAssembly |
 | NER Models | [GLiNER PII Edge v1.0](https://huggingface.co/knowledgator/gliner-pii-edge-v1.0) (~65 MB) / [BardS.ai EU PII](https://huggingface.co/bardsai/eu-pii-anonimization-multilang) (~279 MB) |
 | Tokenizers | [@huggingface/transformers](https://huggingface.co/docs/transformers.js) v3 (loaded from HuggingFace Hub) |
 | Testing | Vitest |
+
+## Ecosystem
+
+DocCloak is a family of tools built around one shared engine:
+
+| Repository | What it is | License |
+|------------|------------|---------|
+| [DocCloak](https://github.com/WLojek/DocCloak) (this repo) | The web app - UI, worker wiring, hosting | AGPL-3.0 |
+| [DocCloak.Core](https://github.com/WLojek/DocCloak.Core) | The PII detection and anonymization engine, published to npm as [@doccloak/core](https://www.npmjs.com/package/@doccloak/core) | Apache-2.0 |
+
+The engine (ML providers, regex rules, pipeline, DOCX/OCR handling) was extracted from this
+repository into DocCloak.Core so that other tools can embed it. The web app consumes it as a
+regular npm dependency; its behavior is unchanged by the split. If you want to build your own
+anonymization tool, depend on `@doccloak/core` directly - the permissive Apache-2.0 license
+applies to the engine, while this web app remains AGPL-3.0.
 
 ## Why It's Safe
 
@@ -95,16 +111,18 @@ DocCloak doesn't ask you to trust a server, a company, or a privacy policy. It's
 - **Nothing sensitive is stored.** All entity mappings live in memory only. Close the tab and everything is gone. Only your model preference is saved to localStorage.
 - **No tracking, no analytics, no telemetry.** DocCloak doesn't know who you are, what you paste, or how often you use it.
 - **Minimal external requests.** The only external network activity is loading the ML model and tokenizer from HuggingFace on first use. The OCR engine and its language data are served from the app's own origin (no third-party CDN), fetched only when you first use image OCR. No Google Fonts, no third-party scripts, no telemetry. No data you paste or upload ever leaves your browser - OCR runs entirely locally.
-- **Open source and auditable.** Every line of code is in this repository. The AGPL-3.0 license guarantees it stays that way - even if someone else hosts it, they must publish their source code too.
-- **Works offline after first load.** Once the model is cached, you can disconnect from the internet and DocCloak keeps working — anonymization runs entirely in WebAssembly.
+- **Open source and auditable.** Every line of code is public: the web app in this repository (AGPL-3.0) and the detection engine in [DocCloak.Core](https://github.com/WLojek/DocCloak.Core) (Apache-2.0). The AGPL-3.0 license guarantees the app stays open - even if someone else hosts it, they must publish their source code too.
+- **Works offline after first load.** Once the model is cached, you can disconnect from the internet and DocCloak keeps working - anonymization runs entirely in WebAssembly.
 
 ### Model caching and offline use
 
 After a model is downloaded for the first time, DocCloak stores it in the browser's [Cache Storage](https://developer.mozilla.org/en-US/docs/Web/API/Cache) under the `doccloak-models` cache. On subsequent visits the model loads from local storage instead of re-downloading from HuggingFace, so you can use DocCloak fully offline.
 
-Caching is **best-effort**. If your browser refuses to cache the model — for example because the per-origin storage quota is exceeded, you're using an Incognito/Private window with restricted quota, or the model file is larger than the browser allows for a single Cache entry — DocCloak still loads the model into memory and works normally for the current session. The next visit will simply re-download it instead of using the cache.
+Caching is **best-effort**. If your browser refuses to cache the model - for example because the per-origin storage quota is exceeded, you're using an Incognito/Private window with restricted quota, or the model file is larger than the browser allows for a single Cache entry - DocCloak still loads the model into memory and works normally for the current session. The next visit will simply re-download it instead of using the cache.
 
 The BardS.ai EU PII model (~279 MB) is most likely to hit quota limits, especially in Incognito mode. GLiNER PII Edge (~65 MB) caches reliably almost everywhere. To force a re-download (e.g. after a model update), open DevTools → Application → Cache Storage → delete the `doccloak-models` cache.
+
+The regex rule packs that power structured-pattern detection also live in DocCloak.Core (`rules/*.json`) and are shared unchanged with the DocCloak command-line tool.
 
 ## Scripts
 
@@ -119,7 +137,7 @@ npm run test:watch # Run tests in watch mode
 
 ## Contributing
 
-Contributions are welcome! Whether it's adding regex rules for new regions, improving detection accuracy, fixing bugs, or translating the UI - all help is appreciated.
+Contributions are welcome! UI, translations, and app-level fixes belong in this repository. Detection logic (regex rules for new regions, ML providers, pipeline improvements) now lives in [DocCloak.Core](https://github.com/WLojek/DocCloak.Core) - contribute engine changes there.
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/my-feature`)
@@ -128,4 +146,6 @@ Contributions are welcome! Whether it's adding regex rules for new regions, impr
 
 ## License
 
-[AGPL-3.0](LICENSE)
+The web app (this repository) is licensed under [AGPL-3.0](LICENSE).
+
+The detection engine it depends on, [@doccloak/core](https://github.com/WLojek/DocCloak.Core), is licensed separately under Apache-2.0.
