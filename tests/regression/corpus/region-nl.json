@@ -72,38 +72,38 @@
             "detector": "regex:nl:company"
           }
         ],
-        "anonymized": "Dhr. <<REDACTED_6>>, BSN <<REDACTED_5>>, <<REDACTED_4>>, <<REDACTED_3>> Amsterdam, mobiel <<REDACTED_2>>. Bedrijf: <<REDACTED_1>>.",
+        "anonymized": "Dhr. [PERSON_1], BSN [SSN_1], [ADDRESS_2], [ADDRESS_1] Amsterdam, mobiel [PHONE_1]. Bedrijf: [COMPANY_1].",
         "anonymizedAfterRename": null,
         "restored": "Dhr. Jan de Vries, BSN 123456782, adres Keizersgracht 123, 1012 AB Amsterdam, mobiel 06 12345678. Bedrijf: Tulpenhandel B.V.",
         "replacements": [
           {
             "original": "Tulpenhandel B.V",
-            "replacement": "<<REDACTED_1>>",
+            "replacement": "[COMPANY_1]",
             "entityType": "COMPANY"
           },
           {
             "original": "06 12345678",
-            "replacement": "<<REDACTED_2>>",
+            "replacement": "[PHONE_1]",
             "entityType": "PHONE"
           },
           {
             "original": "1012 AB",
-            "replacement": "<<REDACTED_3>>",
+            "replacement": "[ADDRESS_1]",
             "entityType": "ADDRESS"
           },
           {
             "original": "adres Keizersgracht 123",
-            "replacement": "<<REDACTED_4>>",
+            "replacement": "[ADDRESS_2]",
             "entityType": "ADDRESS"
           },
           {
             "original": "123456782",
-            "replacement": "<<REDACTED_5>>",
+            "replacement": "[SSN_1]",
             "entityType": "SSN"
           },
           {
             "original": "Jan de Vries",
-            "replacement": "<<REDACTED_6>>",
+            "replacement": "[PERSON_1]",
             "entityType": "PERSON"
           }
         ]

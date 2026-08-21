@@ -56,28 +56,28 @@
             "detector": "regex:ie:phone"
           }
         ],
-        "anonymized": "Ms. <<REDACTED_4>>, PPS number <<REDACTED_3>>, Eircode <<REDACTED_2>>, phone <<REDACTED_1>>.",
+        "anonymized": "Ms. [PERSON_1], PPS number [SSN_1], Eircode [ADDRESS_1], phone [PHONE_1].",
         "anonymizedAfterRename": null,
         "restored": "Ms. Aoife Byrne, PPS number 1234567T, Eircode A65 F4E2, phone 01 234 5678.",
         "replacements": [
           {
             "original": "01 234 5678",
-            "replacement": "<<REDACTED_1>>",
+            "replacement": "[PHONE_1]",
             "entityType": "PHONE"
           },
           {
             "original": "A65 F4E2",
-            "replacement": "<<REDACTED_2>>",
+            "replacement": "[ADDRESS_1]",
             "entityType": "ADDRESS"
           },
           {
             "original": "1234567T",
-            "replacement": "<<REDACTED_3>>",
+            "replacement": "[SSN_1]",
             "entityType": "SSN"
           },
           {
             "original": "Aoife Byrne",
-            "replacement": "<<REDACTED_4>>",
+            "replacement": "[PERSON_1]",
             "entityType": "PERSON"
           }
         ]

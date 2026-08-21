@@ -56,28 +56,28 @@
             "detector": "regex:fi:phone"
           }
         ],
-        "anonymized": "<<REDACTED_4>>, henkilötunnus <<REDACTED_3>>, osoite <<REDACTED_2>>, puhelin <<REDACTED_1>>.",
+        "anonymized": "[PERSON_1], henkilötunnus [SSN_1], osoite [ADDRESS_1], puhelin [PHONE_1].",
         "anonymizedAfterRename": null,
         "restored": "Matti Virtanen, henkilötunnus 131052-308T, osoite 00100 Helsinki, puhelin 040 123 4567.",
         "replacements": [
           {
             "original": "040 123 4567",
-            "replacement": "<<REDACTED_1>>",
+            "replacement": "[PHONE_1]",
             "entityType": "PHONE"
           },
           {
             "original": "00100 Helsinki",
-            "replacement": "<<REDACTED_2>>",
+            "replacement": "[ADDRESS_1]",
             "entityType": "ADDRESS"
           },
           {
             "original": "131052-308T",
-            "replacement": "<<REDACTED_3>>",
+            "replacement": "[SSN_1]",
             "entityType": "SSN"
           },
           {
             "original": "Matti Virtanen",
-            "replacement": "<<REDACTED_4>>",
+            "replacement": "[PERSON_1]",
             "entityType": "PERSON"
           }
         ]

@@ -101,7 +101,7 @@ const seenDetectors = new Set<string>();
 
 const ALL_ENTITY_TYPES: EntityType[] = [
   'PERSON', 'EMAIL', 'PHONE', 'SSN', 'CREDIT_CARD', 'DATE', 'CURRENCY',
-  'IP_ADDRESS', 'IBAN', 'ADDRESS', 'COMPANY', 'OTHER',
+  'IP_ADDRESS', 'IBAN', 'ADDRESS', 'COMPANY', 'SECRET', 'API_KEY', 'OTHER',
 ];
 
 const ALL_REGION_PREFIXES = [
@@ -195,7 +195,7 @@ for (const { fileName, filePath, doc } of corpus) {
 }
 
 describe('corpus coverage', () => {
-  it('covers all 12 entity types', () => {
+  it('covers all 14 entity types', () => {
     for (const type of ALL_ENTITY_TYPES) {
       expect(seenTypes.has(type), `No corpus case produced an entity of type ${type}`).toBe(true);
     }

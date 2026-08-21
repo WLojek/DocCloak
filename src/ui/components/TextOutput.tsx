@@ -12,7 +12,9 @@ interface TextOutputProps {
   loading?: boolean;
 }
 
-const CUSTOM_PLACEHOLDER_RE = /<<[^<>]+>>/g;
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
 export function TextOutput({ value, entries, loading }: TextOutputProps) {
   const { t } = useTranslation();
@@ -27,6 +29,17 @@ export function TextOutput({ value, entries, loading }: TextOutputProps) {
     return map;
   }, [entries]);
 
+  // Highlight the session's actual replacement tokens, whatever their format
+  // (typed [PERSON_1], legacy <<REDACTED_1>>, or user-renamed labels). Longer
+  // tokens first so [PERSON_10] is not shadowed by [PERSON_1].
+  const tokenRe = useMemo(() => {
+    if (entries.length === 0) return null;
+    const tokens = [...new Set(entries.map((e) => e.replacement))]
+      .sort((a, b) => b.length - a.length)
+      .map(escapeRegExp);
+    return new RegExp(tokens.join('|'), 'g');
+  }, [entries]);
+
   const handleCopy = async () => {
     if (!value) return;
     await navigator.clipboard.writeText(value);
@@ -37,17 +50,19 @@ export function TextOutput({ value, entries, loading }: TextOutputProps) {
 
   const renderHighlighted = () => {
     if (!value) return null;
-    const segments: Array<{ text: string; color?: string }> = [];
+    if (!tokenRe) return value;
+    const segments: Array<{ text: string; color?: string; markIndex?: number }> = [];
     let lastIndex = 0;
+    let markCount = 0;
     let match: RegExpExecArray | null;
-    CUSTOM_PLACEHOLDER_RE.lastIndex = 0;
+    tokenRe.lastIndex = 0;
 
-    while ((match = CUSTOM_PLACEHOLDER_RE.exec(value)) !== null) {
+    while ((match = tokenRe.exec(value)) !== null) {
       if (match.index > lastIndex) {
         segments.push({ text: value.slice(lastIndex, match.index) });
       }
       const color = labelColorMap.get(match[0]) ?? '#B6A596';
-      segments.push({ text: match[0], color });
+      segments.push({ text: match[0], color, markIndex: markCount++ });
       lastIndex = match.index + match[0].length;
     }
     if (lastIndex < value.length) {
@@ -58,12 +73,17 @@ export function TextOutput({ value, entries, loading }: TextOutputProps) {
       seg.color ? (
         <mark
           key={i}
+          className="entity-highlight-animate"
           style={{
-            backgroundColor: seg.color + '30',
-            borderBottom: `2px solid ${seg.color}`,
-            color: seg.color,
-            padding: '1px 3px',
+            // Same ink-block language as the input marks; type color stays as the base.
+            backgroundColor: '#111111',
+            borderBottom: `3px solid ${seg.color}`,
+            color: '#F9F9F7',
+            padding: '1px 4px',
             fontWeight: 500,
+            // Stamped in sequence; the stagger caps so long documents finish fast.
+            animationDelay: `${Math.min(seg.markIndex ?? 0, 15) * 40}ms`,
+            animationFillMode: 'backwards',
           }}
         >
           {seg.text}
@@ -87,7 +107,7 @@ export function TextOutput({ value, entries, loading }: TextOutputProps) {
           </Button>
         )}
       </div>
-      <div className="flex-1 min-h-[200px] p-4 text-foreground text-sm leading-relaxed whitespace-pre-wrap font-light">
+      <div className="flex-1 min-h-[200px] p-4 text-foreground text-sm leading-relaxed whitespace-pre-wrap">
         {loading ? (
           <div className="space-y-3">
             <div className="skeleton-line h-3 w-full" />
@@ -97,7 +117,8 @@ export function TextOutput({ value, entries, loading }: TextOutputProps) {
             <div className="skeleton-line h-3 w-[60%]" />
           </div>
         ) : value ? (
-          <>
+          /* Keyed by value so each new redaction replays the reveal */
+          <div key={value} className="animate-content-reveal">
             {renderHighlighted()}
             {/* Post-redaction hint */}
             <div className="mt-6 pt-4 border-t border-[#E5E5E0]">
@@ -106,7 +127,7 @@ export function TextOutput({ value, entries, loading }: TextOutputProps) {
                 {t.textOutput.nextStepHint}
               </p>
             </div>
-          </>
+          </div>
         ) : (
           /* Empty state: numbered guide */
           <div className="flex flex-col items-center justify-center h-full min-h-[160px] text-center px-4">
@@ -122,13 +143,14 @@ export function TextOutput({ value, entries, loading }: TextOutputProps) {
                 </div>
               ))}
             </div>
-            <p className="text-[11px] text-[#707070] leading-relaxed mt-4 max-w-[240px] italic">{t.textOutput.emptyStateTip}</p>
+            <p className="text-[11px] text-[#707070] leading-relaxed mt-4 max-w-[240px]">{t.textOutput.emptyStateTip}</p>
           </div>
         )}
       </div>
-      {/* Footer spacer */}
       <div className="mt-auto border-t border-[#E5E5E0] px-4 py-2 bg-[#F5F5F3]">
-        <p className="label-meta text-muted-foreground">&nbsp;</p>
+        <p className="label-meta text-muted-foreground">
+          {value && entries.length > 0 ? t.entityTable.title(entries.length) : ' '}
+        </p>
       </div>
     </div>
   );

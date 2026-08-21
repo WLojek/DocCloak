@@ -1,7 +1,7 @@
 {
   "name": "doccloak",
   "private": true,
-  "version": "0.8.0",
+  "version": "0.9.0",
   "type": "module",
   "description": "Offline, open-source document anonymizer. Strip PII before sharing with AI services.",
   "license": "AGPL-3.0",
@@ -16,7 +16,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@doccloak/core": "^0.8.0",
+    "@doccloak/core": "0.9.0",
     "@huggingface/transformers": "3.8.1",
     "@radix-ui/react-checkbox": "1.3.3",
     "@radix-ui/react-popover": "1.1.15",

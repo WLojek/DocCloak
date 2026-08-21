@@ -80,43 +80,43 @@
             "detector": "regex:de:currency_words"
           }
         ],
-        "anonymized": "Frau <<REDACTED_7>>, Steuer-ID <<REDACTED_6>>, <<REDACTED_5>>, <<REDACTED_4>>, Telefon <<REDACTED_3>>. Arbeitgeber: <<REDACTED_2>>. Rechnungsbetrag <<REDACTED_1>>.",
+        "anonymized": "Frau [PERSON_1], Steuer-ID [SSN_1], [ADDRESS_2], [ADDRESS_1], Telefon [PHONE_1]. Arbeitgeber: [COMPANY_1]. Rechnungsbetrag [CURRENCY_1].",
         "anonymizedAfterRename": null,
         "restored": "Frau Erika Musterfrau, Steuer-ID 12 345 678 903, wohnhaft Friedrichstraße 43, 10115 Berlin, Telefon +49 30 12345678. Arbeitgeber: Musterbau GmbH. Rechnungsbetrag in Höhe von achttausendfünfhundert Euro.",
         "replacements": [
           {
             "original": "in Höhe von achttausendfünfhundert Euro",
-            "replacement": "<<REDACTED_1>>",
+            "replacement": "[CURRENCY_1]",
             "entityType": "CURRENCY"
           },
           {
             "original": "Musterbau GmbH",
-            "replacement": "<<REDACTED_2>>",
+            "replacement": "[COMPANY_1]",
             "entityType": "COMPANY"
           },
           {
             "original": "+49 30 12345678",
-            "replacement": "<<REDACTED_3>>",
+            "replacement": "[PHONE_1]",
             "entityType": "PHONE"
           },
           {
             "original": "10115 Berlin",
-            "replacement": "<<REDACTED_4>>",
+            "replacement": "[ADDRESS_1]",
             "entityType": "ADDRESS"
           },
           {
             "original": "wohnhaft Friedrichstraße 43",
-            "replacement": "<<REDACTED_5>>",
+            "replacement": "[ADDRESS_2]",
             "entityType": "ADDRESS"
           },
           {
             "original": "12 345 678 903",
-            "replacement": "<<REDACTED_6>>",
+            "replacement": "[SSN_1]",
             "entityType": "SSN"
           },
           {
             "original": "Erika Musterfrau",
-            "replacement": "<<REDACTED_7>>",
+            "replacement": "[PERSON_1]",
             "entityType": "PERSON"
           }
         ]

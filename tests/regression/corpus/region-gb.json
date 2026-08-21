@@ -88,48 +88,48 @@
             "detector": "regex:gb:company"
           }
         ],
-        "anonymized": "Mr. <<REDACTED_8>>, NINO <<REDACTED_7>>, NHS number <<REDACTED_6>>, lives at <<REDACTED_5>>, London <<REDACTED_4>>, phone <<REDACTED_3>>, VAT <<REDACTED_2>>. Employer: <<REDACTED_1>>.",
+        "anonymized": "Mr. [PERSON_1], NINO [SSN_3], NHS number [SSN_2], lives at [ADDRESS_2], London [ADDRESS_1], phone [PHONE_1], VAT [SSN_1]. Employer: [COMPANY_1].",
         "anonymizedAfterRename": null,
         "restored": "Mr. Oliver Grant, NINO AB 12 34 56 C, NHS number 943 476 5919, lives at 221B Baker Street, London SW1A 1AA, phone 07911 123456, VAT GB123 4567 89. Employer: Tesco Ltd.",
         "replacements": [
           {
             "original": "Tesco Ltd",
-            "replacement": "<<REDACTED_1>>",
+            "replacement": "[COMPANY_1]",
             "entityType": "COMPANY"
           },
           {
             "original": "GB123 4567 89",
-            "replacement": "<<REDACTED_2>>",
+            "replacement": "[SSN_1]",
             "entityType": "SSN"
           },
           {
             "original": "07911 123456",
-            "replacement": "<<REDACTED_3>>",
+            "replacement": "[PHONE_1]",
             "entityType": "PHONE"
           },
           {
             "original": "SW1A 1AA",
-            "replacement": "<<REDACTED_4>>",
+            "replacement": "[ADDRESS_1]",
             "entityType": "ADDRESS"
           },
           {
             "original": "221B Baker Street",
-            "replacement": "<<REDACTED_5>>",
+            "replacement": "[ADDRESS_2]",
             "entityType": "ADDRESS"
           },
           {
             "original": "943 476 5919",
-            "replacement": "<<REDACTED_6>>",
+            "replacement": "[SSN_2]",
             "entityType": "SSN"
           },
           {
             "original": "AB 12 34 56 C",
-            "replacement": "<<REDACTED_7>>",
+            "replacement": "[SSN_3]",
             "entityType": "SSN"
           },
           {
             "original": "Oliver Grant",
-            "replacement": "<<REDACTED_8>>",
+            "replacement": "[PERSON_1]",
             "entityType": "PERSON"
           }
         ]

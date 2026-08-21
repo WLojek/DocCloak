@@ -48,18 +48,18 @@
             "detector": "propagated"
           }
         ],
-        "anonymized": "<<REDACTED_2>> signed the agreement on Monday. Two weeks later <<REDACTED_2>> confirmed the terms, and <<REDACTED_1>> received the keys.",
+        "anonymized": "[PERSON_1] signed the agreement on Monday. Two weeks later [PERSON_1] confirmed the terms, and [PERSON_1] received the keys.",
         "anonymizedAfterRename": null,
-        "restored": "Anna Kowalska signed the agreement on Monday. Two weeks later Anna Kowalska confirmed the terms, and Kowalska received the keys.",
+        "restored": "Anna Kowalska signed the agreement on Monday. Two weeks later Anna Kowalska confirmed the terms, and Anna Kowalska received the keys.",
         "replacements": [
           {
             "original": "Kowalska",
-            "replacement": "<<REDACTED_1>>",
+            "replacement": "[PERSON_1]",
             "entityType": "PERSON"
           },
           {
             "original": "Anna Kowalska",
-            "replacement": "<<REDACTED_2>>",
+            "replacement": "[PERSON_1]",
             "entityType": "PERSON"
           }
         ]
@@ -112,18 +112,18 @@
             "detector": "propagated"
           }
         ],
-        "anonymized": "<<REDACTED_2>> attended the hearing. Ms. <<REDACTED_1>> replied later, and the van den <<REDACTED_1>> archive was updated.",
+        "anonymized": "[PERSON_1] attended the hearing. Ms. [PERSON_1] replied later, and the van den [PERSON_1] archive was updated.",
         "anonymizedAfterRename": null,
-        "restored": "Maria van den Berg attended the hearing. Ms. Berg replied later, and the van den Berg archive was updated.",
+        "restored": "Maria van den Berg attended the hearing. Ms. Maria van den Berg replied later, and the van den Maria van den Berg archive was updated.",
         "replacements": [
           {
             "original": "Berg",
-            "replacement": "<<REDACTED_1>>",
+            "replacement": "[PERSON_1]",
             "entityType": "PERSON"
           },
           {
             "original": "Maria van den Berg",
-            "replacement": "<<REDACTED_2>>",
+            "replacement": "[PERSON_1]",
             "entityType": "PERSON"
           }
         ]
@@ -176,23 +176,23 @@
             "detector": "propagated"
           }
         ],
-        "anonymized": "<<REDACTED_3>> logged in at dawn. Later <<REDACTED_2>> logged out; <<REDACTED_1>> forgot his badge.",
+        "anonymized": "[PERSON_1] logged in at dawn. Later [PERSON_1] logged out; [PERSON_1] forgot his badge.",
         "anonymizedAfterRename": null,
-        "restored": "ERIK JOHANSSON logged in at dawn. Later erik johansson logged out; Johansson forgot his badge.",
+        "restored": "erik johansson logged in at dawn. Later erik johansson logged out; erik johansson forgot his badge.",
         "replacements": [
           {
             "original": "Johansson",
-            "replacement": "<<REDACTED_1>>",
+            "replacement": "[PERSON_1]",
             "entityType": "PERSON"
           },
           {
             "original": "erik johansson",
-            "replacement": "<<REDACTED_2>>",
+            "replacement": "[PERSON_1]",
             "entityType": "PERSON"
           },
           {
             "original": "ERIK JOHANSSON",
-            "replacement": "<<REDACTED_3>>",
+            "replacement": "[PERSON_1]",
             "entityType": "PERSON"
           }
         ]

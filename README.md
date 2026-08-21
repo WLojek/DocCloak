@@ -34,20 +34,25 @@ The AI never sees the real data. You get the full power of AI assistance without
 ## Features
 
 - **Runs locally** - ML models run in-browser via ONNX Runtime WebAssembly. Verify: open DevTools → Network tab → zero requests during anonymization
-- **12 entity types** - persons, emails, phones, SSNs, credit cards, dates, currencies, IP addresses, IBANs, addresses, companies, and custom labels
+- **Typed placeholders** - replacements like `[PERSON_1]`, `[EMAIL_1]`, `[DATE_2]` tell the AI what kind of thing was redacted, so its answers stay coherent (pronouns, date reasoning, formatting) and the protected text stays readable
+- **14 entity types** - persons, emails, phones, SSNs, credit cards, dates, currencies, IP addresses, IBANs, addresses, companies, secrets, API keys, and custom labels
+- **Secrets and credential detection** - API keys (AWS, GitHub, Slack, OpenAI, Anthropic, Google), private key blocks, JWTs, connection strings, and high-entropy tokens are caught before they reach the AI
 - **Document support** - upload `.doc` and `.docx` files, redact PII, and download the protected file with all formatting preserved
 - **Image support (OCR)** - upload or paste an image or screenshot (`.png`, `.jpg`, `.webp`, `.bmp`, `.gif`); text is extracted locally with Tesseract WebAssembly, run through the same PII detection, and you can download a redacted copy of the image with the sensitive words blacked out
 - **Multiple detection models** - choose between GLiNER PII Edge (~65 MB, multi-language, custom labels) and BardS.ai EU PII (~279 MB, 24 EU languages, 35 entity types). Switch models from settings without reloading. Phones and other low-memory devices default to the lightweight GLiNER model
+- **Consent-first setup** - nothing downloads until you accept the one-time setup; the model recommended for your device is preselected, and later visits load straight from the browser cache
 - **Resilient model downloads** - interrupted downloads resume where they left off (HTTP Range), transient network errors are retried with backoff, and a Try again button appears if the download ultimately fails
-- **Hybrid detection** - ML model + 160+ regex rules for structured patterns across 19 regions (AT, BE, CH, CN, DE, DK, ES, FI, FR, GB, IE, IT, JP, NL, NO, PL, PT, SE, US)
-- **Entity propagation** - when a name or company is detected once, DocCloak automatically finds all other occurrences throughout the document
+- **Verified model downloads** - model files are checked against pinned SHA-256 hashes and tokenizers are pinned to exact upstream revisions, so a tampered or corrupted download is rejected instead of loaded
+- **Hybrid detection** - ML model + 175+ regex rules for structured patterns across 19 regions (AT, BE, CH, CN, DE, DK, ES, FI, FR, GB, IE, IT, JP, NL, NO, PL, PT, SE, US)
+- **Entity propagation** - when a name or company is detected once, DocCloak automatically finds all other occurrences throughout the document, and different mentions of the same person ("John Smith", "John", "Smith") share one placeholder
 - **Round-trip de-anonymization** - paste the AI's response back in and DocCloak restores the original names automatically
-- **Editable labels** - rename any placeholder (e.g., `<<REDACTED_3>>` → `<<Client_Name>>`) for clearer AI prompts
+- **Forgiving restore** - if the AI reformats a placeholder (`**[PERSON_1]**`, `[person_1]`, `PERSON_1`), restore still recognizes it; anything ambiguous is left untouched rather than guessed at
+- **Editable labels** - rename any placeholder (e.g., `[PERSON_3]` → `[CLIENT_NAME]`) for clearer AI prompts
 - **Custom detection labels** - add your own entity types (e.g., `medical condition`, `job title`) to detect domain-specific information
 - **Manual tagging** - select any text and assign an entity type for things the model missed
 - **Configurable sensitivity** - adjust the confidence threshold to control the precision/recall trade-off
 - **8 European languages** - English, Polish, German, French, Spanish, Portuguese, Swedish, Norwegian
-- **Replacement styles** - labeled placeholders (`<<REDACTED_N>>`) or blanked out (`________`)
+- **Replacement styles** - labeled placeholders (`[PERSON_1]`, reversible) or blanked out (`________`, permanent)
 
 ## Getting Started
 
@@ -110,7 +115,8 @@ DocCloak doesn't ask you to trust a server, a company, or a privacy policy. It's
 - **Your data never leaves the browser.** There is no backend. No API. No server to get hacked. The ML model and all regex rules run entirely in your browser using WebAssembly. You can verify this yourself: open DevTools → Network tab → paste a document → zero requests.
 - **Nothing sensitive is stored.** All entity mappings live in memory only. Close the tab and everything is gone. Only your model preference is saved to localStorage.
 - **No tracking, no analytics, no telemetry.** DocCloak doesn't know who you are, what you paste, or how often you use it.
-- **Minimal external requests.** The only external network activity is loading the ML model and tokenizer from HuggingFace on first use. The OCR engine and its language data are served from the app's own origin (no third-party CDN), fetched only when you first use image OCR. No Google Fonts, no third-party scripts, no telemetry. No data you paste or upload ever leaves your browser - OCR runs entirely locally.
+- **Minimal external requests.** The only external network activity is loading the ML model and tokenizer from HuggingFace on first use - and only after you accept the one-time setup; nothing downloads without asking. The OCR engine and its language data are served from the app's own origin (no third-party CDN), fetched only when you first use image OCR. No Google Fonts, no third-party scripts, no telemetry. No data you paste or upload ever leaves your browser - OCR runs entirely locally.
+- **Verified downloads.** Model files are verified against SHA-256 hashes pinned in the engine, and tokenizers are pinned to exact upstream revisions. If a download does not match, it is discarded and never loaded.
 - **Open source and auditable.** Every line of code is public: the web app in this repository (AGPL-3.0) and the detection engine in [DocCloak.Core](https://github.com/WLojek/DocCloak.Core) (Apache-2.0). The AGPL-3.0 license guarantees the app stays open - even if someone else hosts it, they must publish their source code too.
 - **Works offline after first load.** Once the model is cached, you can disconnect from the internet and DocCloak keeps working - anonymization runs entirely in WebAssembly.
 

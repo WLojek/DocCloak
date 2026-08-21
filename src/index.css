@@ -33,41 +33,13 @@
   font-display: swap;
   src: url('/fonts/jetbrains-mono-latin.woff2') format('woff2');
 }
-@font-face {
-  font-family: 'Lora';
-  font-style: normal;
-  font-weight: 400 700;
-  font-display: swap;
-  src: url('/fonts/lora-latin.woff2') format('woff2');
-}
-@font-face {
-  font-family: 'Lora';
-  font-style: italic;
-  font-weight: 400 700;
-  font-display: swap;
-  src: url('/fonts/lora-italic-latin.woff2') format('woff2');
-}
-@font-face {
-  font-family: 'Playfair Display';
-  font-style: normal;
-  font-weight: 400 700;
-  font-display: swap;
-  src: url('/fonts/playfair-display-latin.woff2') format('woff2');
-}
-@font-face {
-  font-family: 'Playfair Display';
-  font-style: italic;
-  font-weight: 400 700;
-  font-display: swap;
-  src: url('/fonts/playfair-display-italic-latin.woff2') format('woff2');
-}
 
 @theme inline {
   --font-sans: 'Inter', 'Helvetica Neue', ui-sans-serif, system-ui, sans-serif;
-  --font-serif: 'Fraunces', 'Playfair Display', Georgia, serif;
+  --font-serif: 'Fraunces', Georgia, serif;
   --font-body: 'Inter', 'Helvetica Neue', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', 'Courier New', monospace;
-  --font-display: 'Fraunces', 'Playfair Display', Georgia, serif;
+  --font-display: 'Fraunces', Georgia, serif;
 
   --color-background: #F9F9F7;
   --color-foreground: #111111;
@@ -117,9 +89,18 @@
   * {
     @apply border-border;
   }
+  /* Selecting text looks like censoring it: the brand's own gesture */
+  ::selection {
+    background-color: #111111;
+    color: #F9F9F7;
+  }
+  :focus-visible {
+    outline: 2px solid #111111;
+    outline-offset: 2px;
+  }
   body {
     @apply bg-background text-foreground;
-    font-family: 'Lora', Georgia, serif;
+    font-family: 'Inter', 'Helvetica Neue', system-ui, sans-serif;
     font-weight: 400;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -130,35 +111,10 @@
 /* Metadata label utility */
 .label-meta {
   font-family: 'Inter', 'Helvetica Neue', ui-sans-serif, system-ui, sans-serif;
-  font-size: 10px;
+  font-size: 11px;
   text-transform: uppercase;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
   font-weight: 600;
-}
-
-/* Hard offset shadow for interactive elements */
-.hard-shadow-hover {
-  transition: box-shadow 0.2s ease-out, transform 0.2s ease-out;
-}
-.hard-shadow-hover:hover {
-  box-shadow: 4px 4px 0px 0px #111111;
-  transform: translate(-2px, -2px);
-}
-
-/* Newsprint texture overlay */
-.newsprint-texture {
-  position: relative;
-}
-.newsprint-texture::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image:
-    linear-gradient(0deg, transparent 98%, rgba(0,0,0,0.02) 100%),
-    linear-gradient(90deg, transparent 98%, rgba(0,0,0,0.02) 100%);
-  background-size: 3px 3px;
-  pointer-events: none;
-  opacity: 0.5;
 }
 
 @keyframes redact-bar {
@@ -195,16 +151,82 @@
   animation: toast-in 0.2s ease-out;
 }
 
+/* Freshly detected marks flash redaction-red, then settle into ink */
 @keyframes entity-highlight-in {
   from {
-    background-color: rgba(204, 0, 0, 0.3);
+    background-color: #CC0000;
   }
   50% {
-    background-color: rgba(204, 0, 0, 0.15);
+    background-color: #7A0A0A;
   }
+}
+
+/* Revealed content enters with a plain fade (the marks carry the show) */
+@keyframes content-reveal {
+  from { opacity: 0; }
+}
+.animate-content-reveal {
+  animation: content-reveal 0.2s ease-out;
+}
+
+/* Restored result enters with a small rise: the journey's final frame */
+@keyframes content-reveal-rise {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+.animate-content-reveal-rise {
+  animation: content-reveal-rise 0.25s ease-out;
+}
+
+/* Type picker grows from the cursor point that summoned it */
+@keyframes picker-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+.animate-picker-in {
+  animation: picker-in 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Press feedback for non-shadcn button-like elements.
+   Press-in is near-instant (feedback on pointer-down); the 150ms ease runs on release. */
+.pressable {
+  transition: transform 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.pressable:active {
+  transform: scale(0.98);
+  transition-duration: 50ms;
 }
 .entity-highlight-animate {
   animation: entity-highlight-in 0.8s ease-out;
+}
+
+/* Floating chrome (header, redact bar): translucent paper with content scrolling
+   beneath. Goes solid for users who ask for reduced transparency. */
+.chrome-material {
+  background-color: rgba(249, 249, 247, 0.85);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+@media (prefers-reduced-transparency: reduce) {
+  .chrome-material {
+    background-color: #F9F9F7;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/* Indeterminate progress: an ink segment sweeping the track while no byte counts
+   exist yet (cache reads, WASM compile). Signals activity, not amount. */
+@keyframes progress-sweep {
+  from { left: -33.4%; }
+  to { left: 100%; }
+}
+.progress-indeterminate {
+  animation: progress-sweep 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 
 /* Skeleton shimmer for loading state */
@@ -216,4 +238,25 @@
   background: linear-gradient(90deg, #E5E5E0 25%, #F0F0EE 50%, #E5E5E0 75%);
   background-size: 200px 100%;
   animation: skeleton-shimmer 1.5s infinite;
+}
+
+/* Reduced motion is gentler, not absent: loops stop, movement collapses to plain
+   cross-fades, and color-only cues (mark stamping, content fade) stay - they carry
+   meaning and do not move. */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-line,
+  .progress-indeterminate,
+  [style*="redact-bar"] {
+    animation: none !important;
+  }
+  .animate-toast-in,
+  .animate-content-reveal-rise {
+    animation: content-reveal 0.2s ease-out;
+  }
+  .animate-picker-in {
+    animation: content-reveal 0.15s ease-out;
+  }
+  * {
+    transition-duration: 0.01ms !important;
+  }
 }

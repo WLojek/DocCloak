@@ -12,11 +12,13 @@ describe('engine: overlap resolution via session', () => {
     ];
 
     const result = session.anonymizeText(text, entities);
-    // anonymizeText processes end-to-start, so phone (later position) gets REDACTED_1
-    expect(result).toContain('<<REDACTED_');
+    // 0.9.0 issues typed placeholders with a per-type counter, so each of
+    // these single-occurrence types gets _1 regardless of processing order.
+    expect(result).toContain('[EMAIL_');
+    expect(result).toContain('[PHONE_');
     expect(result).not.toContain('john@acme.com');
     expect(result).not.toContain('555-123-4567');
-    expect(result).toBe('Contact <<REDACTED_2>> or call <<REDACTED_1>>.');
+    expect(result).toBe('Contact [EMAIL_1] or call [PHONE_1].');
   });
 
   it('handles multiple entity types', () => {
@@ -29,8 +31,9 @@ describe('engine: overlap resolution via session', () => {
 
     const text = 'John Smith called john@test.com SSN 123-45-6789';
     const result = session.anonymizeText(text, entities);
-    // Processed end-to-start: SSN→REDACTED_1, EMAIL→REDACTED_2, PERSON→REDACTED_3
-    expect(result).toBe('<<REDACTED_3>> called <<REDACTED_2>> SSN <<REDACTED_1>>');
+    // Typed placeholders (0.9.0): counters are per entity type, so each
+    // distinct type here gets its own _1.
+    expect(result).toBe('[PERSON_1] called [EMAIL_1] SSN [SSN_1]');
     expect(result).not.toContain('John Smith');
     expect(result).not.toContain('john@test.com');
     expect(result).not.toContain('123-45-6789');

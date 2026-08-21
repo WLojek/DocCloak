@@ -10,6 +10,7 @@ interface ToastData {
   id: number;
   message: string;
   action?: ToastAction;
+  exiting?: boolean;
 }
 
 interface ToastContextValue {
@@ -31,9 +32,14 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const showToast = useCallback((message: string, action?: ToastAction) => {
     const id = ++idRef.current;
     setToasts((prev) => [...prev, { id, message, action }]);
+    // Action-bearing toasts (Undo) stay long enough to actually be used.
+    // Timed exits leave the same way they entered: fade + slide toward the bottom edge.
     setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 3000);
+      setToasts((prev) => prev.map((t) => (t.id === id ? { ...t, exiting: true } : t)));
+      setTimeout(() => {
+        setToasts((prev) => prev.filter((t) => t.id !== id));
+      }, 200);
+    }, action ? 7000 : 3000);
   }, []);
 
   const dismiss = useCallback((id: number) => {
@@ -43,11 +49,14 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={{ showToast }}>
       {children}
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-2 pointer-events-none">
+      {/* bottom-32 clears the sticky Redact bar so Undo is never hidden behind it */}
+      <div role="status" aria-live="polite" className="fixed bottom-32 left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-2 pointer-events-none">
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className="pointer-events-auto flex items-center gap-3 bg-[#111111] text-[#F9F9F7] px-4 py-3 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.2)] animate-toast-in"
+            className={`pointer-events-auto flex items-center gap-3 bg-[#111111] text-[#F9F9F7] px-4 py-3 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.2)] animate-toast-in transition-[opacity,transform] duration-200 ease-out ${
+              toast.exiting ? 'opacity-0 translate-y-3' : ''
+            }`}
           >
             <span className="text-xs font-sans font-medium uppercase tracking-wider">{toast.message}</span>
             {toast.action && (
@@ -56,7 +65,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                   toast.action!.onClick();
                   dismiss(toast.id);
                 }}
-                className="text-xs font-sans font-bold uppercase tracking-wider text-[#CC0000] hover:text-[#FF3333] transition-colors cursor-pointer ml-2"
+                className="text-xs font-sans font-bold uppercase tracking-wider text-[#FF3333] hover:text-[#FF6666] transition-colors cursor-pointer ml-2"
               >
                 {toast.action.label}
               </button>

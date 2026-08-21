@@ -80,43 +80,43 @@
             "detector": "regex:universal:date_iso"
           }
         ],
-        "anonymized": "Contact <<REDACTED_7>> at <<REDACTED_6>> or <<REDACTED_5>>. Server <<REDACTED_4>> (backup <<REDACTED_3>>, MAC <<REDACTED_2>>) was accessed on <<REDACTED_1>>.",
+        "anonymized": "Contact [PERSON_1] at [EMAIL_1] or [PHONE_1]. Server [IP_ADDRESS_2] (backup [IP_ADDRESS_1], MAC [OTHER_1]) was accessed on [DATE_1].",
         "anonymizedAfterRename": null,
         "restored": "Contact Jan Kowalski at jan.kowalski@example.com or +48 600 123 456. Server 192.168.1.1 (backup 2001:0db8:85a3:0000:0000:8a2e:0370:7334, MAC 00:1B:44:11:3A:B7) was accessed on 2025-03-15.",
         "replacements": [
           {
             "original": "2025-03-15",
-            "replacement": "<<REDACTED_1>>",
+            "replacement": "[DATE_1]",
             "entityType": "DATE"
           },
           {
             "original": "00:1B:44:11:3A:B7",
-            "replacement": "<<REDACTED_2>>",
+            "replacement": "[OTHER_1]",
             "entityType": "OTHER"
           },
           {
             "original": "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
-            "replacement": "<<REDACTED_3>>",
+            "replacement": "[IP_ADDRESS_1]",
             "entityType": "IP_ADDRESS"
           },
           {
             "original": "192.168.1.1",
-            "replacement": "<<REDACTED_4>>",
+            "replacement": "[IP_ADDRESS_2]",
             "entityType": "IP_ADDRESS"
           },
           {
             "original": "+48 600 123 456",
-            "replacement": "<<REDACTED_5>>",
+            "replacement": "[PHONE_1]",
             "entityType": "PHONE"
           },
           {
             "original": "jan.kowalski@example.com",
-            "replacement": "<<REDACTED_6>>",
+            "replacement": "[EMAIL_1]",
             "entityType": "EMAIL"
           },
           {
             "original": "Jan Kowalski",
-            "replacement": "<<REDACTED_7>>",
+            "replacement": "[PERSON_1]",
             "entityType": "PERSON"
           }
         ]
@@ -193,43 +193,43 @@
             "detector": "regex:universal:iban"
           }
         ],
-        "anonymized": "Payment of <<REDACTED_7>> (about <<REDACTED_6>> or <<REDACTED_5>>) was charged to card <<REDACTED_4>> on <<REDACTED_3>> and booked <<REDACTED_2>> under IBAN <<REDACTED_1>>.",
+        "anonymized": "Payment of [CURRENCY_3] (about [CURRENCY_2] or [CURRENCY_1]) was charged to card [CREDIT_CARD_1] on [DATE_2] and booked [DATE_1] under IBAN [IBAN_1].",
         "anonymizedAfterRename": null,
         "restored": "Payment of $45,000 (about 1,000.00 USD or 8 500,00 zł) was charged to card 4532 0151 1283 0366 on 15.03.2025 and booked 10 March 2025 under IBAN GB29 NWBK 6016 1331 9268 19.",
         "replacements": [
           {
             "original": "GB29 NWBK 6016 1331 9268 19",
-            "replacement": "<<REDACTED_1>>",
+            "replacement": "[IBAN_1]",
             "entityType": "IBAN"
           },
           {
             "original": "10 March 2025",
-            "replacement": "<<REDACTED_2>>",
+            "replacement": "[DATE_1]",
             "entityType": "DATE"
           },
           {
             "original": "15.03.2025",
-            "replacement": "<<REDACTED_3>>",
+            "replacement": "[DATE_2]",
             "entityType": "DATE"
           },
           {
             "original": "4532 0151 1283 0366",
-            "replacement": "<<REDACTED_4>>",
+            "replacement": "[CREDIT_CARD_1]",
             "entityType": "CREDIT_CARD"
           },
           {
             "original": "8 500,00 zł",
-            "replacement": "<<REDACTED_5>>",
+            "replacement": "[CURRENCY_1]",
             "entityType": "CURRENCY"
           },
           {
             "original": "1,000.00 USD",
-            "replacement": "<<REDACTED_6>>",
+            "replacement": "[CURRENCY_2]",
             "entityType": "CURRENCY"
           },
           {
             "original": "$45,000",
-            "replacement": "<<REDACTED_7>>",
+            "replacement": "[CURRENCY_3]",
             "entityType": "CURRENCY"
           }
         ]
@@ -282,28 +282,28 @@
             "detector": "regex:universal:date_month_first"
           }
         ],
-        "anonymized": "Ref: <<REDACTED_4>> filed at <<REDACTED_3>>. Case number <<REDACTED_2>> open until <<REDACTED_1>>.",
+        "anonymized": "Ref: [SSN_1] filed at [ADDRESS_2]. Case number [ADDRESS_1] open until [DATE_1].",
         "anonymizedAfterRename": null,
         "restored": "Ref: ABC 12345678 filed at 00-950 Warszawa. Case number 987654321 remains open until March 15, 2025.",
         "replacements": [
           {
             "original": "March 15, 2025",
-            "replacement": "<<REDACTED_1>>",
+            "replacement": "[DATE_1]",
             "entityType": "DATE"
           },
           {
             "original": "987654321 remains",
-            "replacement": "<<REDACTED_2>>",
+            "replacement": "[ADDRESS_1]",
             "entityType": "ADDRESS"
           },
           {
             "original": "00-950 Warszawa",
-            "replacement": "<<REDACTED_3>>",
+            "replacement": "[ADDRESS_2]",
             "entityType": "ADDRESS"
           },
           {
             "original": "ABC 12345678",
-            "replacement": "<<REDACTED_4>>",
+            "replacement": "[SSN_1]",
             "entityType": "SSN"
           }
         ]

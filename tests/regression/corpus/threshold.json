@@ -54,18 +54,18 @@
             "detector": "gliner:person name"
           }
         ],
-        "anonymized": "Attendees: Bela Nagy, <<REDACTED_2>> and <<REDACTED_1>> joined the call.",
+        "anonymized": "Attendees: Bela Nagy, [PERSON_2] and [PERSON_1] joined the call.",
         "anonymizedAfterRename": null,
         "restored": "Attendees: Bela Nagy, Edit Szabo and Aron Toth joined the call.",
         "replacements": [
           {
             "original": "Aron Toth",
-            "replacement": "<<REDACTED_1>>",
+            "replacement": "[PERSON_1]",
             "entityType": "PERSON"
           },
           {
             "original": "Edit Szabo",
-            "replacement": "<<REDACTED_2>>",
+            "replacement": "[PERSON_2]",
             "entityType": "PERSON"
           }
         ]
@@ -124,18 +124,18 @@
             "detector": "gliner:person name"
           }
         ],
-        "anonymized": "Reviewers: Lena Berg, <<REDACTED_2>> and <<REDACTED_1>> approved the draft.",
+        "anonymized": "Reviewers: Lena Berg, [PERSON_2] and [PERSON_1] approved the draft.",
         "anonymizedAfterRename": null,
         "restored": "Reviewers: Lena Berg, Nils Falk and Karl Voss approved the draft.",
         "replacements": [
           {
             "original": "Karl Voss",
-            "replacement": "<<REDACTED_1>>",
+            "replacement": "[PERSON_1]",
             "entityType": "PERSON"
           },
           {
             "original": "Nils Falk",
-            "replacement": "<<REDACTED_2>>",
+            "replacement": "[PERSON_2]",
             "entityType": "PERSON"
           }
         ]
@@ -179,13 +179,13 @@
             "detector": "gliner:person name"
           }
         ],
-        "anonymized": "Al met <<REDACTED_1>> at the office.",
+        "anonymized": "Al met [PERSON_1] at the office.",
         "anonymizedAfterRename": null,
         "restored": "Al met Eva Long at the office.",
         "replacements": [
           {
             "original": "Eva Long",
-            "replacement": "<<REDACTED_1>>",
+            "replacement": "[PERSON_1]",
             "entityType": "PERSON"
           }
         ]

@@ -44,7 +44,7 @@ fails the run.
 The comparison is a single deep equality against the golden: ANY diff in
 span, type, rounded confidence, detector id, placeholder text, restored text
 or replacement table fails the case. A coverage suite additionally fails if
-the corpus ever stops producing all 12 entity types, detections from all 18
+the corpus ever stops producing all 14 entity types, detections from all 18
 regex regions, the four checksum validators (PESEL, NIP, IBAN, Luhn) or
 propagation.
 

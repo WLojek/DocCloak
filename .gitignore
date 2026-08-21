@@ -1,6 +1,7 @@
 # Claude
 .claude/
 CLAUDE.md
+.impeccable/
 
 # Dependencies
 node_modules/

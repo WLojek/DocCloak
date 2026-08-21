@@ -80,43 +80,43 @@
             "detector": "regex:fr:currency_words"
           }
         ],
-        "anonymized": "M. <<REDACTED_7>>, NIR <<REDACTED_6>>, demeurant <<REDACTED_5>>, <<REDACTED_4>>, tel <<REDACTED_3>>. Employeur: <<REDACTED_2>>. Montant <<REDACTED_1>>.",
+        "anonymized": "M. [PERSON_1], NIR [SSN_1], demeurant [ADDRESS_2], [ADDRESS_1], tel [PHONE_1]. Employeur: [COMPANY_1]. Montant [CURRENCY_1].",
         "anonymizedAfterRename": null,
         "restored": "M. Jean Dupont, NIR 1 85 05 78 049 013 36, demeurant 12 rue de Rivoli, 75008 Paris, tel 06 12 34 56 78. Employeur: Dupont et Fils SARL. Montant soit en lettres: huit mille cinq cents euros.",
         "replacements": [
           {
             "original": "soit en lettres: huit mille cinq cents euros",
-            "replacement": "<<REDACTED_1>>",
+            "replacement": "[CURRENCY_1]",
             "entityType": "CURRENCY"
           },
           {
             "original": "Dupont et Fils SARL",
-            "replacement": "<<REDACTED_2>>",
+            "replacement": "[COMPANY_1]",
             "entityType": "COMPANY"
           },
           {
             "original": "06 12 34 56 78",
-            "replacement": "<<REDACTED_3>>",
+            "replacement": "[PHONE_1]",
             "entityType": "PHONE"
           },
           {
             "original": "75008 Paris",
-            "replacement": "<<REDACTED_4>>",
+            "replacement": "[ADDRESS_1]",
             "entityType": "ADDRESS"
           },
           {
             "original": "12 rue de Rivoli",
-            "replacement": "<<REDACTED_5>>",
+            "replacement": "[ADDRESS_2]",
             "entityType": "ADDRESS"
           },
           {
             "original": "1 85 05 78 049 013 36",
-            "replacement": "<<REDACTED_6>>",
+            "replacement": "[SSN_1]",
             "entityType": "SSN"
           },
           {
             "original": "Jean Dupont",
-            "replacement": "<<REDACTED_7>>",
+            "replacement": "[PERSON_1]",
             "entityType": "PERSON"
           }
         ]

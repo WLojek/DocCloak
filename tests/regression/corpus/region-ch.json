@@ -64,33 +64,33 @@
             "detector": "regex:ch:phone"
           }
         ],
-        "anonymized": "Herr <<REDACTED_5>>, AHV-Nummer <<REDACTED_4>>, <<REDACTED_3>>, <<REDACTED_2>>, Telefon <<REDACTED_1>>.",
+        "anonymized": "Herr [PERSON_1], AHV-Nummer [SSN_1], [ADDRESS_2], [ADDRESS_1], Telefon [PHONE_1].",
         "anonymizedAfterRename": null,
         "restored": "Herr Hans Meier, AHV-Nummer 756.1234.5678.97, Bahnhofstrasse 10, 8001 Zürich, Telefon 044 123 45 67.",
         "replacements": [
           {
             "original": "044 123 45 67",
-            "replacement": "<<REDACTED_1>>",
+            "replacement": "[PHONE_1]",
             "entityType": "PHONE"
           },
           {
             "original": "8001 Zürich",
-            "replacement": "<<REDACTED_2>>",
+            "replacement": "[ADDRESS_1]",
             "entityType": "ADDRESS"
           },
           {
             "original": "Bahnhofstrasse 10",
-            "replacement": "<<REDACTED_3>>",
+            "replacement": "[ADDRESS_2]",
             "entityType": "ADDRESS"
           },
           {
             "original": "756.1234.5678.97",
-            "replacement": "<<REDACTED_4>>",
+            "replacement": "[SSN_1]",
             "entityType": "SSN"
           },
           {
             "original": "Hans Meier",
-            "replacement": "<<REDACTED_5>>",
+            "replacement": "[PERSON_1]",
             "entityType": "PERSON"
           }
         ]

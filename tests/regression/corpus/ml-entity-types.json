@@ -1,9 +1,9 @@
 {
-  "description": "All 12 entity types produced by the (stubbed) ML provider, regex disabled.",
+  "description": "All 14 entity types produced by the (stubbed) ML provider, regex disabled.",
   "cases": [
     {
       "id": "ml-01-all-types",
-      "description": "One entity of each of the 12 EntityType values through the full pipeline and session.",
+      "description": "One entity of each of the 14 EntityType values through the full pipeline and session.",
       "settings": {
         "regexEnabled": false,
         "regexRegion": "all",
@@ -11,7 +11,7 @@
         "mode": "labeled",
         "renames": []
       },
-      "input": "Maria Silva (maria.silva@example.pt, +351 912 345 678) born 1985-05-23, SSN 900-12-3456, card 4532015112830366, paid $2,500.00 from IBAN PT50000201231234567890154 at 10.0.0.8, living at Rua Augusta 42, Lisboa, works for Contoso Lda under badge OPS-7741.",
+      "input": "Maria Silva (maria.silva@example.pt, +351 912 345 678) born 1985-05-23, SSN 900-12-3456, card 4532015112830366, paid $2,500.00 from IBAN PT50000201231234567890154 at 10.0.0.8, living at Rua Augusta 42, Lisboa, works for Contoso Lda under badge OPS-7741, deploys with API key AKIAIOSFODNN7EXAMPLE and signing secret whsec_9f8e7d6c5b4a32100123.",
       "mlEntities": [
         {
           "value": "Maria Silva",
@@ -95,6 +95,20 @@
           "type": "OTHER",
           "confidence": 0.6,
           "detector": "gliner:employee id",
+          "occurrence": 0
+        },
+        {
+          "value": "AKIAIOSFODNN7EXAMPLE",
+          "type": "API_KEY",
+          "confidence": 0.9,
+          "detector": "gliner:api key",
+          "occurrence": 0
+        },
+        {
+          "value": "whsec_9f8e7d6c5b4a32100123",
+          "type": "SECRET",
+          "confidence": 0.85,
+          "detector": "gliner:secret",
           "occurrence": 0
         }
       ],
@@ -195,70 +209,96 @@
             "end": 252,
             "confidence": 0.6,
             "detector": "gliner:employee id"
+          },
+          {
+            "type": "API_KEY",
+            "value": "AKIAIOSFODNN7EXAMPLE",
+            "start": 275,
+            "end": 295,
+            "confidence": 0.9,
+            "detector": "gliner:api key"
+          },
+          {
+            "type": "SECRET",
+            "value": "whsec_9f8e7d6c5b4a32100123",
+            "start": 315,
+            "end": 341,
+            "confidence": 0.85,
+            "detector": "gliner:secret"
           }
         ],
-        "anonymized": "<<REDACTED_12>> (<<REDACTED_11>>, <<REDACTED_10>>) born <<REDACTED_9>>, SSN <<REDACTED_8>>, card <<REDACTED_7>>, paid <<REDACTED_6>> from IBAN <<REDACTED_5>> at <<REDACTED_4>>, living at <<REDACTED_3>>, works for <<REDACTED_2>> under badge <<REDACTED_1>>.",
+        "anonymized": "[PERSON_1] ([EMAIL_1], [PHONE_1]) born [DATE_1], SSN [SSN_1], card [CREDIT_CARD_1], paid [CURRENCY_1] from IBAN [IBAN_1] at [IP_ADDRESS_1], living at [ADDRESS_1], works for [COMPANY_1] under badge [OTHER_1], deploys with API key [API_KEY_1] and signing secret [SECRET_1].",
         "anonymizedAfterRename": null,
-        "restored": "Maria Silva (maria.silva@example.pt, +351 912 345 678) born 1985-05-23, SSN 900-12-3456, card 4532015112830366, paid $2,500.00 from IBAN PT50000201231234567890154 at 10.0.0.8, living at Rua Augusta 42, Lisboa, works for Contoso Lda under badge OPS-7741.",
+        "restored": "Maria Silva (maria.silva@example.pt, +351 912 345 678) born 1985-05-23, SSN 900-12-3456, card 4532015112830366, paid $2,500.00 from IBAN PT50000201231234567890154 at 10.0.0.8, living at Rua Augusta 42, Lisboa, works for Contoso Lda under badge OPS-7741, deploys with API key AKIAIOSFODNN7EXAMPLE and signing secret whsec_9f8e7d6c5b4a32100123.",
         "replacements": [
           {
+            "original": "whsec_9f8e7d6c5b4a32100123",
+            "replacement": "[SECRET_1]",
+            "entityType": "SECRET"
+          },
+          {
+            "original": "AKIAIOSFODNN7EXAMPLE",
+            "replacement": "[API_KEY_1]",
+            "entityType": "API_KEY"
+          },
+          {
             "original": "OPS-7741",
-            "replacement": "<<REDACTED_1>>",
+            "replacement": "[OTHER_1]",
             "entityType": "OTHER"
           },
           {
             "original": "Contoso Lda",
-            "replacement": "<<REDACTED_2>>",
+            "replacement": "[COMPANY_1]",
             "entityType": "COMPANY"
           },
           {
             "original": "Rua Augusta 42, Lisboa",
-            "replacement": "<<REDACTED_3>>",
+            "replacement": "[ADDRESS_1]",
             "entityType": "ADDRESS"
           },
           {
             "original": "10.0.0.8",
-            "replacement": "<<REDACTED_4>>",
+            "replacement": "[IP_ADDRESS_1]",
             "entityType": "IP_ADDRESS"
           },
           {
             "original": "PT50000201231234567890154",
-            "replacement": "<<REDACTED_5>>",
+            "replacement": "[IBAN_1]",
             "entityType": "IBAN"
           },
           {
             "original": "$2,500.00",
-            "replacement": "<<REDACTED_6>>",
+            "replacement": "[CURRENCY_1]",
             "entityType": "CURRENCY"
           },
           {
             "original": "4532015112830366",
-            "replacement": "<<REDACTED_7>>",
+            "replacement": "[CREDIT_CARD_1]",
             "entityType": "CREDIT_CARD"
           },
           {
             "original": "900-12-3456",
-            "replacement": "<<REDACTED_8>>",
+            "replacement": "[SSN_1]",
             "entityType": "SSN"
           },
           {
             "original": "1985-05-23",
-            "replacement": "<<REDACTED_9>>",
+            "replacement": "[DATE_1]",
             "entityType": "DATE"
           },
           {
             "original": "+351 912 345 678",
-            "replacement": "<<REDACTED_10>>",
+            "replacement": "[PHONE_1]",
             "entityType": "PHONE"
           },
           {
             "original": "maria.silva@example.pt",
-            "replacement": "<<REDACTED_11>>",
+            "replacement": "[EMAIL_1]",
             "entityType": "EMAIL"
           },
           {
             "original": "Maria Silva",
-            "replacement": "<<REDACTED_12>>",
+            "replacement": "[PERSON_1]",
             "entityType": "PERSON"
           }
         ]

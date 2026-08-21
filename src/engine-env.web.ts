@@ -18,6 +18,15 @@
 import type { BlobCache, CoreEnv, HardwareHints, KVStore } from '@doccloak/core';
 import { AutoTokenizer, env as hfEnv } from '@huggingface/transformers';
 
+// T116 tokenizer pins (kept in sync with the extension's TOKENIZER_REVISIONS
+// and documentation/model-provenance.md).
+const WEB_TOKENIZER_REVISIONS: Record<string, string> = {
+  // main as of 2026-03-26, pinned 2026-08-12
+  'knowledgator/gliner-pii-edge-v1.0': '9b7f39b0a2da971a5beea78d35f1539d4009c891',
+  // main as of 2026-05-13, pinned 2026-08-12
+  'bardsai/eu-pii-anonimization-multilang': '0e72e19f030ed4e661b1673e549af8e0dd176386',
+};
+
 /** The web cache bucket name stays host-side; core never knows it. */
 const MODEL_CACHE_NAME = 'doccloak-models';
 
@@ -112,7 +121,10 @@ export function createWebCoreEnv(): CoreEnv {
       // Configure @huggingface/transformers - load tokenizer from HF
       hfEnv.allowLocalModels = false;
       hfEnv.allowRemoteModels = true;
-      return AutoTokenizer.from_pretrained(hfModelId);
+      // T116: pin the tokenizer revision so the files are immutable
+      // (same pins as the extension; see documentation/model-provenance.md).
+      const revision = WEB_TOKENIZER_REVISIONS[hfModelId];
+      return AutoTokenizer.from_pretrained(hfModelId, revision ? { revision } : undefined);
     },
     hardware: webHardwareHints(),
     persistStorage: async () => (await navigator.storage?.persist?.()) ?? false,

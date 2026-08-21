@@ -77,28 +77,28 @@
             "detector": "gliner:person name"
           }
         ],
-        "anonymized": "Vendor <<REDACTED_4>> billed <<REDACTED_3>> via account <<REDACTED_2>>. The regex (a+b)*\\1 and token $` stay intact. Signed: <<REDACTED_1>>.",
+        "anonymized": "Vendor [COMPANY_1] billed [CURRENCY_1] via account [OTHER_1]. The regex (a+b)*\\1 and token $` stay intact. Signed: [PERSON_1].",
         "anonymizedAfterRename": null,
         "restored": "Vendor ACME $ Corp billed $1,250.50 via account X$&Y. The regex (a+b)*\\1 and token $` stay intact. Signed: Zoe O'Hara-Smith.",
         "replacements": [
           {
             "original": "Zoe O'Hara-Smith",
-            "replacement": "<<REDACTED_1>>",
+            "replacement": "[PERSON_1]",
             "entityType": "PERSON"
           },
           {
             "original": "X$&Y",
-            "replacement": "<<REDACTED_2>>",
+            "replacement": "[OTHER_1]",
             "entityType": "OTHER"
           },
           {
             "original": "$1,250.50",
-            "replacement": "<<REDACTED_3>>",
+            "replacement": "[CURRENCY_1]",
             "entityType": "CURRENCY"
           },
           {
             "original": "ACME $ Corp",
-            "replacement": "<<REDACTED_4>>",
+            "replacement": "[COMPANY_1]",
             "entityType": "COMPANY"
           }
         ]
@@ -143,23 +143,23 @@
             "detector": "regex:universal:date_iso"
           }
         ],
-        "anonymized": "Send <<REDACTED_3>> to IBAN <<REDACTED_2>>before <<REDACTED_1>>; escape chars: $$, $&, $', \\d+ and (foo|bar)?",
+        "anonymized": "Send [CURRENCY_1] to IBAN [IBAN_1]before [DATE_1]; escape chars: $$, $&, $', \\d+ and (foo|bar)?",
         "anonymizedAfterRename": null,
         "restored": "Send €1.234,56 to IBAN DE89 3704 0044 0532 0130 00 before 2025-12-31; escape chars: $$, $&, $', \\d+ and (foo|bar)?",
         "replacements": [
           {
             "original": "2025-12-31",
-            "replacement": "<<REDACTED_1>>",
+            "replacement": "[DATE_1]",
             "entityType": "DATE"
           },
           {
             "original": "DE89 3704 0044 0532 0130 00 ",
-            "replacement": "<<REDACTED_2>>",
+            "replacement": "[IBAN_1]",
             "entityType": "IBAN"
           },
           {
             "original": "€1.234,56",
-            "replacement": "<<REDACTED_3>>",
+            "replacement": "[CURRENCY_1]",
             "entityType": "CURRENCY"
           }
         ]

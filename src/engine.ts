@@ -85,6 +85,22 @@ function loadSavedProviderId(): ProviderId {
   return pickDefaultProvider(mainThreadHardwareHints());
 }
 
+/** Approximate download size per provider, for consent/setup copy. */
+export const PROVIDER_SIZES: Record<ProviderId, string> = {
+  gliner: '65 MB',
+  bardsai: '279 MB',
+};
+
+/**
+ * The provider core would pick for this device, ignoring any saved choice.
+ * Desktop gets the large high-accuracy model; mobile/low-memory devices get
+ * the lightweight one. Used to decide whether a big download deserves a
+ * warning (it does not when it is the intended default for this device).
+ */
+export function getRecommendedProviderId(): ProviderId {
+  return pickDefaultProvider(mainThreadHardwareHints());
+}
+
 // ── Worker connection + settings mirrors ──────────────────
 let worker: Worker | null = null;
 let client: EngineClient | null = null;

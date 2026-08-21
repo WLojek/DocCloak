@@ -6,6 +6,11 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { ChevronDown } from 'lucide-react';
 import { useTranslation } from '../../i18n/LanguageContext.tsx';
 
+// One place for the certainty color bands used by both table layouts.
+function confidenceColor(confidence: number): string {
+  return confidence > 0.8 ? '#2D6A4F' : confidence > 0.5 ? '#B8860B' : '#CC0000';
+}
+
 interface EntityTableProps {
   entities: DetectedEntity[];
   entries: ReplacementEntry[];
@@ -35,15 +40,18 @@ export function EntityTable({ entities, entries, excludedIndices, onToggle, onRe
 
   const startEditing = useCallback((original: string, currentLabel: string) => {
     setEditingOriginal(original);
-    const inner = currentLabel.startsWith('<<') && currentLabel.endsWith('>>')
-      ? currentLabel.slice(2, -2)
-      : currentLabel;
+    // Strip the current wrapper: typed/custom [X] or legacy <<X>>.
+    const inner = currentLabel.startsWith('[') && currentLabel.endsWith(']')
+      ? currentLabel.slice(1, -1)
+      : currentLabel.startsWith('<<') && currentLabel.endsWith('>>')
+        ? currentLabel.slice(2, -2)
+        : currentLabel;
     setEditValue(inner);
   }, []);
 
   const commitEdit = useCallback(() => {
     if (editingOriginal && editValue.trim()) {
-      onRenameLabel(editingOriginal, `<<${editValue.trim()}>>`);
+      onRenameLabel(editingOriginal, `[${editValue.trim()}]`);
     }
     setEditingOriginal(null);
   }, [editingOriginal, editValue, onRenameLabel]);
@@ -55,7 +63,7 @@ export function EntityTable({ entities, entries, excludedIndices, onToggle, onRe
     if (editingOriginal === entity.value) {
       return (
         <span className="inline-flex items-center gap-0">
-          <span className="text-muted-foreground/50">&lt;&lt;</span>
+          <span className="text-muted-foreground/50">[</span>
           <input
             autoFocus
             value={editValue}
@@ -68,7 +76,7 @@ export function EntityTable({ entities, entries, excludedIndices, onToggle, onRe
             className="bg-[#E5E5E0] border border-[#111111] px-1.5 py-0.5 text-xs font-mono text-[#111111] focus:outline-none focus:ring-1 focus:ring-[#111111]"
             style={{ width: `${Math.max(editValue.length + 1, 5)}ch` }}
           />
-          <span className="text-muted-foreground/50">&gt;&gt;</span>
+          <span className="text-muted-foreground/50">]</span>
         </span>
       );
     }
@@ -89,6 +97,7 @@ export function EntityTable({ entities, entries, excludedIndices, onToggle, onRe
     <div className="mb-6">
       <button
         onClick={() => setExpanded(!expanded)}
+        aria-expanded={expanded}
         className="w-full flex items-center justify-between px-4 py-3 bg-[#111111] text-[#F9F9F7] cursor-pointer hover:bg-[#222222] transition-colors duration-150"
       >
         <div>
@@ -153,10 +162,8 @@ export function EntityTable({ entities, entries, excludedIndices, onToggle, onRe
                     <div className="flex items-center gap-2">
                       <div className="w-14 bg-[#E5E5E0] h-1.5 overflow-hidden">
                         <div
-                          className={`h-full transition-all ${
-                            entity.confidence > 0.8 ? 'bg-[#2D6A4F]' : entity.confidence > 0.5 ? 'bg-[#B8860B]' : 'bg-[#CC0000]'
-                          }`}
-                          style={{ width: `${Math.round(entity.confidence * 100)}%` }}
+                          className="h-full transition-all"
+                          style={{ width: `${Math.round(entity.confidence * 100)}%`, backgroundColor: confidenceColor(entity.confidence) }}
                         />
                       </div>
                       <span className="text-xs text-muted-foreground tabular-nums">{Math.round(entity.confidence * 100)}%</span>
@@ -207,10 +214,8 @@ export function EntityTable({ entities, entries, excludedIndices, onToggle, onRe
                   <div className="flex items-center gap-2">
                     <div className="w-10 bg-[#E5E5E0] h-1.5 overflow-hidden">
                       <div
-                        className={`h-full ${
-                          entity.confidence > 0.8 ? 'bg-[#2D6A4F]' : entity.confidence > 0.5 ? 'bg-[#B8860B]' : 'bg-[#CC0000]'
-                        }`}
-                        style={{ width: `${Math.round(entity.confidence * 100)}%` }}
+                        className="h-full"
+                        style={{ width: `${Math.round(entity.confidence * 100)}%`, backgroundColor: confidenceColor(entity.confidence) }}
                       />
                     </div>
                     <span className="text-[10px] text-muted-foreground tabular-nums">{Math.round(entity.confidence * 100)}%</span>

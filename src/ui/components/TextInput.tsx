@@ -74,6 +74,7 @@ export function TextInput({ value, onChange, onClear, entities, onAddEntity, onR
 
   const [picker, setPicker] = useState<{ word: string; start: number; end: number; x: number; y: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [fileError, setFileError] = useState<string | null>(null);
   const hasEntities = entities.length > 0;
 
   const processFile = useCallback(async (file: File) => {
@@ -85,7 +86,11 @@ export function TextInput({ value, onChange, onClear, entities, onAddEntity, onR
         : result.error === 'no-text'
           ? t.textInput.ocrNoText
           : (result.error ?? 'Failed to load file');
+      // Persist the failure in the panel; the toast alone disappears too fast.
+      setFileError(message);
       showToast(message);
+    } else {
+      setFileError(null);
     }
   }, [onLoadFile, showToast, t]);
 
@@ -239,7 +244,7 @@ export function TextInput({ value, onChange, onClear, entities, onAddEntity, onR
           <div
             ref={containerRef}
             onMouseUp={handleSelectionEnd}
-            className="p-4 text-sm leading-relaxed whitespace-pre-wrap break-words text-foreground select-text cursor-text font-light"
+            className="p-4 text-sm leading-relaxed whitespace-pre-wrap break-words text-foreground select-text cursor-text"
           >
             {wordSpans.map((span, i) => {
               if (/^\s+$/.test(span.text)) {
@@ -249,24 +254,41 @@ export function TextInput({ value, onChange, onClear, entities, onAddEntity, onR
                 const entityIndex = entities.findIndex(
                   (e) => e.start === span.entity!.start && e.end === span.entity!.end
                 );
+                const removeWithUndo = () => {
+                  if (!onRemoveEntity || entityIndex === -1) return;
+                  const removed = span.entity!;
+                  onRemoveEntity(entityIndex);
+                  showToast(t.toast.redactionRemoved, {
+                    label: t.toast.undo,
+                    onClick: () => onAddEntity?.(removed.start, removed.end, removed.type),
+                  });
+                };
                 return (
                   <mark
                     key={i}
                     data-start={span.start}
                     data-end={span.end}
-                    className="entity-highlight-animate"
+                    className="entity-highlight-animate focus:outline focus:outline-2 focus:outline-[#111111]"
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`${t.textInput.removeRedaction}: ${span.text}`}
                     onClick={(e) => {
-                      if (onRemoveEntity && entityIndex !== -1) {
-                        e.stopPropagation();
-                        onRemoveEntity(entityIndex);
+                      e.stopPropagation();
+                      removeWithUndo();
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === 'Delete' || e.key === 'Backspace') {
+                        e.preventDefault();
+                        removeWithUndo();
                       }
                     }}
-                    title="Click to remove"
+                    title={t.textInput.removeRedaction}
                     style={{
-                      backgroundColor: ENTITY_COLORS[span.entity.type] + '30',
-                      borderBottom: `2px solid ${ENTITY_COLORS[span.entity.type]}`,
-                      color: ENTITY_COLORS[span.entity.type],
-                      padding: '1px 3px',
+                      // Ink block = "this will be censored"; the colored base keeps the type legible.
+                      backgroundColor: '#111111',
+                      borderBottom: `3px solid ${ENTITY_COLORS[span.entity.type]}`,
+                      color: '#F9F9F7',
+                      padding: '1px 4px',
                       cursor: 'pointer',
                     }}
                   >
@@ -283,7 +305,7 @@ export function TextInput({ value, onChange, onClear, entities, onAddEntity, onR
           </div>
         ) : fileName ? (
           /* Loaded file (document or OCR'd image) - read-only text preview */
-          <div className="p-4 text-sm leading-relaxed whitespace-pre-wrap break-words text-foreground font-light overflow-auto max-h-[60vh]">
+          <div className="p-4 text-sm leading-relaxed whitespace-pre-wrap break-words text-foreground overflow-auto max-h-[60vh]">
             {/* File loaded banner */}
             <div className="flex items-center gap-3 mb-4 px-3 py-2.5 bg-[#111111]/5 border border-[#E5E5E0]">
               <div className="w-8 h-8 bg-[#111111] flex items-center justify-center flex-shrink-0">
@@ -308,7 +330,7 @@ export function TextInput({ value, onChange, onClear, entities, onAddEntity, onR
             {value}
           </div>
         ) : (
-          /* Editable text area — same element whether empty or not */
+          /* Editable text area - same element whether empty or not */
           <div className="flex flex-col">
             <textarea
               ref={textareaRef}
@@ -344,6 +366,9 @@ export function TextInput({ value, onChange, onClear, entities, onAddEntity, onR
                       </p>
                     </div>
                   </button>
+                  {fileError && (
+                    <p className="mt-2 text-xs text-[#CC0000]" role="alert">{fileError}</p>
+                  )}
                 </div>
               </>
             )}

@@ -56,28 +56,28 @@
             "detector": "regex:dk:phone"
           }
         ],
-        "anonymized": "Hr. <<REDACTED_4>>, CPR-nummer <<REDACTED_3>>, adresse <<REDACTED_2>>, telefon <<REDACTED_1>>.",
+        "anonymized": "Hr. [PERSON_1], CPR-nummer [SSN_1], adresse [ADDRESS_1], telefon [PHONE_1].",
         "anonymizedAfterRename": null,
         "restored": "Hr. Lars Jensen, CPR-nummer 010190-1234, adresse 2100 København, telefon 32 12 34 56.",
         "replacements": [
           {
             "original": "32 12 34 56",
-            "replacement": "<<REDACTED_1>>",
+            "replacement": "[PHONE_1]",
             "entityType": "PHONE"
           },
           {
             "original": "2100 København",
-            "replacement": "<<REDACTED_2>>",
+            "replacement": "[ADDRESS_1]",
             "entityType": "ADDRESS"
           },
           {
             "original": "010190-1234",
-            "replacement": "<<REDACTED_3>>",
+            "replacement": "[SSN_1]",
             "entityType": "SSN"
           },
           {
             "original": "Lars Jensen",
-            "replacement": "<<REDACTED_4>>",
+            "replacement": "[PERSON_1]",
             "entityType": "PERSON"
           }
         ]

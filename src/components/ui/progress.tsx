@@ -15,10 +15,15 @@ const Progress = React.forwardRef<
     )}
     {...props}
   >
-    <ProgressPrimitive.Indicator
-      className="h-full w-full flex-1 bg-[#111111] transition-all duration-300 ease-out"
-      style={{ transform: `translateX(-${100 - (value || 0)}%)` }}
-    />
+    {/* value == null renders Radix's indeterminate state: a sliding ink segment */}
+    {value == null ? (
+      <ProgressPrimitive.Indicator className="progress-indeterminate absolute inset-y-0 w-1/3 bg-[#111111]" />
+    ) : (
+      <ProgressPrimitive.Indicator
+        className="h-full w-full flex-1 bg-[#111111] transition-all duration-300 ease-out"
+        style={{ transform: `translateX(-${100 - value}%)` }}
+      />
+    )}
   </ProgressPrimitive.Root>
 ))
 Progress.displayName = ProgressPrimitive.Root.displayName

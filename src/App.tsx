@@ -14,17 +14,19 @@ import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover
 import { Lock, Settings, ArrowRight, Languages, Check, Plus, X, ChevronDown, Info, FileText, Image as ImageIcon, Download, Github, RotateCw } from 'lucide-react';
 import { isImageFile } from '@doccloak/core/dom';
 import logoSrc from './ui/assets/doc-cloak-logo-light.png';
-import { version } from '../package.json';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useToast } from './ui/components/Toast.tsx';
-import { Hero, Audience, HowItWorks, FAQ } from './ui/components/Landing.tsx';
+import { Hero, TrustBand, Audience, HowItWorks, FAQ } from './ui/components/Landing.tsx';
 import { PROVIDERS, REGEX_REGIONS } from '@doccloak/core';
+import { PROVIDER_SIZES, getRecommendedProviderId } from './engine.ts';
 import type { RegexRegionId } from '@doccloak/core';
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
+
+const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
 
 export default function App() {
   const { t, language, setLanguage } = useTranslation();
@@ -71,6 +73,8 @@ export default function App() {
     exportRedactedImage,
     removeFile,
     retryModelLoad,
+    modelConsented,
+    acceptModelDownload,
   } = useAnonymizer();
 
   const { showToast } = useToast();
@@ -85,11 +89,16 @@ export default function App() {
     toolRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, []);
   const [scrolled, setScrolled] = useState(false);
+  const scrollSentinelRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 50);
-    onScroll();
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
+    const sentinel = scrollSentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setScrolled(!entry.isIntersecting),
+      { rootMargin: '0px' }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
   }, []);
 
   const triggerBlobDownload = useCallback((blob: Blob, downloadName: string) => {
@@ -182,91 +191,39 @@ export default function App() {
     ? (downloadProgress.total > 0 ? Math.min(100, Math.round((downloadProgress.downloaded / downloadProgress.total) * 100)) : 0)
     : 0;
 
+  // A big download only deserves a warning where the big model is NOT the
+  // intended default (mobile/low-memory devices). Device class never changes
+  // mid-session, so compute once.
+  const [constrainedDevice] = useState(() => getRecommendedProviderId() === 'gliner');
+
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      {/* Model download overlay */}
-      {modelLoading && (
-        <div className="fixed inset-0 z-40 bg-[#F9F9F7]/95 flex items-center justify-center">
-          <Card className="max-w-sm w-full mx-6 border-[#111111] shadow-[4px_4px_0px_0px_#111111]">
-            <CardContent className="pt-8 pb-8 text-center">
-              <img src={logoSrc} alt="DocCloak" className="h-14 mx-auto mb-4" />
-              <h2 className="font-serif text-xl tracking-tight uppercase mb-1">
-                <span className="font-bold text-[#111111]">Doc</span>
-                <span className="font-normal text-[#525252]">Cloak</span>
-              </h2>
-              <p className="text-sm text-[#525252] mb-6 font-body">
-                {t.loading.preparingEngine}
-              </p>
-
-              <Progress value={progressPercent} className="mb-3" />
-
-              {downloadProgress ? (
-                <p className="label-meta text-[#525252]">
-                  {downloadProgress.total > 0
-                    ? t.loading.progress(formatBytes(downloadProgress.downloaded), formatBytes(downloadProgress.total), progressPercent)
-                    : formatBytes(downloadProgress.downloaded)}
-                </p>
-              ) : (
-                <p className="label-meta text-[#525252]">{t.loading.initializing}</p>
-              )}
-
-              <p className="label-meta text-[#525252] mt-4">
-                {downloadProgress && downloadProgress.total > 0
-                  ? t.loading.oneTimeSetupWithSize(formatBytes(downloadProgress.total))
-                  : t.loading.oneTimeSetup}
-              </p>
-              {downloadProgress && downloadProgress.total > 100 * 1024 * 1024 && (
-                <p className="text-xs text-[#CC0000] mt-2 font-medium">
-                  {t.loading.largeModelWarning}
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {/* Model download failed overlay */}
-      {modelError && !modelLoading && (
-        <div className="fixed inset-0 z-40 bg-[#F9F9F7]/95 flex items-center justify-center">
-          <Card className="max-w-sm w-full mx-6 border-[#111111] shadow-[4px_4px_0px_0px_#111111]">
-            <CardContent className="pt-8 pb-8 text-center">
-              <img src={logoSrc} alt="DocCloak" className="h-14 mx-auto mb-4" />
-              <h2 className="font-serif text-xl tracking-tight uppercase mb-1">
-                <span className="font-bold text-[#111111]">Doc</span>
-                <span className="font-normal text-[#525252]">Cloak</span>
-              </h2>
-              <p className="text-sm font-semibold text-[#CC0000] uppercase tracking-wider mb-2">
-                {t.loading.failedTitle}
-              </p>
-              <p className="text-xs text-[#525252] mb-6 font-body leading-relaxed">
-                {t.loading.failedBody}
-              </p>
-              <Button
-                onClick={retryModelLoad}
-                className="gap-2 px-8 text-xs uppercase tracking-[0.15em] font-semibold bg-[#111111] text-[#F9F9F7] hover:bg-[#222222]"
-              >
-                <RotateCw className="w-3.5 h-3.5" />
-                {t.loading.retry}
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
+    <div className="relative min-h-screen bg-background text-foreground">
+      <a
+        href="#tool"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:bg-[#111111] focus:text-[#F9F9F7] focus:px-4 focus:py-2 focus:text-sm"
+      >
+        {t.header.skipToTool}
+      </a>
+      {/* Engine state announcements for assistive tech */}
+      <div className="sr-only" role="status" aria-live="polite">
+        {modelLoading ? t.loading.preparingEngine : anonymizing ? t.anonymizing.title : modelLoaded ? t.header.ready : ''}
+      </div>
+      {/* Header-shrink sentinel: observed instead of a scroll listener */}
+      <div ref={scrollSentinelRef} className="absolute top-[50px] left-0 h-px w-px" aria-hidden="true" />
       {/* OCR overlay */}
       {ocrProgress !== null && (
-        <div className="fixed inset-0 z-40 bg-[#F9F9F7]/80 flex items-center justify-center">
+        <div role="dialog" aria-modal="true" aria-label={t.ocr.processingTitle} className="fixed inset-0 z-40 bg-[#F9F9F7]/80 flex items-center justify-center">
           <Card className="border-[#111111] shadow-[4px_4px_0px_0px_#111111]">
             <CardContent className="pt-8 pb-8 px-10 text-center">
               <div className="w-12 h-12 border border-[#111111] flex items-center justify-center mx-auto mb-5">
                 <ImageIcon className="w-6 h-6 text-[#111111]" />
               </div>
-              <p className="font-serif text-base font-bold mb-1 uppercase tracking-tight">{t.ocr.processingTitle}</p>
+              <p className="font-serif text-lg font-medium tracking-tight mb-1">{t.ocr.processingTitle}</p>
               <div className="w-48 mx-auto mt-3 mb-2">
                 <Progress value={Math.round(ocrProgress * 100)} className="h-1.5" />
                 <p className="text-[10px] text-muted-foreground mt-1">{Math.round(ocrProgress * 100)}%</p>
               </div>
-              <p className="text-sm text-[#525252] font-body">{t.ocr.processingDescription}</p>
+              <p className="text-sm text-[#525252]">{t.ocr.processingDescription}</p>
             </CardContent>
           </Card>
         </div>
@@ -274,7 +231,7 @@ export default function App() {
 
       {/* Anonymizing overlay */}
       {anonymizing && (
-        <div className="fixed inset-0 z-40 bg-[#F9F9F7]/80 flex items-center justify-center">
+        <div role="dialog" aria-modal="true" aria-label={t.anonymizing.title} className="fixed inset-0 z-40 bg-[#F9F9F7]/80 flex items-center justify-center">
           <Card className="border-[#111111] shadow-[4px_4px_0px_0px_#111111]">
             <CardContent className="pt-8 pb-8 px-10 text-center">
               <div className="flex justify-center gap-[6px] mb-6">
@@ -289,39 +246,35 @@ export default function App() {
                   />
                 ))}
               </div>
-              <p className="font-serif text-base font-bold mb-1 uppercase tracking-tight">{t.anonymizing.title}</p>
+              <p className="font-serif text-lg font-medium tracking-tight mb-1">{t.anonymizing.title}</p>
               {detectionProgress !== null && (
                 <div className="w-48 mx-auto mt-3 mb-2">
                   <Progress value={Math.round(detectionProgress * 100)} className="h-1.5" />
                   <p className="text-[10px] text-muted-foreground mt-1">{Math.round(detectionProgress * 100)}%</p>
                 </div>
               )}
-              <p className="text-sm text-[#525252] font-body">{t.anonymizing.description}</p>
+              <p className="text-sm text-[#525252]">{t.anonymizing.description}</p>
             </CardContent>
           </Card>
         </div>
       )}
 
       {/* Header */}
-      <header className={`sticky top-0 z-30 px-6 transition-all duration-200 backdrop-blur-md bg-[#F9F9F7]/85 ${scrolled ? 'py-2 border-b border-[#E5E5E0] shadow-[0_1px_0_0_rgba(17,17,17,0.04)]' : 'py-3 border-b border-transparent'}`}>
+      <header className={`sticky top-0 z-30 px-6 transition-all duration-200 chrome-material ${scrolled ? 'py-2 border-b border-[#E5E5E0] shadow-[0_1px_0_0_rgba(17,17,17,0.04)]' : 'py-3 border-b border-transparent'}`}>
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <img src={logoSrc} alt="DocCloak" className={`transition-all duration-200 ${scrolled ? 'h-7' : 'h-9'}`} />
-            <div className="flex items-baseline gap-2">
-              <span className={`font-serif tracking-tight leading-none text-[#111111] font-medium transition-all duration-200 ${scrolled ? 'text-xl' : 'text-2xl'}`}>
-                DocCloak
-              </span>
-              <span className="text-[10px] text-muted-foreground font-mono hidden sm:inline">
-                v{version}
-              </span>
-            </div>
+            <span className={`font-serif tracking-tight leading-none text-[#111111] font-medium transition-all duration-200 ${scrolled ? 'text-xl' : 'text-2xl'}`}>
+              DocCloak
+            </span>
           </div>
           <div className="flex items-center gap-3">
             {/* Language switcher */}
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
+                <Button variant="ghost" size="sm" className="h-8 gap-1.5 px-2" aria-label={t.header.language}>
                   <Languages className="w-4 h-4" />
+                  <span className="text-[10px] font-mono uppercase text-[#525252]">{language}</span>
                 </Button>
               </PopoverTrigger>
               <PopoverContent align="end" className="w-48 p-1 max-h-[70vh] overflow-auto">
@@ -341,7 +294,7 @@ export default function App() {
             {/* Settings */}
             <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
               <PopoverTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
+                <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={t.header.settings}>
                   <Settings className="w-4 h-4" />
                 </Button>
               </PopoverTrigger>
@@ -365,7 +318,7 @@ export default function App() {
                             } disabled:opacity-50 disabled:cursor-not-allowed`}
                           >
                             <p className="text-xs font-medium">{modelT?.label ?? p.label}</p>
-                            <p className="text-[10px] text-muted-foreground font-light mt-0.5">{modelT?.description ?? p.description}</p>
+                            <p className="text-[10px] text-muted-foreground mt-0.5">{modelT?.description ?? p.description}</p>
                           </button>
                         );
                       })}
@@ -388,29 +341,26 @@ export default function App() {
                       <span className="label-meta text-muted-foreground">{t.settings.moreMatches}</span>
                     </div>
                   </div>
-                  <div className="border-t border-[#E5E5E0] pt-3 space-y-1">
-                    <p className="text-xs text-muted-foreground leading-relaxed font-light">
+                  <div className="border-t border-[#E5E5E0] pt-3">
+                    <p className="text-xs text-muted-foreground leading-relaxed">
                       {t.settings.sensitivityExplanation}
-                    </p>
-                    <p className="text-xs text-muted-foreground leading-relaxed font-light">
-                      {t.settings.confidenceThreshold(threshold.toFixed(2))}
                     </p>
                   </div>
                   <div className="border-t border-[#E5E5E0] pt-3">
                     <label className="flex items-center justify-between cursor-pointer">
                       <div>
                         <p className="text-xs font-medium text-[#111111]">{t.settings.regexRules}</p>
-                        <p className="text-[10px] text-muted-foreground font-light mt-0.5">{t.settings.regexRulesDescription}</p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">{t.settings.regexRulesDescription}</p>
                       </div>
                       <button
                         role="switch"
                         aria-checked={regexRules}
                         onClick={() => handleRegexChange(!regexRules)}
-                        className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
-                          regexRules ? 'bg-[#111111]' : 'bg-[#E5E5E0]'
+                        className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer border-2 border-transparent transition-colors ${
+                          regexRules ? 'bg-[#111111]' : 'bg-[#C8C5BC]'
                         }`}
                       >
-                        <span className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
+                        <span className={`pointer-events-none inline-block h-4 w-4 bg-white shadow-sm transition-transform ${
                           regexRules ? 'translate-x-4' : 'translate-x-0'
                         }`} />
                       </button>
@@ -432,7 +382,8 @@ export default function App() {
                       </div>
                     )}
                   </div>
-                  <div className="border-t border-[#E5E5E0] pt-3">
+                  {/* Heavier rule: detection settings above, output settings below */}
+                  <div className="border-t-2 border-[#111111] pt-3">
                     <span className="label-meta text-muted-foreground">{t.settings.replacementStyle}</span>
                     <div className="mt-2 space-y-2">
                       <button
@@ -444,7 +395,7 @@ export default function App() {
                         }`}
                       >
                         <p className="text-xs font-medium">{t.settings.labeledPlaceholders}</p>
-                        <p className="text-[10px] text-muted-foreground font-light mt-0.5">{t.settings.labeledDescription}</p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">{t.settings.labeledDescription}</p>
                       </button>
                       <button
                         onClick={() => handleReplacementModeChange('blanked')}
@@ -455,7 +406,7 @@ export default function App() {
                         }`}
                       >
                         <p className="text-xs font-medium">{t.settings.blankedOut}</p>
-                        <p className="text-[10px] text-muted-foreground font-light mt-0.5">{t.settings.blankedDescription}</p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">{t.settings.blankedDescription}</p>
                       </button>
                     </div>
                   </div>
@@ -463,25 +414,193 @@ export default function App() {
               </PopoverContent>
             </Popover>
 
-            <Badge variant="outline" className="gap-2">
-              <span className={`w-2 h-2 inline-block ${modelLoaded ? 'bg-[#2D6A4F]' : modelError ? 'bg-[#CC0000]' : 'bg-[#B8860B]'}`} />
-              {modelLoaded ? t.header.ready : modelError ? t.header.error : t.header.notReady}
-            </Badge>
+            {/* The pill is the always-visible engine status: it names the real state
+                (setup pending vs downloading vs ready), carries the live percent, and
+                clicking it jumps to the setup card / progress strip in the tool. */}
+            <button type="button" onClick={scrollToTool} className="cursor-pointer">
+              <Badge variant="outline" className="gap-2 tabular-nums hover:bg-[#111111]/5 transition-colors">
+                <span className={`w-2 h-2 inline-block transition-colors duration-200 ${modelLoaded ? 'bg-[#2D6A4F]' : modelError ? 'bg-[#CC0000]' : 'bg-[#B8860B]'}`} />
+                {modelLoaded
+                  ? t.header.ready
+                  : modelError
+                    ? t.header.error
+                    : modelConsented
+                      ? `${t.header.notReady}${downloadProgress && downloadProgress.total > 0 ? ` ${progressPercent}%` : ''}`
+                      : t.header.setupRequired}
+              </Badge>
+            </button>
           </div>
         </div>
       </header>
 
-      {/* Landing: hero + audience */}
+      {/* Landing: hero + trust band + audience */}
       <Hero onScrollToTool={scrollToTool} />
+      <TrustBand />
       <Audience />
 
       {/* Main content (the tool) */}
-      <main ref={toolRef} className="max-w-6xl mx-auto px-6 py-16 newsprint-texture scroll-mt-4">
-        {/* Custom detection labels — only supported by GLiNER (zero-shot). BardS.ai has a fixed label set. */}
+      <main id="tool" ref={toolRef} className="max-w-6xl mx-auto px-6 py-16 scroll-mt-4">
+        {/* First-visit consent: the model download starts only when the user says so.
+            The size shown is the active provider's real download (desktop defaults to
+            the large high-accuracy model, constrained devices to the lightweight one). */}
+        {!modelConsented && !modelLoaded && !modelLoading && !modelError && (
+          <div className="mb-4 border border-[#111111] bg-[#F4F3EE] px-4 py-4 flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
+            <div>
+              <p className="text-sm text-[#111111] font-semibold">{t.loading.setupTitle}</p>
+              <p className="text-xs text-[#525252] mt-1 leading-relaxed max-w-xl">{t.loading.setupBody(PROVIDER_SIZES[activeProvider])}</p>
+            </div>
+            <Button
+              onClick={acceptModelDownload}
+              variant="solid"
+              className="gap-2 shrink-0 text-xs font-semibold"
+            >
+              <Download className="w-3.5 h-3.5" />
+              {t.loading.setupAction}
+            </Button>
+          </div>
+        )}
+        {/* Engine status strip: setup happens here, the rest of the page stays readable */}
+        {modelLoading && (
+          <div className="animate-content-reveal-rise mb-4 border border-[#C8C5BC] bg-[#F4F3EE] px-4 py-3" role="status">
+            <div className="flex items-center justify-between gap-4 mb-2">
+              {/* Name the phase: "downloading" while bytes flow, "preparing" before and after
+                  (cache reads, WASM compile). The bar sweeps whenever no amount is knowable. */}
+              <p className="text-sm text-[#111111] font-medium">
+                {downloadProgress && (downloadProgress.total === 0 || progressPercent < 100)
+                  ? t.loading.downloadingModel
+                  : t.loading.preparingEngine}
+              </p>
+              <p className="label-meta text-[#111111] tabular-nums shrink-0">
+                {downloadProgress
+                  ? downloadProgress.total > 0
+                    ? t.loading.progress(formatBytes(downloadProgress.downloaded), formatBytes(downloadProgress.total), progressPercent)
+                    : formatBytes(downloadProgress.downloaded)
+                  : t.loading.initializing}
+              </p>
+            </div>
+            <Progress
+              value={downloadProgress && downloadProgress.total > 0 && progressPercent < 100 ? progressPercent : null}
+              className="h-2"
+            />
+            <p className="label-meta text-[#525252] mt-2">
+              {downloadProgress && downloadProgress.total > 0
+                ? t.loading.oneTimeSetupWithSize(formatBytes(downloadProgress.total))
+                : t.loading.oneTimeSetup}
+            </p>
+            {constrainedDevice && downloadProgress && downloadProgress.total > 100 * 1024 * 1024 && (
+              <p className="text-xs text-[#CC0000] mt-1 font-medium">{t.loading.largeModelWarning}</p>
+            )}
+          </div>
+        )}
+        {modelError && !modelLoading && (
+          <div className="animate-content-reveal-rise mb-4 border border-[#CC0000] bg-[#CC0000]/5 px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
+            <div>
+              <p className="text-sm font-semibold text-[#CC0000]">{t.loading.failedTitle}</p>
+              <p className="text-xs text-[#525252] mt-0.5 leading-relaxed">{t.loading.failedBody}</p>
+            </div>
+            <Button
+              onClick={retryModelLoad}
+              variant="solid"
+              className="gap-2 shrink-0 text-xs font-semibold"
+            >
+              <RotateCw className="w-3.5 h-3.5" />
+              {t.loading.retry}
+            </Button>
+          </div>
+        )}
+
+        {/* File bar - input file (left) + download (right) */}
+        {fileName && anonymizedText && (
+          <div className="animate-content-reveal grid grid-cols-1 md:grid-cols-2 gap-0 border border-b-0 border-[#C8C5BC] bg-[#F4F3EE]">
+            <div className="flex items-center gap-2.5 px-4 py-2.5 border-r-0 md:border-r border-[#C8C5BC]">
+              <div className="w-7 h-7 bg-[#FFFFFF] border border-[#C8C5BC] flex items-center justify-center flex-shrink-0">
+                {isImageFile(fileName)
+                  ? <ImageIcon className="w-3.5 h-3.5 text-[#525252]" />
+                  : <FileText className="w-3.5 h-3.5 text-[#525252]" />}
+              </div>
+              <p className="text-xs text-[#111111] truncate font-medium">{fileName}</p>
+            </div>
+            <div className="flex items-center justify-end px-4 py-2">
+              {hasDocxExtraction && entries.length > 0 && (
+                <button
+                  onClick={handleDownloadDocx}
+                  disabled={downloading}
+                  className="pressable flex items-center gap-2 px-3 py-1.5 border border-[#C8C5BC] bg-[#FFFFFF] text-[#111111] hover:bg-[#111111] hover:text-[#F9F9F7] hover:border-[#111111] transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-xs font-medium"
+                >
+                  <Download className="w-3 h-3" />
+                  {t.textOutput.downloadDocx}
+                </button>
+              )}
+              {hasImage && entries.length > 0 && (
+                <button
+                  onClick={handleDownloadImage}
+                  disabled={downloading}
+                  className="pressable flex items-center gap-2 px-3 py-1.5 border border-[#C8C5BC] bg-[#FFFFFF] text-[#111111] hover:bg-[#111111] hover:text-[#F9F9F7] hover:border-[#111111] transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-xs font-medium"
+                >
+                  <Download className="w-3 h-3" />
+                  {t.textOutput.downloadImage}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Document panels */}
+        <div className={`grid grid-cols-1 md:grid-cols-2 gap-0 border border-[#C8C5BC] bg-[#FFFFFF] ${fileName && anonymizedText ? 'border-t-0' : ''}`}>
+          <div className="md:border-r border-[#C8C5BC] bg-[#FFFFFF] flex flex-col">
+            <TextInput value={inputText} onChange={handleInputChange} onClear={handleClear} entities={entities} onAddEntity={addManualEntity} onRemoveEntity={removeEntity} fileName={fileName} onLoadFile={loadFile} onRemoveFile={removeFile} />
+          </div>
+          <div className="bg-[#FFFFFF] border-t md:border-t-0 border-[#C8C5BC] flex flex-col">
+            <TextOutput value={anonymizedText} entries={entries} loading={anonymizing} />
+          </div>
+        </div>
+
+        {/* Redact button */}
+        <div className="sticky bottom-0 z-30 chrome-material py-4 -mx-6 px-6">
+          <div className="flex flex-col items-center gap-2 border-t border-[#E5E5E0] pt-4">
+            <Button
+              onClick={anonymize}
+              disabled={!inputText.trim() || !modelLoaded || anonymizing}
+              size="lg"
+              variant="solid"
+              className="gap-2 px-12 py-4 text-sm font-semibold disabled:opacity-100 disabled:bg-[#111111]/55 disabled:text-[#F9F9F7] disabled:cursor-not-allowed"
+            >
+              {modelLoading
+                ? `${t.header.notReady}... ${downloadProgress && downloadProgress.total > 0 ? `${progressPercent}%` : ''}`
+                : anonymizing
+                  ? t.redactButton.redacting
+                  : <>{t.redactButton.redact} <ArrowRight className="w-4 h-4" /></>}
+            </Button>
+            {/* Keyboard notation needs no translation; hidden on touch-only devices */}
+            <p className="label-meta text-muted-foreground/50 hidden [@media(pointer:fine)]:block">
+              {isMac ? '⌘Enter' : 'Ctrl+Enter'}
+            </p>
+            {detectionError && (
+              <div className="animate-content-reveal-rise max-w-lg w-full border border-[#CC0000] bg-[#CC0000]/5 p-4 text-center">
+                <p className="text-sm font-semibold text-[#CC0000]">{t.redactButton.detectionFailedTitle}</p>
+                <p className="text-xs text-[#525252] mt-1.5">{t.redactButton.detectionFailedBody}</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Entity table (only in labeled mode) */}
+        {replacementMode === 'labeled' && (
+          <EntityTable
+            entities={entities}
+            entries={entries}
+            excludedIndices={excludedIndices}
+            onToggle={toggleEntity}
+            onRenameLabel={renameLabel}
+          />
+        )}
+
+        {/* Custom detection labels - only supported by GLiNER (zero-shot). BardS.ai has a fixed label set. */}
         {activeProvider !== 'bardsai' && (
-        <div className="mb-6">
+        <div className="mt-6">
           <button
             onClick={() => setLabelsExpanded(!labelsExpanded)}
+            aria-expanded={labelsExpanded}
             className="w-full flex items-center justify-between px-4 py-3 bg-[#111111] text-[#F9F9F7] cursor-pointer hover:bg-[#222222] transition-colors duration-150"
           >
             <div className="flex items-baseline gap-2">
@@ -500,7 +619,7 @@ export default function App() {
           >
             <div className="overflow-hidden">
               <div className="border border-t-0 border-[#E5E5E0] p-4">
-                <p className="text-xs text-muted-foreground font-light mb-3">{t.settings.customLabelsDescription}</p>
+                <p className="text-xs text-muted-foreground mb-3">{t.settings.customLabelsDescription}</p>
                 <div className="flex items-center gap-2 flex-wrap">
                   <input
                     type="text"
@@ -514,7 +633,7 @@ export default function App() {
                   <button
                     onClick={handleAddLabel}
                     disabled={!newLabelInput.trim()}
-                    className="text-xs px-4 py-2 bg-[#111111] text-[#F9F9F7] hover:bg-[#F9F9F7] hover:text-[#111111] border border-[#111111] transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer uppercase tracking-wider font-sans font-medium flex items-center gap-1.5"
+                    className="pressable text-xs px-4 py-2 bg-[#111111] text-[#F9F9F7] hover:bg-[#F9F9F7] hover:text-[#111111] border border-[#111111] transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer font-medium flex items-center gap-1.5"
                   >
                     <Plus className="w-3 h-3" />
                     {t.settings.addLabel}
@@ -522,12 +641,12 @@ export default function App() {
                   {customLabels.map((label) => (
                     <span
                       key={label}
-                      className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 bg-[#111111] text-[#F9F9F7] font-mono shadow-[2px_2px_0px_0px_#E5E5E0] hover:shadow-[3px_3px_0px_0px_#CC0000] hover:translate-x-[-1px] hover:translate-y-[-1px] transition-all duration-150"
+                      className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 bg-[#111111] text-[#F9F9F7] font-mono"
                     >
                       {label}
                       <button
                         onClick={() => handleRemoveLabel(label)}
-                        className="text-[#F9F9F7]/60 hover:text-[#CC0000] transition-colors cursor-pointer"
+                        className="text-[#F9F9F7]/60 hover:text-[#FF3333] transition-colors cursor-pointer"
                         aria-label={`Remove ${label}`}
                       >
                         <X className="w-3 h-3" />
@@ -541,103 +660,14 @@ export default function App() {
         </div>
         )}
 
-        {/* File bar - input file (left) + download (right) */}
-        {fileName && anonymizedText && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-0 border border-b-0 border-[#A8A498] bg-[#F4F3EE] shadow-[0_2px_24px_-6px_rgba(17,17,17,0.08)]">
-            <div className="flex items-center gap-2.5 px-4 py-2.5 border-r-0 md:border-r border-[#C8C5BC]">
-              <div className="w-7 h-7 bg-[#FFFFFF] border border-[#C8C5BC] flex items-center justify-center flex-shrink-0">
-                {isImageFile(fileName)
-                  ? <ImageIcon className="w-3.5 h-3.5 text-[#525252]" />
-                  : <FileText className="w-3.5 h-3.5 text-[#525252]" />}
-              </div>
-              <p className="text-xs text-[#111111] truncate font-medium">{fileName}</p>
-            </div>
-            <div className="flex items-center justify-end px-4 py-2">
-              {hasDocxExtraction && entries.length > 0 && (
-                <button
-                  onClick={handleDownloadDocx}
-                  disabled={downloading}
-                  className="flex items-center gap-2 px-3 py-1.5 border border-[#C8C5BC] bg-[#FFFFFF] text-[#111111] hover:bg-[#111111] hover:text-[#F9F9F7] hover:border-[#111111] transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-xs font-medium"
-                >
-                  <Download className="w-3 h-3" />
-                  {t.textOutput.downloadDocx}
-                </button>
-              )}
-              {hasImage && entries.length > 0 && (
-                <button
-                  onClick={handleDownloadImage}
-                  disabled={downloading}
-                  className="flex items-center gap-2 px-3 py-1.5 border border-[#C8C5BC] bg-[#FFFFFF] text-[#111111] hover:bg-[#111111] hover:text-[#F9F9F7] hover:border-[#111111] transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-xs font-medium"
-                >
-                  <Download className="w-3 h-3" />
-                  {t.textOutput.downloadImage}
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Document panels */}
-        <div className={`grid grid-cols-1 md:grid-cols-2 gap-0 border border-[#A8A498] bg-[#FFFFFF] shadow-[0_2px_24px_-6px_rgba(17,17,17,0.08)] ${fileName && anonymizedText ? 'border-t-0' : ''}`}>
-          <div className="md:border-r border-[#C8C5BC] bg-[#FFFFFF] flex flex-col">
-            <TextInput value={inputText} onChange={handleInputChange} onClear={handleClear} entities={entities} onAddEntity={addManualEntity} onRemoveEntity={removeEntity} fileName={fileName} onLoadFile={loadFile} onRemoveFile={removeFile} />
-          </div>
-          <div className="bg-[#FFFFFF] border-t md:border-t-0 border-[#C8C5BC] flex flex-col">
-            <TextOutput value={anonymizedText} entries={entries} loading={anonymizing} />
-          </div>
-        </div>
-
-        {/* Redact button */}
-        <div className="sticky bottom-0 z-30 bg-[#F9F9F7] py-4 -mx-6 px-6">
-          <div className="flex flex-col items-center gap-2">
-            <div className="w-full border-t border-[#E5E5E0]" />
-            <Button
-              onClick={anonymize}
-              disabled={!inputText.trim() || !modelLoaded || anonymizing}
-              size="lg"
-              className="gap-2 px-12 py-4 text-sm uppercase tracking-[0.15em] font-semibold bg-[#111111] text-[#F9F9F7] hover:bg-[#222222] hover:text-[#F9F9F7] transition-colors disabled:bg-[#111111]/55 disabled:text-[#F9F9F7] disabled:cursor-not-allowed"
-            >
-              {anonymizing ? t.redactButton.redacting : <>{t.redactButton.redact} <ArrowRight className="w-4 h-4" /></>}
-            </Button>
-            <p className="label-meta text-muted-foreground/50">{t.redactButton.shortcutHint}</p>
-            <div className="w-full border-t border-[#E5E5E0]" />
-            {detectionError && (
-              <div className="max-w-lg w-full border-2 border-[#CC0000] bg-[#CC0000]/5 p-4 text-center">
-                <p className="text-sm font-sans font-semibold text-[#CC0000] uppercase tracking-wider">Detection failed</p>
-                <p className="text-xs text-[#525252] mt-1.5">The model could not process this text. Please try again or refresh the page.</p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Entity table (only in labeled mode) */}
-        {replacementMode === 'labeled' && (
-          <EntityTable
-            entities={entities}
-            entries={entries}
-            excludedIndices={excludedIndices}
-            onToggle={toggleEntity}
-            onRenameLabel={renameLabel}
-          />
-        )}
-
         {/* Step 2: De-anonymize (only in labeled mode) */}
         {replacementMode === 'labeled' && entries.length > 0 && (
-          <div className="mt-12">
-            {/* Ornamental divider */}
-            <div className="py-6 text-center font-serif text-xl text-[#E5E5E0] tracking-[1em] select-none">&#10043; &#10043; &#10043;</div>
-
-            <div className="mb-2">
-              <div className="flex items-baseline gap-3">
-                <span className="font-serif text-lg font-bold text-[#111111] uppercase tracking-tight">02</span>
-                <div>
-                  <h2 className="font-serif text-lg font-bold text-[#111111] uppercase tracking-tight leading-tight">{t.step2.title}</h2>
-                  <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{t.step2.description}</p>
-                  <p className="text-xs text-muted-foreground/60 mt-1 leading-relaxed italic">{t.step2.example}</p>
-                </div>
-              </div>
+          <div className="mt-16">
+            <div className="mb-6 border-b border-[#E5E5E0] pb-4">
+              <h2 className="font-serif text-2xl font-medium text-[#111111] tracking-tight leading-tight">{t.step2.title}</h2>
+              <p className="text-sm text-muted-foreground mt-1.5 leading-relaxed max-w-2xl">{t.step2.description}</p>
+              <p className="text-xs text-muted-foreground/70 mt-1 leading-relaxed max-w-2xl">{t.step2.example}</p>
             </div>
-            <div className="border-b border-[#E5E5E0] mb-6" />
 
             <DeAnonymize
               onDeanonymize={deanonymize}
@@ -685,7 +715,7 @@ export default function App() {
             )}
           </div>
           <p className="label-meta text-muted-foreground/80 leading-none mt-2 pt-3 border-t border-[#E5E5E0] w-full">
-            © {new Date().getFullYear()} DocCloak · Built by Witold Łojek
+            © {new Date().getFullYear()} DocCloak v{__APP_VERSION__} · core {__CORE_VERSION__} · Built by Witold Łojek
           </p>
         </div>
       </footer>

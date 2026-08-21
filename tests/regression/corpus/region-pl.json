@@ -96,53 +96,53 @@
             "detector": "regex:pl:court_case"
           }
         ],
-        "anonymized": "Pani <<REDACTED_9>>, PESEL <<REDACTED_8>>, NIP <<REDACTED_7>>, zamieszkała <<REDACTED_6>>, <<REDACTED_5>>, tel. <<REDACTED_4>>. <<REDACTED_3>> na kwotę <<REDACTED_2>>. Sygnatura akt <<REDACTED_1>>.",
+        "anonymized": "Pani [PERSON_1], PESEL [SSN_2], NIP [SSN_1], zamieszkała [ADDRESS_2], [ADDRESS_1], tel. [PHONE_1]. [COMPANY_1] na kwotę [CURRENCY_1]. Sygnatura akt [OTHER_1].",
         "anonymizedAfterRename": null,
         "restored": "Pani Anna Nowak, PESEL 89052310002, NIP 123-456-78-19, zamieszkała ul. Floriańska 27/3, 31-501 Kraków, tel. +48 600 123 456. Faktura od Bursztynek S.A. na kwotę słownie: osiem tysięcy pięćset złotych. Sygnatura akt III K 123/24.",
         "replacements": [
           {
             "original": "III K 123/24",
-            "replacement": "<<REDACTED_1>>",
+            "replacement": "[OTHER_1]",
             "entityType": "OTHER"
           },
           {
             "original": "słownie: osiem tysięcy pięćset złotych",
-            "replacement": "<<REDACTED_2>>",
+            "replacement": "[CURRENCY_1]",
             "entityType": "CURRENCY"
           },
           {
             "original": "Faktura od Bursztynek S.A.",
-            "replacement": "<<REDACTED_3>>",
+            "replacement": "[COMPANY_1]",
             "entityType": "COMPANY"
           },
           {
             "original": "+48 600 123 456",
-            "replacement": "<<REDACTED_4>>",
+            "replacement": "[PHONE_1]",
             "entityType": "PHONE"
           },
           {
             "original": "31-501 Kraków",
-            "replacement": "<<REDACTED_5>>",
+            "replacement": "[ADDRESS_1]",
             "entityType": "ADDRESS"
           },
           {
             "original": "ul. Floriańska 27/3",
-            "replacement": "<<REDACTED_6>>",
+            "replacement": "[ADDRESS_2]",
             "entityType": "ADDRESS"
           },
           {
             "original": "123-456-78-19",
-            "replacement": "<<REDACTED_7>>",
+            "replacement": "[SSN_1]",
             "entityType": "SSN"
           },
           {
             "original": "89052310002",
-            "replacement": "<<REDACTED_8>>",
+            "replacement": "[SSN_2]",
             "entityType": "SSN"
           },
           {
             "original": "Anna Nowak",
-            "replacement": "<<REDACTED_9>>",
+            "replacement": "[PERSON_1]",
             "entityType": "PERSON"
           }
         ]

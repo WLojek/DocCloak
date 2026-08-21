@@ -56,7 +56,7 @@
             "detector": "gliner:email address"
           }
         ],
-        "anonymized": "<<REDACTED_2>> <<<REDACTED_1>>> approved the budget for Q3.",
+        "anonymized": "[PERSON_1] <[EMAIL_1]> approved the budget for Q3.",
         "anonymizedAfterRename": "[CLIENT] <[CLIENT_EMAIL]> approved the budget for Q3.",
         "restored": "Jan Kowalski <jan.kowalski@example.com> approved the budget for Q3.",
         "replacements": [

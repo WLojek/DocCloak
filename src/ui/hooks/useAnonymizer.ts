@@ -21,6 +21,11 @@ export function useAnonymizer() {
   const [excludedIndices, setExcludedIndices] = useState<Set<number>>(new Set());
   const [modelLoaded, setModelLoaded] = useState(false);
   const [modelLoading, setModelLoading] = useState(false);
+  // First-visit gate: the ~46 MB model download starts only after the user accepts.
+  // Once accepted, later visits load (from cache) without asking again.
+  const [modelConsented, setModelConsented] = useState(
+    () => localStorage.getItem('doccloak-model-consented') === '1',
+  );
   const [modelError, setModelError] = useState(false);
   const [anonymizing, setAnonymizing] = useState(false);
   const [detectionProgress, setDetectionProgress] = useState<number | null>(null);
@@ -65,10 +70,17 @@ export function useAnonymizer() {
       });
   }, []);
 
-  // Preload detection model in the background on mount
+  // Preload detection model in the background on mount, but only after the
+  // user has accepted the first-time download.
   useEffect(() => {
-    startModelLoad();
-  }, [startModelLoad]);
+    if (modelConsented) startModelLoad();
+  }, [modelConsented, startModelLoad]);
+
+  // First-visit accept: persist the choice and start the download immediately.
+  const acceptModelDownload = useCallback(() => {
+    localStorage.setItem('doccloak-model-consented', '1');
+    setModelConsented(true);
+  }, []);
 
   const rebuildAnonymization = useCallback(
     (text: string, allEntities: DetectedEntity[], excluded: Set<number>) => {
@@ -447,5 +459,7 @@ export function useAnonymizer() {
     exportRedactedImage,
     removeFile,
     retryModelLoad: startModelLoad,
+    modelConsented,
+    acceptModelDownload,
   };
 }

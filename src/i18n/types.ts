@@ -4,16 +4,17 @@ export interface Translations {
   header: {
     ready: string;
     notReady: string;
+    setupRequired: string;
     error: string;
-    offline: string;
-    edition: string;
+    language: string;
+    settings: string;
+    skipToTool: string;
   };
   settings: {
     detectionSensitivity: string;
     fewerMatches: string;
     moreMatches: string;
     sensitivityExplanation: string;
-    confidenceThreshold: (value: string) => string;
     replacementStyle: string;
     labeledPlaceholders: string;
     labeledDescription: string;
@@ -23,37 +24,15 @@ export interface Translations {
     customLabelsDescription: string;
     customLabelsPlaceholder: string;
     addLabel: string;
-    noCustomLabels: string;
     detectionModel: string;
     models: {
       gliner: { label: string; description: string };
       bardsai: { label: string; description: string };
     };
-    acceleration: string;
-    accelAuto: string;
-    accelAutoDesc: string;
-    accelWebGPU: string;
-    accelWebGPUDesc: string;
-    accelCPU: string;
-    accelCPUDesc: string;
-    accelReloadNote: string;
     regexRules: string;
     regexRulesDescription: string;
     regexRegion: string;
     regexRegions: Record<string, string>;
-  };
-  howItWorks: {
-    title: string;
-    step1Label: string;
-    step1Text: string;
-    step2Label: string;
-    step2Text: string;
-    step3Label: string;
-    step3Text: string;
-  };
-  step1: {
-    title: string;
-    description: string;
   };
   textInput: {
     title: string;
@@ -63,18 +42,14 @@ export interface Translations {
     selectToTag: string;
     uploadDocx: string;
     uploadDocxSub: string;
-    pasteText: string;
-    pasteTextSub: string;
-    loadedFile: (name: string) => string;
     unsupportedFormat: string;
     removeFile: string;
-    dropzoneTitle: string;
     dropzoneOr: string;
-    dropzoneHint: string;
     dragging: string;
     readyToRedact: string;
     ocrNoText: string;
     ocrExtracted: string;
+    removeRedaction: string;
   };
   textOutput: {
     title: string;
@@ -90,13 +65,13 @@ export interface Translations {
     downloadImage: string;
     downloaded: string;
     exportFailed: string;
-    downloadDocxAction: string;
     nextStepHint: string;
   };
   redactButton: {
     redact: string;
     redacting: string;
-    shortcutHint: string;
+    detectionFailedTitle: string;
+    detectionFailedBody: string;
   };
   entityTable: {
     title: (count: number) => string;
@@ -134,11 +109,15 @@ export interface Translations {
   toast: {
     copiedToClipboard: string;
     cleared: string;
+    redactionRemoved: string;
     undo: string;
   };
   loading: {
-    settingUp: string;
+    setupTitle: string;
+    setupBody: (size: string) => string;
+    setupAction: string;
     preparingEngine: string;
+    downloadingModel: string;
     initializing: string;
     oneTimeSetup: string;
     oneTimeSetupWithSize: (size: string) => string;
@@ -160,6 +139,11 @@ export interface Translations {
     hero: {
       titleBefore: string;
       titleEm: string;
+      /** Constant text between the censor-bar word and the rotating noun, e.g. "the ". May be empty. */
+      titleAfterPrefix: string;
+      /** PII nouns cycled in the headline; the first entry is the resting/default word. */
+      titleRotating: string[];
+      /** Constant text after the rotating noun, including punctuation, e.g. " inside them." or "." */
       titleAfter: string;
       subtitle: string;
       subtitleEmphasis: string;

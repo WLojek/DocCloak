@@ -32,13 +32,13 @@
             "detector": "regex:universal:email"
           }
         ],
-        "anonymized": "Reach <<REDACTED_1>> for scheduling details.",
+        "anonymized": "Reach [EMAIL_1] for scheduling details.",
         "anonymizedAfterRename": null,
         "restored": "Reach anna.lindberg@example.org for scheduling details.",
         "replacements": [
           {
             "original": "anna.lindberg@example.org",
-            "replacement": "<<REDACTED_1>>",
+            "replacement": "[EMAIL_1]",
             "entityType": "EMAIL"
           }
         ]
@@ -75,13 +75,13 @@
             "detector": "regex:pl:pesel"
           }
         ],
-        "anonymized": "PESEL: <<REDACTED_1>> belongs to the applicant.",
+        "anonymized": "PESEL: [SSN_1] belongs to the applicant.",
         "anonymizedAfterRename": null,
         "restored": "PESEL: 89052310002 belongs to the applicant.",
         "replacements": [
           {
             "original": "89052310002",
-            "replacement": "<<REDACTED_1>>",
+            "replacement": "[SSN_1]",
             "entityType": "SSN"
           }
         ]
@@ -141,23 +141,23 @@
             "detector": "regex:universal:phone_intl"
           }
         ],
-        "anonymized": "Billing contact: <<REDACTED_3>>, card <<REDACTED_2>>, office <<REDACTED_1>>.",
+        "anonymized": "Billing contact: [PERSON_1], card [CREDIT_CARD_1], office [PHONE_1].",
         "anonymizedAfterRename": null,
         "restored": "Billing contact: Olaf Berg, card 4532 0151 1283 0366, office +1 415 555 2671.",
         "replacements": [
           {
             "original": "+1 415 555 2671",
-            "replacement": "<<REDACTED_1>>",
+            "replacement": "[PHONE_1]",
             "entityType": "PHONE"
           },
           {
             "original": "4532 0151 1283 0366",
-            "replacement": "<<REDACTED_2>>",
+            "replacement": "[CREDIT_CARD_1]",
             "entityType": "CREDIT_CARD"
           },
           {
             "original": "Olaf Berg",
-            "replacement": "<<REDACTED_3>>",
+            "replacement": "[PERSON_1]",
             "entityType": "PERSON"
           }
         ]

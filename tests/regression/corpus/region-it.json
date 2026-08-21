@@ -80,43 +80,43 @@
             "detector": "regex:it:company"
           }
         ],
-        "anonymized": "Sig. <<REDACTED_7>>, codice fiscale <<REDACTED_6>>, partita IVA <<REDACTED_5>>, residente in <<REDACTED_4>>, <<REDACTED_3>>, cellulare <<REDACTED_2>>. Ditta: <<REDACTED_1>>.",
+        "anonymized": "Sig. [PERSON_1], codice fiscale [SSN_2], partita IVA [SSN_1], residente in [ADDRESS_2], [ADDRESS_1], cellulare [PHONE_1]. Ditta: [COMPANY_1].",
         "anonymizedAfterRename": null,
         "restored": "Sig. Mario Bianchi, codice fiscale RSSMRA85M01H501Q, partita IVA IT12345678903, residente in Via Roma, 42, 00100 Roma, cellulare +39 345 123 4567. Ditta: Ristorante Da Mario S.r.l.",
         "replacements": [
           {
             "original": "Ristorante Da Mario S.r.l",
-            "replacement": "<<REDACTED_1>>",
+            "replacement": "[COMPANY_1]",
             "entityType": "COMPANY"
           },
           {
             "original": "+39 345 123 4567",
-            "replacement": "<<REDACTED_2>>",
+            "replacement": "[PHONE_1]",
             "entityType": "PHONE"
           },
           {
             "original": "00100 Roma",
-            "replacement": "<<REDACTED_3>>",
+            "replacement": "[ADDRESS_1]",
             "entityType": "ADDRESS"
           },
           {
             "original": "Via Roma, 42",
-            "replacement": "<<REDACTED_4>>",
+            "replacement": "[ADDRESS_2]",
             "entityType": "ADDRESS"
           },
           {
             "original": "IT12345678903",
-            "replacement": "<<REDACTED_5>>",
+            "replacement": "[SSN_1]",
             "entityType": "SSN"
           },
           {
             "original": "RSSMRA85M01H501Q",
-            "replacement": "<<REDACTED_6>>",
+            "replacement": "[SSN_2]",
             "entityType": "SSN"
           },
           {
             "original": "Mario Bianchi",
-            "replacement": "<<REDACTED_7>>",
+            "replacement": "[PERSON_1]",
             "entityType": "PERSON"
           }
         ]

@@ -80,43 +80,43 @@
             "detector": "regex:se:currency_words"
           }
         ],
-        "anonymized": "<<REDACTED_7>>, personnummer <<REDACTED_6>>, <<REDACTED_5>>, <<REDACTED_4>>, telefon <<REDACTED_3>>. Bolag: <<REDACTED_2>>. Belopp <<REDACTED_1>>.",
+        "anonymized": "[PERSON_1], personnummer [SSN_1], [ADDRESS_2], [ADDRESS_1], telefon [PHONE_1]. Bolag: [COMPANY_1]. Belopp [CURRENCY_1].",
         "anonymizedAfterRename": null,
         "restored": "Sven Svensson, personnummer 19850523-1478, adress Drottninggatan 42, 111 22 Stockholm, telefon 070-123 45 67. Bolag: Fjällbyggen AB. Belopp med bokstäver: åttatusen femhundra kronor.",
         "replacements": [
           {
             "original": "med bokstäver: åttatusen femhundra kronor",
-            "replacement": "<<REDACTED_1>>",
+            "replacement": "[CURRENCY_1]",
             "entityType": "CURRENCY"
           },
           {
             "original": "Fjällbyggen AB",
-            "replacement": "<<REDACTED_2>>",
+            "replacement": "[COMPANY_1]",
             "entityType": "COMPANY"
           },
           {
             "original": "070-123 45 67",
-            "replacement": "<<REDACTED_3>>",
+            "replacement": "[PHONE_1]",
             "entityType": "PHONE"
           },
           {
             "original": "111 22 Stockholm",
-            "replacement": "<<REDACTED_4>>",
+            "replacement": "[ADDRESS_1]",
             "entityType": "ADDRESS"
           },
           {
             "original": "adress Drottninggatan 42",
-            "replacement": "<<REDACTED_5>>",
+            "replacement": "[ADDRESS_2]",
             "entityType": "ADDRESS"
           },
           {
             "original": "19850523-1478",
-            "replacement": "<<REDACTED_6>>",
+            "replacement": "[SSN_1]",
             "entityType": "SSN"
           },
           {
             "original": "Sven Svensson",
-            "replacement": "<<REDACTED_7>>",
+            "replacement": "[PERSON_1]",
             "entityType": "PERSON"
           }
         ]

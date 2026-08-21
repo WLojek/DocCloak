@@ -104,58 +104,58 @@
             "detector": "regex:us:currency_words"
           }
         ],
-        "anonymized": "<<REDACTED_10>>, SSN <<REDACTED_9>>, ITIN <<REDACTED_8>>, lives at <<REDACTED_7>>, New York, NY <<REDACTED_6>>, phone <<REDACTED_5>>. Employer: <<REDACTED_4>>, EIN <<REDACTED_3>>, routing <<REDACTED_2>>. Wire <<REDACTED_1>>.",
+        "anonymized": "[PERSON_1], SSN [SSN_3], ITIN [SSN_2], lives at [ADDRESS_2], New York, NY [ADDRESS_1], phone [PHONE_1]. Employer: [COMPANY_1], EIN [SSN_1], routing [OTHER_1]. Wire [CURRENCY_1].",
         "anonymizedAfterRename": null,
         "restored": "John Q. Public, SSN 078-05-1120, ITIN 912-70-1234, lives at 350 5th Avenue, New York, NY 10001-2345, phone (415) 555-2671. Employer: Acme LLC, EIN 12-3456789, routing 021000021. Wire payable the sum of two hundred fifty dollars.",
         "replacements": [
           {
             "original": "payable the sum of two hundred fifty dollars",
-            "replacement": "<<REDACTED_1>>",
+            "replacement": "[CURRENCY_1]",
             "entityType": "CURRENCY"
           },
           {
             "original": "021000021",
-            "replacement": "<<REDACTED_2>>",
+            "replacement": "[OTHER_1]",
             "entityType": "OTHER"
           },
           {
             "original": "12-3456789",
-            "replacement": "<<REDACTED_3>>",
+            "replacement": "[SSN_1]",
             "entityType": "SSN"
           },
           {
             "original": "Acme LLC",
-            "replacement": "<<REDACTED_4>>",
+            "replacement": "[COMPANY_1]",
             "entityType": "COMPANY"
           },
           {
             "original": "(415) 555-2671",
-            "replacement": "<<REDACTED_5>>",
+            "replacement": "[PHONE_1]",
             "entityType": "PHONE"
           },
           {
             "original": "10001-2345",
-            "replacement": "<<REDACTED_6>>",
+            "replacement": "[ADDRESS_1]",
             "entityType": "ADDRESS"
           },
           {
             "original": "350 5th Avenue",
-            "replacement": "<<REDACTED_7>>",
+            "replacement": "[ADDRESS_2]",
             "entityType": "ADDRESS"
           },
           {
             "original": "912-70-1234",
-            "replacement": "<<REDACTED_8>>",
+            "replacement": "[SSN_2]",
             "entityType": "SSN"
           },
           {
             "original": "078-05-1120",
-            "replacement": "<<REDACTED_9>>",
+            "replacement": "[SSN_3]",
             "entityType": "SSN"
           },
           {
             "original": "John Q. Public",
-            "replacement": "<<REDACTED_10>>",
+            "replacement": "[PERSON_1]",
             "entityType": "PERSON"
           }
         ]

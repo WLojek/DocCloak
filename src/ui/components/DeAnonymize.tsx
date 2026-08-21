@@ -43,7 +43,7 @@ export function DeAnonymize({ onDeanonymize, hasMapping }: DeAnonymizeProps) {
             value={aiResponse}
             onChange={(e) => setAiResponse(e.target.value)}
             placeholder={t.deAnonymize.inputPlaceholder}
-            className="w-full bg-transparent p-4 text-foreground placeholder-muted-foreground resize-none focus:outline-none text-sm leading-relaxed font-light min-h-[200px]"
+            className="w-full bg-transparent p-4 text-foreground placeholder-muted-foreground resize-none focus:outline-none text-sm leading-relaxed min-h-[200px]"
             style={{ fieldSizing: 'content' } as React.CSSProperties}
           />
         </div>
@@ -52,7 +52,7 @@ export function DeAnonymize({ onDeanonymize, hasMapping }: DeAnonymizeProps) {
             onClick={handleDeanonymize}
             disabled={!aiResponse.trim()}
             variant="outline"
-            className="gap-2 h-8 text-xs uppercase tracking-wider"
+            className="gap-2 h-8 text-xs"
           >
             <RotateCcw className="w-3 h-3" />
             {t.deAnonymize.restoreButton}
@@ -69,8 +69,13 @@ export function DeAnonymize({ onDeanonymize, hasMapping }: DeAnonymizeProps) {
             </Button>
           )}
         </div>
-        <div className="flex-1 min-h-[200px] p-4 text-foreground text-sm leading-relaxed whitespace-pre-wrap font-light">
-          {result || (
+        <div className="flex-1 min-h-[200px] p-4 text-foreground text-sm leading-relaxed whitespace-pre-wrap">
+          {result ? (
+            /* Keyed so every restore replays the rise: the round-trip's final frame */
+            <div key={result} className="animate-content-reveal-rise">
+              {result}
+            </div>
+          ) : (
             <span className="text-muted-foreground">
               {t.deAnonymize.outputPlaceholder}
             </span>
