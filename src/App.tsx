@@ -261,14 +261,14 @@ export default function App() {
 
       {/* Header */}
       <header className={`sticky top-0 z-30 px-6 transition-all duration-200 chrome-material ${scrolled ? 'py-2 border-b border-[#E5E5E0] shadow-[0_1px_0_0_rgba(17,17,17,0.04)]' : 'py-3 border-b border-transparent'}`}>
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="max-w-6xl mx-auto flex items-center justify-between gap-2">
+          <div className="flex items-center gap-3 shrink-0">
             <img src={logoSrc} alt="DocCloak" className={`transition-all duration-200 ${scrolled ? 'h-7' : 'h-9'}`} />
             <span className={`font-serif tracking-tight leading-none text-[#111111] font-medium transition-all duration-200 ${scrolled ? 'text-xl' : 'text-2xl'}`}>
               DocCloak
             </span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
             {/* Language switcher */}
             <Popover>
               <PopoverTrigger asChild>
@@ -416,19 +416,32 @@ export default function App() {
 
             {/* The pill is the always-visible engine status: it names the real state
                 (setup pending vs downloading vs ready), carries the live percent, and
-                clicking it jumps to the setup card / progress strip in the tool. */}
-            <button type="button" onClick={scrollToTool} className="cursor-pointer">
-              <Badge variant="outline" className="gap-2 tabular-nums hover:bg-[#111111]/5 transition-colors">
-                <span className={`w-2 h-2 inline-block transition-colors duration-200 ${modelLoaded ? 'bg-[#2D6A4F]' : modelError ? 'bg-[#CC0000]' : 'bg-[#B8860B]'}`} />
-                {modelLoaded
-                  ? t.header.ready
-                  : modelError
-                    ? t.header.error
-                    : modelConsented
-                      ? `${t.header.notReady}${downloadProgress && downloadProgress.total > 0 ? ` ${progressPercent}%` : ''}`
-                      : t.header.setupRequired}
-              </Badge>
-            </button>
+                clicking it jumps to the setup card / progress strip in the tool. On
+                phones the label would not fit next to the wordmark and controls, so
+                only the colored dot (plus the live percent while downloading) stays
+                visible; the full label remains for assistive tech and on hover. */}
+            {(() => {
+              const statusLabel = modelLoaded
+                ? t.header.ready
+                : modelError
+                  ? t.header.error
+                  : modelConsented
+                    ? `${t.header.notReady}${downloadProgress && downloadProgress.total > 0 ? ` ${progressPercent}%` : ''}`
+                    : t.header.setupRequired;
+              const mobileLabel =
+                !modelLoaded && !modelError && modelConsented && downloadProgress && downloadProgress.total > 0
+                  ? `${progressPercent}%`
+                  : null;
+              return (
+                <button type="button" onClick={scrollToTool} className="cursor-pointer shrink-0" title={statusLabel} aria-label={statusLabel}>
+                  <Badge variant="outline" className="gap-2 tabular-nums hover:bg-[#111111]/5 transition-colors">
+                    <span className={`w-2 h-2 inline-block transition-colors duration-200 ${modelLoaded ? 'bg-[#2D6A4F]' : modelError ? 'bg-[#CC0000]' : 'bg-[#B8860B]'}`} />
+                    {mobileLabel && <span className="sm:hidden">{mobileLabel}</span>}
+                    <span className="hidden sm:inline">{statusLabel}</span>
+                  </Badge>
+                </button>
+              );
+            })()}
           </div>
         </div>
       </header>

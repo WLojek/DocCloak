@@ -12,11 +12,16 @@ export function Hero({ onScrollToTool }: { onScrollToTool: () => void }) {
         <h1 className="font-serif text-4xl sm:text-5xl md:text-6xl leading-[1.15] tracking-tight text-[#111111] font-medium max-w-5xl mx-auto">
           {h.titleBefore} <br className="hidden md:block" />
           {/* The rotating PII noun sits inside a censor bar: the product's own
-              device. The clause is one unbreakable unit so the bar's width
-              animation can never re-wrap the headline. */}
-          <span className="whitespace-nowrap">
+              device. On wide screens the clause is one unbreakable unit so the
+              bar's width animation can never re-wrap the headline. On narrow
+              screens the longest words (Polish, French) cannot share a line
+              with the prefix, so the bar gets a line of its own instead - the
+              width animation still never moves a break point, and RotatingWord
+              scales itself down if even a full line is too narrow. */}
+          <span className="lg:whitespace-nowrap">
             {h.titleEm}{' '}
             {h.titleAfterPrefix}
+            <br className="lg:hidden" />
             <RotatingWord
               words={h.titleRotating}
               className="text-[#F9F9F7] px-3 pb-1"
