@@ -123,8 +123,13 @@ export function createWebCoreEnv(): CoreEnv {
       hfEnv.allowRemoteModels = true;
       // T116: pin the tokenizer revision so the files are immutable
       // (same pins as the extension; see documentation/model-provenance.md).
+      // Fail closed: a model id without a pin must not fall back to the
+      // mutable main branch.
       const revision = WEB_TOKENIZER_REVISIONS[hfModelId];
-      return AutoTokenizer.from_pretrained(hfModelId, revision ? { revision } : undefined);
+      if (!revision) {
+        throw new Error(`No pinned tokenizer revision for ${hfModelId} - add it to WEB_TOKENIZER_REVISIONS`);
+      }
+      return AutoTokenizer.from_pretrained(hfModelId, { revision });
     },
     hardware: webHardwareHints(),
     persistStorage: async () => (await navigator.storage?.persist?.()) ?? false,
