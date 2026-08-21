@@ -34,6 +34,15 @@ export interface Translations {
     regexRegion: string;
     regexRegions: Record<string, string>;
   };
+  dictionary: {
+    title: string;
+    description: string;
+    placeholder: string;
+    add: string;
+    caseSensitive: string;
+    removeWord: string;
+    matchesCase: string;
+  };
   textInput: {
     title: string;
     clear: string;

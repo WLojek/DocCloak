@@ -11,6 +11,7 @@ import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+import { DictionaryBar } from './ui/components/DictionaryBar.tsx';
 import { Lock, Settings, ArrowRight, Languages, Check, Plus, X, ChevronDown, Info, FileText, Image as ImageIcon, Download, Github, RotateCw } from 'lucide-react';
 import { isImageFile } from '@doccloak/core/dom';
 import logoSrc from './ui/assets/doc-cloak-logo-light.png';
@@ -63,6 +64,8 @@ export default function App() {
     handleRegexChange,
     regexRegion,
     handleRegexRegionChange,
+    dictionary,
+    handleDictionaryChange,
     docxFileName,
     fileName,
     hasDocxExtraction,
@@ -567,6 +570,9 @@ export default function App() {
             <TextOutput value={anonymizedText} entries={entries} loading={anonymizing} />
           </div>
         </div>
+
+        {/* Custom dictionary - attached to the workspace, on the way to the Redact button */}
+        <DictionaryBar dictionary={dictionary} onChange={handleDictionaryChange} />
 
         {/* Redact button */}
         <div className="sticky bottom-0 z-30 chrome-material py-4 -mx-6 px-6">

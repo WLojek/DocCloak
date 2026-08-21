@@ -55,6 +55,15 @@ export const en: Translations = {
       cn: 'China',
     },
   },
+  dictionary: {
+    title: 'Custom Dictionary',
+    description: 'Always redacted, everywhere in the text.',
+    placeholder: 'e.g. Falcon',
+    add: 'Add',
+    caseSensitive: 'Case sensitive',
+    removeWord: 'Remove',
+    matchesCase: 'Matches exact case',
+  },
   textInput: {
     title: 'Your Document',
     clear: 'Clear',

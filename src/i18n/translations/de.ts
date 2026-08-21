@@ -55,6 +55,15 @@ export const de: Translations = {
       cn: 'China',
     },
   },
+  dictionary: {
+    title: 'Eigenes Wörterbuch',
+    description: 'Werden immer geschwärzt, überall im Text.',
+    placeholder: 'z. B. Falke',
+    add: 'Hinzufügen',
+    caseSensitive: 'Groß-/Kleinschreibung beachten',
+    removeWord: 'Entfernen',
+    matchesCase: 'Genaue Groß-/Kleinschreibung',
+  },
   textInput: {
     title: 'Ihr Dokument',
     clear: 'Löschen',

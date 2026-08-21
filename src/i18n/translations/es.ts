@@ -55,6 +55,15 @@ export const es: Translations = {
       cn: 'China',
     },
   },
+  dictionary: {
+    title: 'Diccionario personalizado',
+    description: 'Siempre censuradas, en todo el texto.',
+    placeholder: 'p. ej. Halcón',
+    add: 'Añadir',
+    caseSensitive: 'Distinguir mayúsculas y minúsculas',
+    removeWord: 'Eliminar',
+    matchesCase: 'Coincide con las mayúsculas y minúsculas exactas',
+  },
   textInput: {
     title: 'Su documento',
     clear: 'Borrar',

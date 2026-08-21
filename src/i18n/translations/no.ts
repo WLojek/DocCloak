@@ -55,6 +55,15 @@ export const no: Translations = {
       cn: 'Kina',
     },
   },
+  dictionary: {
+    title: 'Egen ordliste',
+    description: 'Sladdes alltid, overalt i teksten.',
+    placeholder: 'f.eks. Falk',
+    add: 'Legg til',
+    caseSensitive: 'Skill mellom store og små bokstaver',
+    removeWord: 'Fjern',
+    matchesCase: 'Krever nøyaktig samsvar med store og små bokstaver',
+  },
   textInput: {
     title: 'Ditt dokument',
     clear: 'Tøm',

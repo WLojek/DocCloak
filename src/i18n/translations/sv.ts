@@ -55,6 +55,15 @@ export const sv: Translations = {
       cn: 'Kina',
     },
   },
+  dictionary: {
+    title: 'Egen ordlista',
+    description: 'Maskeras alltid, överallt i texten.',
+    placeholder: 't.ex. Falk',
+    add: 'Lägg till',
+    caseSensitive: 'Skiftlägeskänslig',
+    removeWord: 'Ta bort',
+    matchesCase: 'Matchar exakt skiftläge',
+  },
   textInput: {
     title: 'Ditt dokument',
     clear: 'Rensa',

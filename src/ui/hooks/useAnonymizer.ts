@@ -11,6 +11,8 @@ import { isImageFile, renderRedactedImage } from '@doccloak/core/dom';
 import { loadImageToCanvas, recognizeCanvas } from '../../ocr.web.ts';
 import type { OcrWord } from '@doccloak/core/dom';
 import { useTranslation } from '../../i18n/LanguageContext.tsx';
+import { loadDictionary, saveDictionary, mergeDictionaryEntities } from '../dictionary.ts';
+import type { DictionaryEntry } from '../dictionary.ts';
 
 export function useAnonymizer() {
   const { language } = useTranslation();
@@ -37,6 +39,7 @@ export function useAnonymizer() {
   const [activeProvider, setActiveProvider] = useState<ProviderId>(getActiveProviderId());
   const [regexRules, setRegexRulesState] = useState(isRegexEnabled());
   const [regexRegion, setRegexRegionState] = useState<RegexRegionId>(getRegexRegion());
+  const [dictionary, setDictionaryState] = useState<DictionaryEntry[]>(loadDictionary);
   const [docxFile, setDocxFile] = useState<File | null>(null);
   const [docxFileName, setDocxFileName] = useState<string | null>(null);
   const [imageFileName, setImageFileName] = useState<string | null>(null);
@@ -112,8 +115,10 @@ export function useAnonymizer() {
     })
       .then((results) => {
         if (requestId === latestRequestRef.current) {
-          setEntities(results);
-          rebuildAnonymization(text, results, excluded);
+          // Dictionary words are always redacted; detected entities win overlaps
+          const withDictionary = mergeDictionaryEntities(text, results, dictionary);
+          setEntities(withDictionary);
+          rebuildAnonymization(text, withDictionary, excluded);
           setAnonymizing(false);
           setDetectionProgress(null);
           // Scroll the tool back into view in case the page has drifted.
@@ -132,7 +137,12 @@ export function useAnonymizer() {
           setDetectionError(err instanceof Error ? err.message : String(err));
         }
       });
-  }, [inputText, rebuildAnonymization]);
+  }, [inputText, dictionary, rebuildAnonymization]);
+
+  const handleDictionaryChange = useCallback((entries: DictionaryEntry[]) => {
+    saveDictionary(entries);
+    setDictionaryState(entries);
+  }, []);
 
   const handleInputChange = useCallback((text: string) => {
     setInputText(text);
@@ -454,6 +464,8 @@ export function useAnonymizer() {
     handleRegexChange,
     regexRegion,
     handleRegexRegionChange,
+    dictionary,
+    handleDictionaryChange,
     loadFile,
     exportDocx,
     exportRedactedImage,

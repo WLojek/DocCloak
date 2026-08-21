@@ -55,6 +55,15 @@ export const pl: Translations = {
       cn: 'Chiny',
     },
   },
+  dictionary: {
+    title: 'Własny słownik',
+    description: 'Zawsze redagowane, wszędzie w tekście.',
+    placeholder: 'np. Sokół',
+    add: 'Dodaj',
+    caseSensitive: 'Uwzględniaj wielkość liter',
+    removeWord: 'Usuń',
+    matchesCase: 'Dokładna wielkość liter',
+  },
   textInput: {
     title: 'Twój dokument',
     clear: 'Wyczyść',

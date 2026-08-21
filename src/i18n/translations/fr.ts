@@ -55,6 +55,15 @@ export const fr: Translations = {
       cn: 'Chine',
     },
   },
+  dictionary: {
+    title: 'Dictionnaire personnalisé',
+    description: 'Toujours caviardés, partout dans le texte.',
+    placeholder: 'p. ex. Faucon',
+    add: 'Ajouter',
+    caseSensitive: 'Sensible à la casse',
+    removeWord: 'Supprimer',
+    matchesCase: 'Respecte la casse exacte',
+  },
   textInput: {
     title: 'Votre document',
     clear: 'Effacer',

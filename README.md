@@ -50,6 +50,7 @@ The AI never sees the real data. You get the full power of AI assistance without
 - **Editable labels** - rename any placeholder (e.g., `[PERSON_3]` → `[CLIENT_NAME]`) for clearer AI prompts
 - **Custom detection labels** - add your own entity types (e.g., `medical condition`, `job title`) to detect domain-specific information
 - **Manual tagging** - select any text and assign an entity type for things the model missed
+- **Custom dictionary** - add words or phrases that must always be redacted (project codenames, company names); every occurrence in the text is caught, with optional case-sensitive matching, and the list persists in your browser
 - **Configurable sensitivity** - adjust the confidence threshold to control the precision/recall trade-off
 - **8 European languages** - English, Polish, German, French, Spanish, Portuguese, Swedish, Norwegian
 - **Replacement styles** - labeled placeholders (`[PERSON_1]`, reversible) or blanked out (`________`, permanent)
