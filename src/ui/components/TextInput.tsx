@@ -1,4 +1,4 @@
-import { useRef, useCallback, useState } from 'react';
+import { useRef, useCallback, useState, useEffect } from 'react';
 import type { DetectedEntity, EntityType } from '@doccloak/core';
 import { ENTITY_COLORS } from '@doccloak/core';
 import { isImageFile } from '@doccloak/core/dom';
@@ -136,7 +136,7 @@ export function TextInput({ value, onChange, onClear, entities, onAddEntity, onR
     }
   }, [processFile]);
 
-  const handleSelectionEnd = useCallback((e: React.MouseEvent) => {
+  const openPickerFromSelection = useCallback((clientX?: number, clientY?: number) => {
     if (!onAddEntity) return;
 
     const selection = window.getSelection();
@@ -164,16 +164,46 @@ export function TextInput({ value, onChange, onClear, entities, onAddEntity, onR
     const selectedText = value.slice(selStart, selEnd).trim();
     if (!selectedText) return;
 
+    // Touch selections come with no pointer position, so anchor the picker
+    // to the selected text itself.
+    const rect = range.getBoundingClientRect();
+
     setPicker({
       word: selectedText.length > 40 ? selectedText.slice(0, 37) + '...' : selectedText,
       start: selStart,
       end: selEnd,
-      x: e.clientX,
-      y: e.clientY,
+      x: clientX ?? rect.left,
+      y: clientY ?? rect.bottom + 8,
     });
 
     selection.removeAllRanges();
   }, [onAddEntity, value]);
+
+  const handleSelectionEnd = useCallback((e: React.MouseEvent) => {
+    openPickerFromSelection(e.clientX, e.clientY);
+  }, [openPickerFromSelection]);
+
+  // On touch devices (iOS in particular) selecting text is a long-press
+  // gesture that never fires mouseup, so the mouseup path above never runs
+  // and only the native copy/look-up callout appears. Instead, watch
+  // selectionchange and open the picker once the selection has stayed put
+  // for a beat (dragging the selection handles keeps resetting the timer).
+  // Coarse-pointer only: desktop keeps its open-at-release-point behavior.
+  useEffect(() => {
+    if (!hasEntities || !onAddEntity) return;
+    if (!window.matchMedia('(pointer: coarse)').matches) return;
+
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const onSelectionChange = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => openPickerFromSelection(), 500);
+    };
+    document.addEventListener('selectionchange', onSelectionChange);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('selectionchange', onSelectionChange);
+    };
+  }, [hasEntities, onAddEntity, openPickerFromSelection]);
 
   const handlePickerSelect = useCallback((type: EntityType) => {
     if (picker && onAddEntity) {
