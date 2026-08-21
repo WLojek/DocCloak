@@ -7,7 +7,13 @@ export function Hero({ onScrollToTool }: { onScrollToTool: () => void }) {
   const { t } = useTranslation();
   const h = t.landing.hero;
   return (
-    <section className="bg-[#F9F9F7] px-6 pt-16 pb-20">
+    // overflow-x-clip: while the censor bar's width animates toward a long
+    // incoming word, the word's invisible in-flow layout copy briefly sticks
+    // out past the viewport before the bar catches up. The copy is invisible,
+    // but the overflow widens the page, which mobile Safari renders as the
+    // whole page zooming out and back. Clip (not hidden) keeps the section
+    // from becoming a scroll container.
+    <section className="bg-[#F9F9F7] px-6 pt-16 pb-20 overflow-x-clip">
       <div className="max-w-4xl mx-auto text-center">
         <h1 className="font-serif text-4xl sm:text-5xl md:text-6xl leading-[1.15] tracking-tight text-[#111111] font-medium max-w-5xl mx-auto">
           {h.titleBefore} <br className="hidden md:block" />
