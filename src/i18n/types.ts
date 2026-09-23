@@ -44,6 +44,13 @@ export interface Translations {
     removeWord: string;
     matchesCase: string;
   };
+  // Mirror of the dictionary: listed words are never anonymized. Shares the
+  // dictionary's control labels; only these three strings differ.
+  ignoreList: {
+    title: string;
+    description: string;
+    placeholder: string;
+  };
   textInput: {
     title: string;
     clear: string;

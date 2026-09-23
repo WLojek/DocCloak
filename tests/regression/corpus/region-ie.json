@@ -61,6 +61,11 @@
         "restored": "Ms. Aoife Byrne, PPS number 1234567T, Eircode A65 F4E2, phone 01 234 5678.",
         "replacements": [
           {
+            "original": "Aoife Byrne",
+            "replacement": "[PERSON_1]",
+            "entityType": "PERSON"
+          },
+          {
             "original": "01 234 5678",
             "replacement": "[PHONE_1]",
             "entityType": "PHONE"
@@ -74,11 +79,6 @@
             "original": "1234567T",
             "replacement": "[SSN_1]",
             "entityType": "SSN"
-          },
-          {
-            "original": "Aoife Byrne",
-            "replacement": "[PERSON_1]",
-            "entityType": "PERSON"
           }
         ]
       }

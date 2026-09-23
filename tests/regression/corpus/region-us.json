@@ -109,6 +109,11 @@
         "restored": "John Q. Public, SSN 078-05-1120, ITIN 912-70-1234, lives at 350 5th Avenue, New York, NY 10001-2345, phone (415) 555-2671. Employer: Acme LLC, EIN 12-3456789, routing 021000021. Wire payable the sum of two hundred fifty dollars.",
         "replacements": [
           {
+            "original": "John Q. Public",
+            "replacement": "[PERSON_1]",
+            "entityType": "PERSON"
+          },
+          {
             "original": "payable the sum of two hundred fifty dollars",
             "replacement": "[CURRENCY_1]",
             "entityType": "CURRENCY"
@@ -152,11 +157,6 @@
             "original": "078-05-1120",
             "replacement": "[SSN_3]",
             "entityType": "SSN"
-          },
-          {
-            "original": "John Q. Public",
-            "replacement": "[PERSON_1]",
-            "entityType": "PERSON"
           }
         ]
       }

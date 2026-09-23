@@ -69,6 +69,11 @@
         "restored": "Hr. Franz Huber, SVNR 1237 010180, Adresse Mariahilfer Straße 45, 1010 Wien, Telefon 0664 1234567.",
         "replacements": [
           {
+            "original": "Franz Huber",
+            "replacement": "[PERSON_1]",
+            "entityType": "PERSON"
+          },
+          {
             "original": "0664 1234567",
             "replacement": "[PHONE_1]",
             "entityType": "PHONE"
@@ -87,11 +92,6 @@
             "original": "1237 010180",
             "replacement": "[SSN_1]",
             "entityType": "SSN"
-          },
-          {
-            "original": "Franz Huber",
-            "replacement": "[PERSON_1]",
-            "entityType": "PERSON"
           }
         ]
       }

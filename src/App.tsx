@@ -67,6 +67,8 @@ export default function App() {
     handleRegexRegionChange,
     dictionary,
     handleDictionaryChange,
+    ignoreList,
+    handleIgnoreListChange,
     docxFileName,
     fileName,
     hasDocxExtraction,
@@ -574,6 +576,8 @@ export default function App() {
 
         {/* Custom dictionary - attached to the workspace, on the way to the Redact button */}
         <DictionaryBar dictionary={dictionary} onChange={handleDictionaryChange} />
+        {/* Ignore list - the dictionary's opposite: listed words are never anonymized */}
+        <DictionaryBar kind="ignore" dictionary={ignoreList} onChange={handleIgnoreListChange} />
 
         {/* Redact button */}
         <div className="sticky bottom-0 z-30 chrome-material py-4 -mx-6 px-6">

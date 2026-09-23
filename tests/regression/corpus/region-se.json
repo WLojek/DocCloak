@@ -85,6 +85,11 @@
         "restored": "Sven Svensson, personnummer 19850523-1478, adress Drottninggatan 42, 111 22 Stockholm, telefon 070-123 45 67. Bolag: Fjällbyggen AB. Belopp med bokstäver: åttatusen femhundra kronor.",
         "replacements": [
           {
+            "original": "Sven Svensson",
+            "replacement": "[PERSON_1]",
+            "entityType": "PERSON"
+          },
+          {
             "original": "med bokstäver: åttatusen femhundra kronor",
             "replacement": "[CURRENCY_1]",
             "entityType": "CURRENCY"
@@ -113,11 +118,6 @@
             "original": "19850523-1478",
             "replacement": "[SSN_1]",
             "entityType": "SSN"
-          },
-          {
-            "original": "Sven Svensson",
-            "replacement": "[PERSON_1]",
-            "entityType": "PERSON"
           }
         ]
       }

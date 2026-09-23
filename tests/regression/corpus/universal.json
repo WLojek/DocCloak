@@ -85,6 +85,11 @@
         "restored": "Contact Jan Kowalski at jan.kowalski@example.com or +48 600 123 456. Server 192.168.1.1 (backup 2001:0db8:85a3:0000:0000:8a2e:0370:7334, MAC 00:1B:44:11:3A:B7) was accessed on 2025-03-15.",
         "replacements": [
           {
+            "original": "Jan Kowalski",
+            "replacement": "[PERSON_1]",
+            "entityType": "PERSON"
+          },
+          {
             "original": "2025-03-15",
             "replacement": "[DATE_1]",
             "entityType": "DATE"
@@ -113,11 +118,6 @@
             "original": "jan.kowalski@example.com",
             "replacement": "[EMAIL_1]",
             "entityType": "EMAIL"
-          },
-          {
-            "original": "Jan Kowalski",
-            "replacement": "[PERSON_1]",
-            "entityType": "PERSON"
           }
         ]
       }

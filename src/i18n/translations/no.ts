@@ -65,6 +65,11 @@ export const no: Translations = {
     removeWord: 'Fjern',
     matchesCase: 'Krever nøyaktig samsvar med store og små bokstaver',
   },
+  ignoreList: {
+    title: 'Unntaksliste',
+    description: 'Anonymiseres aldri, selv om de oppdages.',
+    placeholder: 'f.eks. Oslo',
+  },
   textInput: {
     title: 'Ditt dokument',
     clear: 'Tøm',

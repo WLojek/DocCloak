@@ -93,6 +93,11 @@
         "restored": "D. Carlos Garcia, DNI 12345678Z, NIE X1234567L, domicilio Calle Mayor 15, 28001 Madrid, telefono +34 612 345 678. Empresa: Construcciones García S.L. Importe en letras: ocho mil quinientos euros.",
         "replacements": [
           {
+            "original": "Carlos Garcia",
+            "replacement": "[PERSON_1]",
+            "entityType": "PERSON"
+          },
+          {
             "original": "en letras: ocho mil quinientos euros",
             "replacement": "[CURRENCY_1]",
             "entityType": "CURRENCY"
@@ -126,11 +131,6 @@
             "original": "12345678Z",
             "replacement": "[SSN_2]",
             "entityType": "SSN"
-          },
-          {
-            "original": "Carlos Garcia",
-            "replacement": "[PERSON_1]",
-            "entityType": "PERSON"
           }
         ]
       }

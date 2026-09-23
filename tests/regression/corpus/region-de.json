@@ -85,6 +85,11 @@
         "restored": "Frau Erika Musterfrau, Steuer-ID 12 345 678 903, wohnhaft Friedrichstraße 43, 10115 Berlin, Telefon +49 30 12345678. Arbeitgeber: Musterbau GmbH. Rechnungsbetrag in Höhe von achttausendfünfhundert Euro.",
         "replacements": [
           {
+            "original": "Erika Musterfrau",
+            "replacement": "[PERSON_1]",
+            "entityType": "PERSON"
+          },
+          {
             "original": "in Höhe von achttausendfünfhundert Euro",
             "replacement": "[CURRENCY_1]",
             "entityType": "CURRENCY"
@@ -113,11 +118,6 @@
             "original": "12 345 678 903",
             "replacement": "[SSN_1]",
             "entityType": "SSN"
-          },
-          {
-            "original": "Erika Musterfrau",
-            "replacement": "[PERSON_1]",
-            "entityType": "PERSON"
           }
         ]
       }

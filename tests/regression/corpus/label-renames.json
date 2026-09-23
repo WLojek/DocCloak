@@ -61,14 +61,14 @@
         "restored": "Jan Kowalski <jan.kowalski@example.com> approved the budget for Q3.",
         "replacements": [
           {
-            "original": "jan.kowalski@example.com",
-            "replacement": "[CLIENT_EMAIL]",
-            "entityType": "EMAIL"
-          },
-          {
             "original": "Jan Kowalski",
             "replacement": "[CLIENT]",
             "entityType": "PERSON"
+          },
+          {
+            "original": "jan.kowalski@example.com",
+            "replacement": "[CLIENT_EMAIL]",
+            "entityType": "EMAIL"
           }
         ]
       }

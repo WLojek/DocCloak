@@ -65,6 +65,11 @@ export const en: Translations = {
     removeWord: 'Remove',
     matchesCase: 'Matches exact case',
   },
+  ignoreList: {
+    title: 'Ignore List',
+    description: 'Never anonymized, even when detected.',
+    placeholder: 'e.g. Warsaw',
+  },
   textInput: {
     title: 'Your Document',
     clear: 'Clear',

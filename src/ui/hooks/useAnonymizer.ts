@@ -11,7 +11,7 @@ import { isImageFile, renderRedactedImage } from '@doccloak/core/dom';
 import { loadImageToCanvas, recognizeCanvas } from '../../ocr.web.ts';
 import type { OcrWord } from '@doccloak/core/dom';
 import { useTranslation } from '../../i18n/LanguageContext.tsx';
-import { loadDictionary, saveDictionary, mergeDictionaryEntities } from '../dictionary.ts';
+import { loadDictionary, saveDictionary, mergeDictionaryEntities, loadIgnoreList, saveIgnoreList, filterIgnoredEntities } from '../dictionary.ts';
 import type { DictionaryEntry } from '../dictionary.ts';
 
 export function useAnonymizer() {
@@ -40,6 +40,7 @@ export function useAnonymizer() {
   const [regexRules, setRegexRulesState] = useState(isRegexEnabled());
   const [regexRegion, setRegexRegionState] = useState<RegexRegionId>(getRegexRegion());
   const [dictionary, setDictionaryState] = useState<DictionaryEntry[]>(loadDictionary);
+  const [ignoreList, setIgnoreListState] = useState<DictionaryEntry[]>(loadIgnoreList);
   const [docxFile, setDocxFile] = useState<File | null>(null);
   const [docxFileName, setDocxFileName] = useState<string | null>(null);
   const [imageFileName, setImageFileName] = useState<string | null>(null);
@@ -115,8 +116,14 @@ export function useAnonymizer() {
     })
       .then((results) => {
         if (requestId === latestRequestRef.current) {
-          // Dictionary words are always redacted; detected entities win overlaps
-          const withDictionary = mergeDictionaryEntities(text, results, dictionary);
+          // Dictionary words are always redacted; detected entities win overlaps.
+          // The ignore list is applied last so a listed term is never
+          // anonymized, whichever tier found it.
+          const withDictionary = filterIgnoredEntities(
+            text,
+            mergeDictionaryEntities(text, results, dictionary),
+            ignoreList,
+          );
           setEntities(withDictionary);
           rebuildAnonymization(text, withDictionary, excluded);
           setAnonymizing(false);
@@ -137,11 +144,16 @@ export function useAnonymizer() {
           setDetectionError(err instanceof Error ? err.message : String(err));
         }
       });
-  }, [inputText, dictionary, rebuildAnonymization]);
+  }, [inputText, dictionary, ignoreList, rebuildAnonymization]);
 
   const handleDictionaryChange = useCallback((entries: DictionaryEntry[]) => {
     saveDictionary(entries);
     setDictionaryState(entries);
+  }, []);
+
+  const handleIgnoreListChange = useCallback((entries: DictionaryEntry[]) => {
+    saveIgnoreList(entries);
+    setIgnoreListState(entries);
   }, []);
 
   const handleInputChange = useCallback((text: string) => {
@@ -216,10 +228,14 @@ export function useAnonymizer() {
   }, []);
 
   const renameLabel = useCallback((original: string, newLabel: string) => {
-    const oldLabel = sessionRef.current.getForward(original);
-    if (!oldLabel) return;
-    sessionRef.current.renameLabel(original, newLabel);
-    setAnonymizedText((prev) => prev.replaceAll(oldLabel, () => newLabel));
+    // Renaming a group's base label also re-derives its variant tokens
+    // (core T171: [PERSON_1] -> [CLIENT] takes [PERSON_1_LAST] along), so
+    // apply every pair the session reports, longest old label first so a
+    // base token never splices into its own variant tokens.
+    const pairs = sessionRef.current.renameLabel(original, newLabel)
+      .sort((a, b) => b[0].length - a[0].length);
+    if (pairs.length === 0) return;
+    setAnonymizedText((prev) => pairs.reduce((text, [from, to]) => text.replaceAll(from, () => to), prev));
     setEntries(sessionRef.current.getEntries());
   }, []);
 
@@ -466,6 +482,8 @@ export function useAnonymizer() {
     handleRegexRegionChange,
     dictionary,
     handleDictionaryChange,
+    ignoreList,
+    handleIgnoreListChange,
     loadFile,
     exportDocx,
     exportRedactedImage,

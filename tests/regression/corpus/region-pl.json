@@ -101,6 +101,11 @@
         "restored": "Pani Anna Nowak, PESEL 89052310002, NIP 123-456-78-19, zamieszkała ul. Floriańska 27/3, 31-501 Kraków, tel. +48 600 123 456. Faktura od Bursztynek S.A. na kwotę słownie: osiem tysięcy pięćset złotych. Sygnatura akt III K 123/24.",
         "replacements": [
           {
+            "original": "Anna Nowak",
+            "replacement": "[PERSON_1]",
+            "entityType": "PERSON"
+          },
+          {
             "original": "III K 123/24",
             "replacement": "[OTHER_1]",
             "entityType": "OTHER"
@@ -139,11 +144,6 @@
             "original": "89052310002",
             "replacement": "[SSN_2]",
             "entityType": "SSN"
-          },
-          {
-            "original": "Anna Nowak",
-            "replacement": "[PERSON_1]",
-            "entityType": "PERSON"
           }
         ]
       }

@@ -65,6 +65,11 @@ export const de: Translations = {
     removeWord: 'Entfernen',
     matchesCase: 'Genaue Groß-/Kleinschreibung',
   },
+  ignoreList: {
+    title: 'Ausnahmeliste',
+    description: 'Werden nie anonymisiert, auch wenn sie erkannt werden.',
+    placeholder: 'z. B. Berlin',
+  },
   textInput: {
     title: 'Ihr Dokument',
     clear: 'Löschen',

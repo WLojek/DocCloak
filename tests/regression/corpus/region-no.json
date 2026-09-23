@@ -85,6 +85,11 @@
         "restored": "Ola Nordmann, fødselsnummer 01019912368, adresse Karl Johans gate 22, 0001 Oslo, telefon +47 12 34 56 78. Selskap: Fjellvann ASA. Beløp med bokstaver: åtte tusen fem hundre kroner.",
         "replacements": [
           {
+            "original": "Ola Nordmann",
+            "replacement": "[PERSON_1]",
+            "entityType": "PERSON"
+          },
+          {
             "original": "med bokstaver: åtte tusen fem hundre kroner",
             "replacement": "[CURRENCY_1]",
             "entityType": "CURRENCY"
@@ -113,11 +118,6 @@
             "original": "01019912368",
             "replacement": "[SSN_1]",
             "entityType": "SSN"
-          },
-          {
-            "original": "Ola Nordmann",
-            "replacement": "[PERSON_1]",
-            "entityType": "PERSON"
           }
         ]
       }

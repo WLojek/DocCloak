@@ -146,6 +146,11 @@
         "restored": "Billing contact: Olaf Berg, card 4532 0151 1283 0366, office +1 415 555 2671.",
         "replacements": [
           {
+            "original": "Olaf Berg",
+            "replacement": "[PERSON_1]",
+            "entityType": "PERSON"
+          },
+          {
             "original": "+1 415 555 2671",
             "replacement": "[PHONE_1]",
             "entityType": "PHONE"
@@ -154,11 +159,6 @@
             "original": "4532 0151 1283 0366",
             "replacement": "[CREDIT_CARD_1]",
             "entityType": "CREDIT_CARD"
-          },
-          {
-            "original": "Olaf Berg",
-            "replacement": "[PERSON_1]",
-            "entityType": "PERSON"
           }
         ]
       }

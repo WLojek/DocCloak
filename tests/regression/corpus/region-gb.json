@@ -93,6 +93,11 @@
         "restored": "Mr. Oliver Grant, NINO AB 12 34 56 C, NHS number 943 476 5919, lives at 221B Baker Street, London SW1A 1AA, phone 07911 123456, VAT GB123 4567 89. Employer: Tesco Ltd.",
         "replacements": [
           {
+            "original": "Oliver Grant",
+            "replacement": "[PERSON_1]",
+            "entityType": "PERSON"
+          },
+          {
             "original": "Tesco Ltd",
             "replacement": "[COMPANY_1]",
             "entityType": "COMPANY"
@@ -126,11 +131,6 @@
             "original": "AB 12 34 56 C",
             "replacement": "[SSN_3]",
             "entityType": "SSN"
-          },
-          {
-            "original": "Oliver Grant",
-            "replacement": "[PERSON_1]",
-            "entityType": "PERSON"
           }
         ]
       }

@@ -85,6 +85,11 @@
         "restored": "M. Jean Dupont, NIR 1 85 05 78 049 013 36, demeurant 12 rue de Rivoli, 75008 Paris, tel 06 12 34 56 78. Employeur: Dupont et Fils SARL. Montant soit en lettres: huit mille cinq cents euros.",
         "replacements": [
           {
+            "original": "Jean Dupont",
+            "replacement": "[PERSON_1]",
+            "entityType": "PERSON"
+          },
+          {
             "original": "soit en lettres: huit mille cinq cents euros",
             "replacement": "[CURRENCY_1]",
             "entityType": "CURRENCY"
@@ -113,11 +118,6 @@
             "original": "1 85 05 78 049 013 36",
             "replacement": "[SSN_1]",
             "entityType": "SSN"
-          },
-          {
-            "original": "Jean Dupont",
-            "replacement": "[PERSON_1]",
-            "entityType": "PERSON"
           }
         ]
       }

@@ -69,6 +69,11 @@
         "restored": "Herr Hans Meier, AHV-Nummer 756.1234.5678.97, Bahnhofstrasse 10, 8001 Zürich, Telefon 044 123 45 67.",
         "replacements": [
           {
+            "original": "Hans Meier",
+            "replacement": "[PERSON_1]",
+            "entityType": "PERSON"
+          },
+          {
             "original": "044 123 45 67",
             "replacement": "[PHONE_1]",
             "entityType": "PHONE"
@@ -87,11 +92,6 @@
             "original": "756.1234.5678.97",
             "replacement": "[SSN_1]",
             "entityType": "SSN"
-          },
-          {
-            "original": "Hans Meier",
-            "replacement": "[PERSON_1]",
-            "entityType": "PERSON"
           }
         ]
       }

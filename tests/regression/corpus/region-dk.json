@@ -61,6 +61,11 @@
         "restored": "Hr. Lars Jensen, CPR-nummer 010190-1234, adresse 2100 København, telefon 32 12 34 56.",
         "replacements": [
           {
+            "original": "Lars Jensen",
+            "replacement": "[PERSON_1]",
+            "entityType": "PERSON"
+          },
+          {
             "original": "32 12 34 56",
             "replacement": "[PHONE_1]",
             "entityType": "PHONE"
@@ -74,11 +79,6 @@
             "original": "010190-1234",
             "replacement": "[SSN_1]",
             "entityType": "SSN"
-          },
-          {
-            "original": "Lars Jensen",
-            "replacement": "[PERSON_1]",
-            "entityType": "PERSON"
           }
         ]
       }

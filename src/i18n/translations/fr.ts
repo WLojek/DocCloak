@@ -65,6 +65,11 @@ export const fr: Translations = {
     removeWord: 'Supprimer',
     matchesCase: 'Respecte la casse exacte',
   },
+  ignoreList: {
+    title: "Liste d'exceptions",
+    description: "Jamais anonymisés, même s'ils sont détectés.",
+    placeholder: 'p. ex. Paris',
+  },
   textInput: {
     title: 'Votre document',
     clear: 'Effacer',

@@ -65,6 +65,11 @@ export const pl: Translations = {
     removeWord: 'Usuń',
     matchesCase: 'Dokładna wielkość liter',
   },
+  ignoreList: {
+    title: 'Lista wyjątków',
+    description: 'Nigdy nie anonimizowane, nawet gdy zostaną wykryte.',
+    placeholder: 'np. Warszawa',
+  },
   textInput: {
     title: 'Twój dokument',
     clear: 'Wyczyść',

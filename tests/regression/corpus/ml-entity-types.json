@@ -232,6 +232,11 @@
         "restored": "Maria Silva (maria.silva@example.pt, +351 912 345 678) born 1985-05-23, SSN 900-12-3456, card 4532015112830366, paid $2,500.00 from IBAN PT50000201231234567890154 at 10.0.0.8, living at Rua Augusta 42, Lisboa, works for Contoso Lda under badge OPS-7741, deploys with API key AKIAIOSFODNN7EXAMPLE and signing secret whsec_9f8e7d6c5b4a32100123.",
         "replacements": [
           {
+            "original": "Maria Silva",
+            "replacement": "[PERSON_1]",
+            "entityType": "PERSON"
+          },
+          {
             "original": "whsec_9f8e7d6c5b4a32100123",
             "replacement": "[SECRET_1]",
             "entityType": "SECRET"
@@ -295,11 +300,6 @@
             "original": "maria.silva@example.pt",
             "replacement": "[EMAIL_1]",
             "entityType": "EMAIL"
-          },
-          {
-            "original": "Maria Silva",
-            "replacement": "[PERSON_1]",
-            "entityType": "PERSON"
           }
         ]
       }

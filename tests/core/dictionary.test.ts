@@ -3,8 +3,11 @@ import type { DetectedEntity } from '@doccloak/core';
 import {
   findDictionaryMatches,
   mergeDictionaryEntities,
+  filterIgnoredEntities,
   loadDictionary,
   saveDictionary,
+  loadIgnoreList,
+  saveIgnoreList,
 } from '../../src/ui/dictionary.ts';
 
 const spans = (entities: DetectedEntity[]) => entities.map((e) => [e.start, e.end, e.value]);
@@ -89,12 +92,88 @@ describe('mergeDictionaryEntities', () => {
   });
 });
 
+describe('filterIgnoredEntities', () => {
+  const text = 'Jan Sokół from Sokół Sp. z o.o. met Anna Nowak in Warszawa; sokół flew.';
+  const detected: DetectedEntity[] = [
+    { type: 'PERSON', value: 'Jan Sokół', start: 0, end: 9, confidence: 0.9, detector: 'ml' },
+    { type: 'COMPANY', value: 'Sokół Sp. z o.o.', start: 15, end: 31, confidence: 0.8, detector: 'ml' },
+    { type: 'PERSON', value: 'Anna Nowak', start: 36, end: 46, confidence: 0.9, detector: 'ml' },
+    { type: 'ADDRESS', value: 'Warszawa', start: 50, end: 58, confidence: 0.7, detector: 'ml' },
+    { type: 'OTHER', value: 'sokół', start: 60, end: 65, confidence: 1.0, detector: 'dictionary' },
+  ];
+
+  it('carves ignored words out of entities, case-insensitive by default', () => {
+    const kept = filterIgnoredEntities(text, detected, [
+      { word: 'Warszawa', caseSensitive: false },
+      { word: 'Sokół', caseSensitive: false },
+    ]);
+    // 'Warszawa' and the bare dictionary 'sokół' hit disappear entirely;
+    // 'Jan Sokół' shrinks to 'Jan' and the company keeps its legal suffix,
+    // so the ignored word stays visible while the rest stays protected
+    expect(spans(kept)).toEqual([
+      [0, 3, 'Jan'],
+      [21, 31, 'Sp. z o.o.'],
+      [36, 46, 'Anna Nowak'],
+    ]);
+    expect(kept[0]).toMatchObject({ type: 'PERSON', detector: 'ml', confidence: 0.9 });
+  });
+
+  it('produces "[PERSON_1] Smith" style output for a surname on the list', () => {
+    const t = 'John Smith went to the store';
+    const kept = filterIgnoredEntities(t, [
+      { type: 'PERSON', value: 'John Smith', start: 0, end: 10, confidence: 0.9, detector: 'ml' },
+    ], [{ word: 'Smith', caseSensitive: false }]);
+    expect(spans(kept)).toEqual([[0, 4, 'John']]);
+  });
+
+  it('splits an entity around an ignored word in the middle', () => {
+    const t = 'Anna Maria Nowak';
+    const kept = filterIgnoredEntities(t, [
+      { type: 'PERSON', value: 'Anna Maria Nowak', start: 0, end: 16, confidence: 0.9, detector: 'ml' },
+    ], [{ word: 'Maria', caseSensitive: false }]);
+    expect(spans(kept)).toEqual([[0, 4, 'Anna'], [11, 16, 'Nowak']]);
+  });
+
+  it('removes a longer entity entirely when the full phrase is ignored', () => {
+    const kept = filterIgnoredEntities(text, detected, [{ word: 'Sokół Sp. z o.o.', caseSensitive: false }]);
+    expect(kept.map((e) => e.value)).not.toContain('Sokół Sp. z o.o.');
+    expect(kept).toHaveLength(4);
+  });
+
+  it('respects case sensitivity', () => {
+    const kept = filterIgnoredEntities(text, detected, [{ word: 'Sokół', caseSensitive: true }]);
+    // Only the capitalised occurrences match; the lowercase dictionary hit stays
+    expect(kept.map((e) => e.value)).toContain('sokół');
+    expect(kept.map((e) => e.value)).toContain('Jan');
+  });
+
+  it('matches whole words only', () => {
+    const kept = filterIgnoredEntities('Ann met Anna.', [
+      { type: 'PERSON', value: 'Anna', start: 8, end: 12, confidence: 0.9, detector: 'ml' },
+    ], [{ word: 'Ann', caseSensitive: false }]);
+    expect(kept).toHaveLength(1);
+  });
+
+  it('returns the same array when nothing applies', () => {
+    expect(filterIgnoredEntities(text, detected, [])).toBe(detected);
+    expect(filterIgnoredEntities(text, detected, [{ word: 'Kraków', caseSensitive: false }])).toEqual(detected);
+  });
+});
+
 describe('dictionary persistence', () => {
   beforeEach(() => localStorage.clear());
 
   it('round-trips entries through localStorage', () => {
     saveDictionary([{ word: 'Acme', caseSensitive: true }]);
     expect(loadDictionary()).toEqual([{ word: 'Acme', caseSensitive: true }]);
+  });
+
+  it('keeps the ignore list in its own storage slot', () => {
+    saveDictionary([{ word: 'Acme', caseSensitive: false }]);
+    saveIgnoreList([{ word: 'Warszawa', caseSensitive: false }]);
+    expect(loadDictionary()).toEqual([{ word: 'Acme', caseSensitive: false }]);
+    expect(loadIgnoreList()).toEqual([{ word: 'Warszawa', caseSensitive: false }]);
+    expect(localStorage.getItem('doccloak-ignore-list')).not.toBeNull();
   });
 
   it('drops malformed stored data instead of crashing', () => {

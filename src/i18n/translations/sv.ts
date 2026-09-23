@@ -65,6 +65,11 @@ export const sv: Translations = {
     removeWord: 'Ta bort',
     matchesCase: 'Matchar exakt skiftläge',
   },
+  ignoreList: {
+    title: 'Undantagslista',
+    description: 'Anonymiseras aldrig, även om de upptäcks.',
+    placeholder: 't.ex. Stockholm',
+  },
   textInput: {
     title: 'Ditt dokument',
     clear: 'Rensa',

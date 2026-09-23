@@ -77,6 +77,11 @@
         "restored": "Dhr. Jan de Vries, BSN 123456782, adres Keizersgracht 123, 1012 AB Amsterdam, mobiel 06 12345678. Bedrijf: Tulpenhandel B.V.",
         "replacements": [
           {
+            "original": "Jan de Vries",
+            "replacement": "[PERSON_1]",
+            "entityType": "PERSON"
+          },
+          {
             "original": "Tulpenhandel B.V",
             "replacement": "[COMPANY_1]",
             "entityType": "COMPANY"
@@ -100,11 +105,6 @@
             "original": "123456782",
             "replacement": "[SSN_1]",
             "entityType": "SSN"
-          },
-          {
-            "original": "Jan de Vries",
-            "replacement": "[PERSON_1]",
-            "entityType": "PERSON"
           }
         ]
       }

@@ -61,6 +61,11 @@
         "restored": "Matti Virtanen, henkilötunnus 131052-308T, osoite 00100 Helsinki, puhelin 040 123 4567.",
         "replacements": [
           {
+            "original": "Matti Virtanen",
+            "replacement": "[PERSON_1]",
+            "entityType": "PERSON"
+          },
+          {
             "original": "040 123 4567",
             "replacement": "[PHONE_1]",
             "entityType": "PHONE"
@@ -74,11 +79,6 @@
             "original": "131052-308T",
             "replacement": "[SSN_1]",
             "entityType": "SSN"
-          },
-          {
-            "original": "Matti Virtanen",
-            "replacement": "[PERSON_1]",
-            "entityType": "PERSON"
           }
         ]
       }

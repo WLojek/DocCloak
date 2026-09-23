@@ -65,6 +65,11 @@ export const es: Translations = {
     removeWord: 'Eliminar',
     matchesCase: 'Coincide con las mayúsculas y minúsculas exactas',
   },
+  ignoreList: {
+    title: 'Lista de excepciones',
+    description: 'Nunca se anonimizan, aunque se detecten.',
+    placeholder: 'p. ej. Madrid',
+  },
   textInput: {
     title: 'Su documento',
     clear: 'Borrar',
