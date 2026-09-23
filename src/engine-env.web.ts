@@ -21,8 +21,10 @@ import { AutoTokenizer, env as hfEnv } from '@huggingface/transformers';
 // T116 tokenizer pins (kept in sync with the extension's TOKENIZER_REVISIONS
 // and documentation/model-provenance.md).
 const WEB_TOKENIZER_REVISIONS: Record<string, string> = {
-  // main as of 2026-03-26, pinned 2026-08-12
-  'knowledgator/gliner-pii-edge-v1.0': '9b7f39b0a2da971a5beea78d35f1539d4009c891',
+  // main as of 2025-09-27, pinned 2026-08-26 (T121 edge -> small swap)
+  'knowledgator/gliner-pii-small-v1.0': 'd21aad5b4a7ec82b3d0970fd1ac74a12c087d85e',
+  // main, pinned 2026-08-26 (T122 desktop default, deberta-v3-small vocab)
+  'knowledgator/gliner-pii-base-v1.0': '61726e0ad791dcab3e29339bbec3ad42ded65641',
   // main as of 2026-05-13, pinned 2026-08-12
   'bardsai/eu-pii-anonimization-multilang': '0e72e19f030ed4e661b1673e549af8e0dd176386',
 };

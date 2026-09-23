@@ -11,6 +11,8 @@ public/ort-wasm-simd-threaded.wasm
 public/ort-wasm-simd-threaded.jsep.wasm
 public/ort-wasm-simd-threaded.mjs
 public/ort-wasm-simd-threaded.jsep.mjs
+public/ort-wasm-simd-threaded.asyncify.wasm
+public/ort-wasm-simd-threaded.asyncify.mjs
 
 # Build output
 dist/

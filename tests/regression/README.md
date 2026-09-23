@@ -76,7 +76,7 @@ unexplained failure; an unexplained failure is the corpus doing its job.
 DOCCLOAK_REAL_MODEL=1 npm test -- tests/regression/real-model.test.ts
 ```
 
-Downloads the ~65 MB quantized GLiNER model on first run and needs network
+Downloads the ~83 MB quantized GLiNER model on first run and needs network
 access, so it is skipped by default and in CI. It asserts structural
 invariants (exact regex spans, model-tagged detections, span consistency)
 rather than byte-exact goldens, because model output may legitimately shift

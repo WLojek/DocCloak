@@ -6,17 +6,30 @@
  *
  * Runs on postinstall. All copied files are gitignored.
  */
-import { copyFileSync, mkdirSync } from 'fs';
+import { copyFileSync, mkdirSync, rmSync } from 'fs';
 
 // ONNX Runtime WASM (PII detection models)
+// ort 1.29: core imports the onnxruntime-web/webgpu entry
+// (ort.webgpu.bundle.min.mjs) - the non-deprecated build with the native
+// WebGPU EP + wasm fallback, which loads the unified .asyncify binary.
+// The bare package entry resolves the deprecated JSEP bundle whose wasm
+// (26.5 MiB) exceeds Cloudflare Pages' 25 MiB per-file limit; asyncify
+// (24.6 MiB) fits. Keep the .asyncify.mjs glue for external-wasm /
+// threaded loader paths.
 const ORT_FILES = [
-  'ort-wasm-simd-threaded.wasm',
-  'ort-wasm-simd-threaded.jsep.wasm',
-  'ort-wasm-simd-threaded.mjs',
-  'ort-wasm-simd-threaded.jsep.mjs',
+  'ort-wasm-simd-threaded.asyncify.wasm',
+  'ort-wasm-simd-threaded.asyncify.mjs',
 ];
 for (const f of ORT_FILES) {
   copyFileSync(`node_modules/onnxruntime-web/dist/${f}`, `public/${f}`);
+}
+// Stale assets from earlier ort setups (plain pair <= 1.19, jsep pair from
+// the deprecated bundle entry).
+for (const f of [
+  'ort-wasm-simd-threaded.wasm', 'ort-wasm-simd-threaded.mjs',
+  'ort-wasm-simd-threaded.jsep.wasm', 'ort-wasm-simd-threaded.jsep.mjs',
+]) {
+  rmSync(`public/${f}`, { force: true });
 }
 
 // Tesseract OCR worker + core (single-file builds with embedded WASM).

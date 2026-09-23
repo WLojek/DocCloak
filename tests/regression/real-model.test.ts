@@ -5,7 +5,7 @@
  *
  *   DOCCLOAK_REAL_MODEL=1 npm test -- tests/regression/real-model.test.ts
  *
- * Requirements: network access (downloads the ~65 MB quantized GLiNER model
+ * Requirements: network access (downloads the ~83 MB quantized GLiNER model
  * on first run; afterwards it may be served from the Cache API where
  * available) and several minutes of patience on the first download.
  *

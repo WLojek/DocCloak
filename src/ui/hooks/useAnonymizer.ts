@@ -23,7 +23,7 @@ export function useAnonymizer() {
   const [excludedIndices, setExcludedIndices] = useState<Set<number>>(new Set());
   const [modelLoaded, setModelLoaded] = useState(false);
   const [modelLoading, setModelLoading] = useState(false);
-  // First-visit gate: the ~46 MB model download starts only after the user accepts.
+  // First-visit gate: the ~83 MB model download starts only after the user accepts.
   // Once accepted, later visits load (from cache) without asking again.
   const [modelConsented, setModelConsented] = useState(
     () => localStorage.getItem('doccloak-model-consented') === '1',

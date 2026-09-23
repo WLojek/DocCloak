@@ -314,13 +314,14 @@ export function TextInput({ value, onChange, onClear, entities, onAddEntity, onR
                     }}
                     title={t.textInput.removeRedaction}
                     style={{
-                      // Ink block = "this will be censored"; the colored base keeps the type legible.
-                      backgroundColor: '#111111',
-                      borderBottom: `3px solid ${ENTITY_COLORS[span.entity.type]}`,
-                      color: '#F9F9F7',
-                      padding: '1px 4px',
+                      // Tinted block in the type's own color: more visible than the ink block was.
+                      backgroundColor: ENTITY_COLORS[span.entity.type] + '30',
+                      borderBottom: `2px solid ${ENTITY_COLORS[span.entity.type]}`,
+                      color: ENTITY_COLORS[span.entity.type],
+                      padding: '1px 3px',
                       cursor: 'pointer',
-                    }}
+                      '--mark-color': ENTITY_COLORS[span.entity.type] + '70',
+                    } as React.CSSProperties}
                   >
                     {span.text}
                   </mark>

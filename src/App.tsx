@@ -5,6 +5,7 @@ import { DeAnonymize } from './ui/components/DeAnonymize.tsx';
 import { useAnonymizer } from './ui/hooks/useAnonymizer.ts';
 import { useTranslation } from './i18n/LanguageContext.tsx';
 import { languages } from './i18n/translations/index.ts';
+import { getPagesTranslations } from './i18n/pages/index.ts';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Slider } from '@/components/ui/slider';
@@ -733,6 +734,27 @@ export default function App() {
               </>
             )}
           </div>
+          {/* Content pages: GDPR/trust, profession use cases, Polish landing */}
+          {(() => {
+            const pn = getPagesTranslations(language).nav;
+            const links: [string, string][] = [
+              ['#/gdpr', pn.gdprLink],
+              ['#/for/lawyers', pn.lawyersLink],
+              ['#/for/accountants', pn.accountantsLink],
+              ['#/for/hr', pn.hrLink],
+              ['#/for/researchers', pn.researchersLink],
+              ['#/pl', pn.plLandingLink],
+            ];
+            return (
+              <nav className="flex flex-wrap gap-x-6 gap-y-2 pt-3 border-t border-[#E5E5E0] w-full" aria-label={pn.useCasesLabel}>
+                {links.map(([href, label]) => (
+                  <a key={href} href={href} className="label-meta text-[#111111] hover:underline">
+                    {label}
+                  </a>
+                ))}
+              </nav>
+            );
+          })()}
           <p className="label-meta text-muted-foreground/80 leading-none mt-2 pt-3 border-t border-[#E5E5E0] w-full">
             © {new Date().getFullYear()} DocCloak v{__APP_VERSION__} · core {__CORE_VERSION__} · Built by Witold Łojek
           </p>

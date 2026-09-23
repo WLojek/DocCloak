@@ -87,7 +87,8 @@ function loadSavedProviderId(): ProviderId {
 
 /** Approximate download size per provider, for consent/setup copy. */
 export const PROVIDER_SIZES: Record<ProviderId, string> = {
-  gliner: '65 MB',
+  gliner: '83 MB',
+  'gliner-base': '197 MB',
   bardsai: '279 MB',
 };
 

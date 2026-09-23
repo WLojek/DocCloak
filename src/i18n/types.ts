@@ -27,6 +27,7 @@ export interface Translations {
     detectionModel: string;
     models: {
       gliner: { label: string; description: string };
+      'gliner-base': { label: string; description: string };
       bardsai: { label: string; description: string };
     };
     regexRules: string;

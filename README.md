@@ -39,7 +39,7 @@ The AI never sees the real data. You get the full power of AI assistance without
 - **Secrets and credential detection** - API keys (AWS, GitHub, Slack, OpenAI, Anthropic, Google), private key blocks, JWTs, connection strings, and high-entropy tokens are caught before they reach the AI
 - **Document support** - upload `.doc` and `.docx` files, redact PII, and download the protected file with all formatting preserved
 - **Image support (OCR)** - upload or paste an image or screenshot (`.png`, `.jpg`, `.webp`, `.bmp`, `.gif`); text is extracted locally with Tesseract WebAssembly, run through the same PII detection, and you can download a redacted copy of the image with the sensitive words blacked out
-- **Multiple detection models** - choose between GLiNER PII Edge (~65 MB, multi-language, custom labels) and BardS.ai EU PII (~279 MB, 24 EU languages, 35 entity types). Switch models from settings without reloading. Phones and other low-memory devices default to the lightweight GLiNER model
+- **Multiple detection models** - choose between GLiNER PII Small (~83 MB, multi-language, custom labels), GLiNER PII Base (~197 MB, often better for English and dates, custom labels) and BardS.ai EU PII (~279 MB, best multilingual accuracy, 24+ EU languages, 35 entity types). Switch models from settings without reloading. Phones and other low-memory devices default to the lightweight GLiNER model
 - **Consent-first setup** - nothing downloads until you accept the one-time setup; the model recommended for your device is preselected, and later visits load straight from the browser cache
 - **Resilient model downloads** - interrupted downloads resume where they left off (HTTP Range), transient network errors are retried with backoff, and a Try again button appears if the download ultimately fails
 - **Verified model downloads** - model files are checked against pinned SHA-256 hashes and tokenizers are pinned to exact upstream revisions, so a tampered or corrupted download is rejected instead of loaded
@@ -90,8 +90,8 @@ The output in `dist/` is a static SPA that can be deployed to any static hosting
 | Styling | Tailwind CSS v4 + shadcn/ui (Radix primitives) |
 | PII Engine | [@doccloak/core](https://www.npmjs.com/package/@doccloak/core) (Apache-2.0, [source](https://github.com/WLojek/DocCloak.Core)) |
 | ML Runtime | ONNX Runtime WebAssembly |
-| NER Models | [GLiNER PII Edge v1.0](https://huggingface.co/knowledgator/gliner-pii-edge-v1.0) (~65 MB) / [BardS.ai EU PII](https://huggingface.co/bardsai/eu-pii-anonimization-multilang) (~279 MB) |
-| Tokenizers | [@huggingface/transformers](https://huggingface.co/docs/transformers.js) v3 (loaded from HuggingFace Hub) |
+| NER Models | [GLiNER PII Small v1.0](https://huggingface.co/knowledgator/gliner-pii-small-v1.0) (~83 MB) / [GLiNER PII Base v1.0](https://huggingface.co/knowledgator/gliner-pii-base-v1.0) (~197 MB) / [BardS.ai EU PII](https://huggingface.co/bardsai/eu-pii-anonimization-multilang) (~279 MB) |
+| Tokenizers | [@huggingface/transformers](https://huggingface.co/docs/transformers.js) v4 (loaded from HuggingFace Hub) |
 | Testing | Vitest |
 
 ## Ecosystem
@@ -127,7 +127,7 @@ After a model is downloaded for the first time, DocCloak stores it in the browse
 
 Caching is **best-effort**. If your browser refuses to cache the model - for example because the per-origin storage quota is exceeded, you're using an Incognito/Private window with restricted quota, or the model file is larger than the browser allows for a single Cache entry - DocCloak still loads the model into memory and works normally for the current session. The next visit will simply re-download it instead of using the cache.
 
-The BardS.ai EU PII model (~279 MB) is most likely to hit quota limits, especially in Incognito mode. GLiNER PII Edge (~65 MB) caches reliably almost everywhere. To force a re-download (e.g. after a model update), open DevTools → Application → Cache Storage → delete the `doccloak-models` cache.
+The BardS.ai EU PII model (~279 MB) is most likely to hit quota limits, especially in Incognito mode. GLiNER PII Small (~83 MB) caches reliably almost everywhere. To force a re-download (e.g. after a model update), open DevTools → Application → Cache Storage → delete the `doccloak-models` cache.
 
 The regex rule packs that power structured-pattern detection also live in DocCloak.Core (`rules/*.json`) and are shared unchanged with the DocCloak command-line tool.
 

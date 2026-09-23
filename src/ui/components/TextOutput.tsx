@@ -75,16 +75,17 @@ export function TextOutput({ value, entries, loading }: TextOutputProps) {
           key={i}
           className="entity-highlight-animate"
           style={{
-            // Same ink-block language as the input marks; type color stays as the base.
-            backgroundColor: '#111111',
-            borderBottom: `3px solid ${seg.color}`,
-            color: '#F9F9F7',
-            padding: '1px 4px',
+            // Same tinted-block language as the input marks, in the type's own color.
+            backgroundColor: seg.color + '30',
+            borderBottom: `2px solid ${seg.color}`,
+            color: seg.color,
+            padding: '1px 3px',
             fontWeight: 500,
+            '--mark-color': seg.color + '70',
             // Stamped in sequence; the stagger caps so long documents finish fast.
             animationDelay: `${Math.min(seg.markIndex ?? 0, 15) * 40}ms`,
             animationFillMode: 'backwards',
-          }}
+          } as React.CSSProperties}
         >
           {seg.text}
         </mark>
