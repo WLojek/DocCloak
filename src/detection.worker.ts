@@ -10,6 +10,14 @@ import { createEngine, serveEngine } from '@doccloak/core';
 import type { PortLike } from '@doccloak/core';
 import { createWebCoreEnv } from './engine-env.web.ts';
 
+/**
+ * Explicit-preload mode (T186, security report S9): the engine never downloads
+ * a model from detect() on its own. The main-thread client (src/engine.ts)
+ * triggers the download through the protocol's init/switchProvider messages
+ * once the user has consented to it.
+ */
+const ENGINE_OPTIONS = { autoLoad: false } as const;
+
 const workerPort: PortLike = {
   postMessage: (msg) => self.postMessage(msg),
   onMessage: (cb) => {
@@ -18,4 +26,4 @@ const workerPort: PortLike = {
   },
 };
 
-serveEngine(createEngine(createWebCoreEnv()), workerPort);
+serveEngine(createEngine(createWebCoreEnv(), undefined, ENGINE_OPTIONS), workerPort);

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { X, Upload, FileText, Image as ImageIcon } from 'lucide-react';
 import { useTranslation } from '../../i18n/LanguageContext.tsx';
 import { useToast } from './Toast.tsx';
+import type { LoadFileResult } from '../hooks/useAnonymizer.ts';
 
 interface TextInputProps {
   value: string;
@@ -16,7 +17,7 @@ interface TextInputProps {
   onAddEntity?: (start: number, end: number, type: EntityType) => void;
   onRemoveEntity?: (index: number) => void;
   fileName?: string | null;
-  onLoadFile?: (file: File) => Promise<{ success: boolean; error?: string }>;
+  onLoadFile?: (file: File) => Promise<LoadFileResult>;
   onRemoveFile?: () => void;
 }
 
@@ -81,11 +82,13 @@ export function TextInput({ value, onChange, onClear, entities, onAddEntity, onR
     if (!onLoadFile) return;
     const result = await onLoadFile(file);
     if (!result.success) {
+      // Typed refusals (T177/T178) arrive already translated in `message`;
+      // the raw error text is only the fallback for untyped failures.
       const message = result.error === 'unsupported'
         ? t.textInput.unsupportedFormat
         : result.error === 'no-text'
           ? t.textInput.ocrNoText
-          : (result.error ?? 'Failed to load file');
+          : (result.message ?? result.error ?? 'Failed to load file');
       // Persist the failure in the panel; the toast alone disappears too fast.
       setFileError(message);
       showToast(message);

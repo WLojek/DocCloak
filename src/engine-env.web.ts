@@ -1,13 +1,24 @@
 /**
- * Web CoreEnv for @doccloak/core (T009).
+ * Web CoreEnv for @doccloak/core (T009, T186).
  *
  * The single place where the browser environment is adapted to the core
  * engine contracts: localStorage-backed KV (mapped 1:1 onto the exact keys
  * the app used before the extraction - no prefixing, so legacy profiles
  * read back unchanged), Cache-Storage-backed model blob cache
- * ('doccloak-models'), BASE_URL wasm paths, @huggingface/transformers
- * tokenizer loading, userAgent/deviceMemory hardware hints for the
- * default-model heuristic and navigator.storage.persist().
+ * ('doccloak-models'), BASE_URL wasm paths, tokenizer construction from
+ * core's pinned and hash-checked tokenizer files, userAgent/deviceMemory
+ * hardware hints for the default-model heuristic and
+ * navigator.storage.persist().
+ *
+ * Tokenizers (T186, security report S1/S3/S5): core downloads
+ * tokenizer.json and tokenizer_config.json itself through fetchModelBlob
+ * (immutable resolve/<commit> URL, SHA-256 + size check, 'doccloak-models'
+ * cache, resume and retry) and hands the parsed objects to buildTokenizer.
+ * This module only picks the @huggingface/transformers constructor named by
+ * tokenizer_config.json. Nothing here calls AutoTokenizer.from_pretrained,
+ * so the library never probes the mutable resolve/main branch and never
+ * keeps its own unverified 'transformers-cache' bucket; a warm
+ * 'doccloak-models' cache therefore works with the network switched off.
  *
  * Consumed by the detection worker bootstrap (src/detection.worker.ts).
  * Note: this module statically imports @huggingface/transformers, so only
@@ -16,21 +27,107 @@
  */
 
 import type { BlobCache, CoreEnv, HardwareHints, KVStore } from '@doccloak/core';
-import { AutoTokenizer, env as hfEnv } from '@huggingface/transformers';
-
-// T116 tokenizer pins (kept in sync with the extension's TOKENIZER_REVISIONS
-// and documentation/model-provenance.md).
-const WEB_TOKENIZER_REVISIONS: Record<string, string> = {
-  // main as of 2025-09-27, pinned 2026-08-26 (T121 edge -> small swap)
-  'knowledgator/gliner-pii-small-v1.0': 'd21aad5b4a7ec82b3d0970fd1ac74a12c087d85e',
-  // main, pinned 2026-08-26 (T122 desktop default, deberta-v3-small vocab)
-  'knowledgator/gliner-pii-base-v1.0': '61726e0ad791dcab3e29339bbec3ad42ded65641',
-  // main as of 2026-05-13, pinned 2026-08-12
-  'bardsai/eu-pii-anonimization-multilang': '0e72e19f030ed4e661b1673e549af8e0dd176386',
-};
+import {
+  DebertaV2Tokenizer,
+  PreTrainedTokenizer,
+  XLMRobertaTokenizer,
+  env as hfEnv,
+} from '@huggingface/transformers';
 
 /** The web cache bucket name stays host-side; core never knows it. */
 const MODEL_CACHE_NAME = 'doccloak-models';
+
+/**
+ * Cache Storage bucket @huggingface/transformers filled for
+ * AutoTokenizer.from_pretrained before T186. Its entries were fetched
+ * through the library (resolve/main probes, no hash check), so the bucket
+ * is dropped once per page load and never written again.
+ */
+export const LEGACY_TRANSFORMERS_CACHE_NAME = 'transformers-cache';
+
+// The library must not keep a cache of its own: every tokenizer byte the web
+// app uses comes through core's verified 'doccloak-models' cache.
+hfEnv.useBrowserCache = false;
+// No code path on the web calls from_pretrained any more. Keep both library
+// loaders switched off so an accidental call fails instead of probing
+// huggingface.co or a local path (fail closed).
+hfEnv.allowRemoteModels = false;
+hfEnv.allowLocalModels = false;
+
+type TokenizerJson = Record<string, unknown>;
+type TokenizerConfig = Record<string, unknown>;
+type TokenizerConstructor = new (tokenizerJson: TokenizerJson, tokenizerConfig: TokenizerConfig) => PreTrainedTokenizer;
+
+/**
+ * tokenizer_class values of the pinned providers mapped onto the
+ * @huggingface/transformers constructors (all three are root exports in
+ * 4.2.0). AutoTokenizer.from_pretrained resolves the class the same way
+ * (strip a "Fast" suffix, look the name up) and ends in the same
+ * `new cls(tokenizerJson, tokenizerConfig)` call, so the constructor path
+ * is token-identical to the from_pretrained path; the one difference is
+ * that an unknown class throws here instead of silently falling back to
+ * the base class.
+ *
+ * - PreTrainedTokenizerFast -> PreTrainedTokenizer (GLiNER PII Small)
+ * - DebertaV2Tokenizer (GLiNER PII Base)
+ * - XLMRobertaTokenizer (BardS.ai EU PII)
+ */
+const TOKENIZER_CLASSES: ReadonlyMap<string, TokenizerConstructor> = new Map<string, TokenizerConstructor>([
+  ['PreTrainedTokenizer', PreTrainedTokenizer],
+  ['DebertaV2Tokenizer', DebertaV2Tokenizer],
+  ['XLMRobertaTokenizer', XLMRobertaTokenizer],
+]);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * CoreEnv.buildTokenizer for the web: turn core's verified, parsed
+ * tokenizer.json and tokenizer_config.json into a tokenizer instance.
+ * Never touches the network or Cache Storage. Throws (fail closed) when
+ * tokenizer_config.json names a class outside TOKENIZER_CLASSES.
+ */
+export function buildWebTokenizer(tokenizerJson: unknown, tokenizerConfig: unknown): PreTrainedTokenizer {
+  if (!isRecord(tokenizerJson)) {
+    throw new Error('Pinned tokenizer.json did not parse to an object');
+  }
+  if (!isRecord(tokenizerConfig)) {
+    throw new Error('Pinned tokenizer_config.json did not parse to an object');
+  }
+  const declared = tokenizerConfig.tokenizer_class;
+  if (typeof declared !== 'string' || declared === '') {
+    throw new Error(`Unsupported tokenizer_class: tokenizer_config.json declares none (expected one of ${[...TOKENIZER_CLASSES.keys()].join(', ')})`);
+  }
+  // Fast variants share the tokenizer.json format and the JS constructor.
+  const ctor = TOKENIZER_CLASSES.get(declared.replace(/Fast$/, ''));
+  if (!ctor) {
+    throw new Error(`Unsupported tokenizer_class "${declared}" (expected one of ${[...TOKENIZER_CLASSES.keys()].join(', ')})`);
+  }
+  return new ctor(tokenizerJson, tokenizerConfig);
+}
+
+let legacyCacheCleanup: Promise<boolean> | null = null;
+
+/**
+ * Best-effort, once per page load: drop the library's legacy
+ * 'transformers-cache' bucket. Resolves true when a bucket was removed,
+ * false when there was none or Cache Storage is unavailable; never throws.
+ */
+export function dropLegacyTransformersCache(): Promise<boolean> {
+  if (!legacyCacheCleanup) {
+    legacyCacheCleanup = (async () => {
+      if (typeof caches === 'undefined') return false;
+      try {
+        return await caches.delete(LEGACY_TRANSFORMERS_CACHE_NAME);
+      } catch {
+        // Private mode with strict storage, insecure context: nothing to drop.
+        return false;
+      }
+    })();
+  }
+  return legacyCacheCleanup;
+}
 
 /**
  * localStorage-backed KVStore under the same keys as before the extraction.
@@ -107,8 +204,18 @@ export function webHardwareHints(): HardwareHints {
   return hints;
 }
 
+async function persistWebStorage(): Promise<boolean> {
+  try {
+    return (await navigator.storage?.persist?.()) ?? false;
+  } catch {
+    // No navigator (tests) or persist() rejected: treat as not persisted.
+    return false;
+  }
+}
+
 /** Build the full web CoreEnv (main thread or worker). */
 export function createWebCoreEnv(): CoreEnv {
+  void dropLegacyTransformersCache();
   return {
     kv: localStorageKV(),
     modelCache: cacheStorageBlobCache(),
@@ -119,21 +226,8 @@ export function createWebCoreEnv(): CoreEnv {
     // WASM (ORT's multi-threaded path hangs in some cross-origin-isolated
     // contexts).
     wasm: { paths: import.meta.env.BASE_URL, numThreads: 1 },
-    async loadTokenizer(hfModelId: string): Promise<unknown> {
-      // Configure @huggingface/transformers - load tokenizer from HF
-      hfEnv.allowLocalModels = false;
-      hfEnv.allowRemoteModels = true;
-      // T116: pin the tokenizer revision so the files are immutable
-      // (same pins as the extension; see documentation/model-provenance.md).
-      // Fail closed: a model id without a pin must not fall back to the
-      // mutable main branch.
-      const revision = WEB_TOKENIZER_REVISIONS[hfModelId];
-      if (!revision) {
-        throw new Error(`No pinned tokenizer revision for ${hfModelId} - add it to WEB_TOKENIZER_REVISIONS`);
-      }
-      return AutoTokenizer.from_pretrained(hfModelId, { revision });
-    },
+    buildTokenizer: buildWebTokenizer,
     hardware: webHardwareHints(),
-    persistStorage: async () => (await navigator.storage?.persist?.()) ?? false,
+    persistStorage: persistWebStorage,
   };
 }

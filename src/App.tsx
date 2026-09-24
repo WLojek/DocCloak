@@ -4,23 +4,24 @@ import { EntityTable } from './ui/components/EntityTable.tsx';
 import { DeAnonymize } from './ui/components/DeAnonymize.tsx';
 import { useAnonymizer } from './ui/hooks/useAnonymizer.ts';
 import { useTranslation } from './i18n/LanguageContext.tsx';
-import { languages } from './i18n/translations/index.ts';
-import { getPagesTranslations } from './i18n/pages/index.ts';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+import { LanguageSwitcher } from './ui/components/LanguageSwitcher.tsx';
 import { DictionaryBar } from './ui/components/DictionaryBar.tsx';
-import { Lock, Settings, ArrowRight, Languages, Check, Plus, X, ChevronDown, Info, FileText, Image as ImageIcon, Download, Github, RotateCw } from 'lucide-react';
-import { isImageFile } from '@doccloak/core/dom';
+import { Lock, Settings, ArrowRight, Plus, X, ChevronDown, Info, FileText, Image as ImageIcon, Download, Github, RotateCw } from 'lucide-react';
+import { isImageFile, isUnsupportedDocumentError } from '@doccloak/core/dom';
+import { UnredactableNotice } from './ui/components/UnredactableNotice.tsx';
+import { fileErrorMessage } from './ui/hooks/useAnonymizer.ts';
 import logoSrc from './ui/assets/doc-cloak-logo-light.png';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useToast } from './ui/components/Toast.tsx';
 import { Hero, TrustBand, Audience, HowItWorks, FAQ } from './ui/components/Landing.tsx';
-import { PROVIDERS, REGEX_REGIONS } from '@doccloak/core';
-import { PROVIDER_SIZES, getRecommendedProviderId } from './engine.ts';
+import { REGEX_REGIONS } from '@doccloak/core';
+import { PROVIDERS, getRecommendedProviderId } from './engine.ts';
 import type { RegexRegionId } from '@doccloak/core';
 
 function formatBytes(bytes: number): string {
@@ -31,7 +32,7 @@ function formatBytes(bytes: number): string {
 const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
 
 export default function App() {
-  const { t, language, setLanguage } = useTranslation();
+  const { t } = useTranslation();
   const {
     inputText,
     anonymizedText,
@@ -43,6 +44,7 @@ export default function App() {
     anonymizing,
     detectionProgress,
     detectionError,
+    detectionErrorKind,
     modelError,
     downloadProgress,
     handleInputChange,
@@ -60,6 +62,7 @@ export default function App() {
     handleReplacementModeChange,
     handleCustomLabelsChange,
     activeProvider,
+    selectedProvider,
     handleSwitchProvider,
     regexRules,
     handleRegexChange,
@@ -81,6 +84,11 @@ export default function App() {
     retryModelLoad,
     modelConsented,
     acceptModelDownload,
+    unredactableItems,
+    fileWarnings,
+    allowUnredactable,
+    unredactablePending,
+    continueWithUnredactable,
   } = useAnonymizer();
 
   const { showToast } = useToast();
@@ -93,6 +101,12 @@ export default function App() {
   const toolRef = useRef<HTMLElement>(null);
   const scrollToTool = useCallback(() => {
     toolRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, []);
+  // Consent card: a model picked before consent is a preselection, and the
+  // card (which names it) is where the download actually starts.
+  const consentRef = useRef<HTMLDivElement>(null);
+  const scrollToConsent = useCallback(() => {
+    (consentRef.current ?? toolRef.current)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, []);
   const [scrolled, setScrolled] = useState(false);
   const scrollSentinelRef = useRef<HTMLDivElement>(null);
@@ -129,7 +143,7 @@ export default function App() {
       showToast(t.textOutput.downloaded);
     } catch (err) {
       console.error('[DocCloak] Export failed:', err);
-      showToast(t.textOutput.exportFailed ?? 'Export failed.');
+      showToast(isUnsupportedDocumentError(err) ? fileErrorMessage(t, err.code) : (t.textOutput.exportFailed ?? 'Export failed.'));
     } finally {
       setDownloading(false);
     }
@@ -156,14 +170,14 @@ export default function App() {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
         e.preventDefault();
-        if (inputText.trim() && modelLoaded && !anonymizing) {
+        if (inputText.trim() && modelLoaded && !anonymizing && !unredactablePending) {
           anonymize();
         }
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [inputText, modelLoaded, anonymizing, anonymize]);
+  }, [inputText, modelLoaded, anonymizing, anonymize, unredactablePending]);
 
   // Clear with undo
   const handleClear = useCallback(() => {
@@ -276,26 +290,7 @@ export default function App() {
           </div>
           <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
             {/* Language switcher */}
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-8 gap-1.5 px-2" aria-label={t.header.language}>
-                  <Languages className="w-4 h-4" />
-                  <span className="text-[10px] font-mono uppercase text-[#525252]">{language}</span>
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent align="end" className="w-48 p-1 max-h-[70vh] overflow-auto">
-                {languages.map((lang) => (
-                  <button
-                    key={lang.code}
-                    onClick={() => setLanguage(lang.code)}
-                    className="w-full text-left px-3 py-2 text-sm hover:bg-[#E5E5E0] transition-colors duration-200 flex items-center justify-between cursor-pointer"
-                  >
-                    <span className="text-[#111111]/80">{lang.nativeName}</span>
-                    {language === lang.code && <Check className="w-3.5 h-3.5 text-[#111111]" />}
-                  </button>
-                ))}
-              </PopoverContent>
-            </Popover>
+            <LanguageSwitcher ariaLabel={t.header.language} />
 
             {/* Settings */}
             <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
@@ -315,10 +310,16 @@ export default function App() {
                         return (
                           <button
                             key={p.id}
-                            onClick={() => { setSettingsOpen(false); handleSwitchProvider(p.id); }}
+                            onClick={() => {
+                              setSettingsOpen(false);
+                              void handleSwitchProvider(p.id);
+                              // Before consent this is a preselection: take the user to the card that starts the download.
+                              if (!modelConsented) scrollToConsent();
+                            }}
                             disabled={modelLoading}
+                            aria-pressed={selectedProvider === p.id}
                             className={`w-full text-left px-3 py-2 border transition-colors cursor-pointer ${
-                              activeProvider === p.id
+                              selectedProvider === p.id
                                 ? 'border-[#111111] bg-[#111111]/5 text-[#111111]'
                                 : 'border-[#E5E5E0] text-[#525252] hover:border-[#111111]'
                             } disabled:opacity-50 disabled:cursor-not-allowed`}
@@ -460,13 +461,18 @@ export default function App() {
       {/* Main content (the tool) */}
       <main id="tool" ref={toolRef} className="max-w-6xl mx-auto px-6 py-16 scroll-mt-4">
         {/* First-visit consent: the model download starts only when the user says so.
-            The size shown is the active provider's real download (desktop defaults to
-            the large high-accuracy model, constrained devices to the lightweight one). */}
-        {!modelConsented && !modelLoaded && !modelLoading && !modelError && (
-          <div className="mb-4 border border-[#111111] bg-[#F4F3EE] px-4 py-4 flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
+            The card names the model that will be fetched (the preselection from settings,
+            else this device's default) with its real download size. Nothing is spawned
+            or fetched until Accept: the engine refuses without the stored flag. */}
+        {!modelConsented && !modelLoaded && !modelLoading && !modelError && (() => {
+          const consentEntry = PROVIDERS.find((p) => p.id === selectedProvider) ?? PROVIDERS[0];
+          const consentLabel = t.settings.models[consentEntry.id as keyof typeof t.settings.models]?.label ?? consentEntry.label;
+          return (
+          <div ref={consentRef} className="mb-4 border border-[#111111] bg-[#F4F3EE] px-4 py-4 flex flex-col sm:flex-row sm:items-center gap-4 justify-between scroll-mt-20" data-testid="consent-card">
             <div>
-              <p className="text-sm text-[#111111] font-semibold">{t.loading.setupTitle}</p>
-              <p className="text-xs text-[#525252] mt-1 leading-relaxed max-w-xl">{t.loading.setupBody(PROVIDER_SIZES[activeProvider])}</p>
+              <p className="label-meta text-muted-foreground">{t.loading.setupTitle}</p>
+              <p className="text-sm text-[#111111] font-semibold mt-1">{t.consent.forModel(consentLabel, consentEntry.sizeMB)}</p>
+              <p className="text-xs text-[#525252] mt-1 leading-relaxed max-w-xl">{t.consent.body}</p>
             </div>
             <Button
               onClick={acceptModelDownload}
@@ -477,7 +483,8 @@ export default function App() {
               {t.loading.setupAction}
             </Button>
           </div>
-        )}
+          );
+        })()}
         {/* Engine status strip: setup happens here, the rest of the page stays readable */}
         {modelLoading && (
           <div className="animate-content-reveal-rise mb-4 border border-[#C8C5BC] bg-[#F4F3EE] px-4 py-3" role="status">
@@ -528,6 +535,18 @@ export default function App() {
           </div>
         )}
 
+        {/* Informed-consent export (T177): parts the writer cannot redact. Redact and
+            Download stay disabled for this file until the user chooses Continue or Cancel. */}
+        {hasDocxExtraction && (
+          <UnredactableNotice
+            items={unredactableItems}
+            warnings={fileWarnings}
+            decided={allowUnredactable}
+            onContinue={continueWithUnredactable}
+            onCancel={removeFile}
+          />
+        )}
+
         {/* File bar - input file (left) + download (right) */}
         {fileName && anonymizedText && (
           <div className="animate-content-reveal grid grid-cols-1 md:grid-cols-2 gap-0 border border-b-0 border-[#C8C5BC] bg-[#F4F3EE]">
@@ -540,10 +559,10 @@ export default function App() {
               <p className="text-xs text-[#111111] truncate font-medium">{fileName}</p>
             </div>
             <div className="flex items-center justify-end px-4 py-2">
-              {hasDocxExtraction && entries.length > 0 && (
+              {hasDocxExtraction && (
                 <button
                   onClick={handleDownloadDocx}
-                  disabled={downloading}
+                  disabled={downloading || unredactablePending}
                   className="pressable flex items-center gap-2 px-3 py-1.5 border border-[#C8C5BC] bg-[#FFFFFF] text-[#111111] hover:bg-[#111111] hover:text-[#F9F9F7] hover:border-[#111111] transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-xs font-medium"
                 >
                   <Download className="w-3 h-3" />
@@ -561,6 +580,13 @@ export default function App() {
                 </button>
               )}
             </div>
+          </div>
+        )}
+        {/* Nothing detected in a file (T205): say so instead of a bare file bar. */}
+        {fileName && anonymizedText && !anonymizing && entities.length === 0 && (
+          <div role="status" className="animate-content-reveal border border-b-0 border-[#C8C5BC] bg-[#F4F3EE] px-4 py-2.5 flex items-start gap-2">
+            <Info className="w-3.5 h-3.5 text-[#525252] shrink-0 mt-0.5" />
+            <p className="text-xs text-[#525252] leading-relaxed">{t.textOutput.noDetections}</p>
           </div>
         )}
 
@@ -584,7 +610,7 @@ export default function App() {
           <div className="flex flex-col items-center gap-2 border-t border-[#E5E5E0] pt-4">
             <Button
               onClick={anonymize}
-              disabled={!inputText.trim() || !modelLoaded || anonymizing}
+              disabled={!inputText.trim() || !modelLoaded || anonymizing || unredactablePending}
               size="lg"
               variant="solid"
               className="gap-2 px-12 py-4 text-sm font-semibold disabled:opacity-100 disabled:bg-[#111111]/55 disabled:text-[#F9F9F7] disabled:cursor-not-allowed"
@@ -602,7 +628,9 @@ export default function App() {
             {detectionError && (
               <div className="animate-content-reveal-rise max-w-lg w-full border border-[#CC0000] bg-[#CC0000]/5 p-4 text-center">
                 <p className="text-sm font-semibold text-[#CC0000]">{t.redactButton.detectionFailedTitle}</p>
-                <p className="text-xs text-[#525252] mt-1.5">{t.redactButton.detectionFailedBody}</p>
+                <p className="text-xs text-[#525252] mt-1.5">
+                  {detectionErrorKind === 'timeout' ? t.detect.timeout : t.redactButton.detectionFailedBody}
+                </p>
               </div>
             )}
           </div>
@@ -738,27 +766,6 @@ export default function App() {
               </>
             )}
           </div>
-          {/* Content pages: GDPR/trust, profession use cases, Polish landing */}
-          {(() => {
-            const pn = getPagesTranslations(language).nav;
-            const links: [string, string][] = [
-              ['#/gdpr', pn.gdprLink],
-              ['#/for/lawyers', pn.lawyersLink],
-              ['#/for/accountants', pn.accountantsLink],
-              ['#/for/hr', pn.hrLink],
-              ['#/for/researchers', pn.researchersLink],
-              ['#/pl', pn.plLandingLink],
-            ];
-            return (
-              <nav className="flex flex-wrap gap-x-6 gap-y-2 pt-3 border-t border-[#E5E5E0] w-full" aria-label={pn.useCasesLabel}>
-                {links.map(([href, label]) => (
-                  <a key={href} href={href} className="label-meta text-[#111111] hover:underline">
-                    {label}
-                  </a>
-                ))}
-              </nav>
-            );
-          })()}
           <p className="label-meta text-muted-foreground/80 leading-none mt-2 pt-3 border-t border-[#E5E5E0] w-full">
             © {new Date().getFullYear()} DocCloak v{__APP_VERSION__} · core {__CORE_VERSION__} · Built by Witold Łojek
           </p>

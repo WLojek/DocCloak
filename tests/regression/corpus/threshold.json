@@ -172,6 +172,14 @@
         "entities": [
           {
             "type": "PERSON",
+            "value": "Al",
+            "start": 0,
+            "end": 2,
+            "confidence": 0.95,
+            "detector": "gliner:person name"
+          },
+          {
+            "type": "PERSON",
             "value": "Eva Long",
             "start": 7,
             "end": 15,
@@ -179,13 +187,18 @@
             "detector": "gliner:person name"
           }
         ],
-        "anonymized": "Al met [PERSON_1] at the office.",
+        "anonymized": "[PERSON_2] met [PERSON_1] at the office.",
         "anonymizedAfterRename": null,
         "restored": "Al met Eva Long at the office.",
         "replacements": [
           {
             "original": "Eva Long",
             "replacement": "[PERSON_1]",
+            "entityType": "PERSON"
+          },
+          {
+            "original": "Al",
+            "replacement": "[PERSON_2]",
             "entityType": "PERSON"
           }
         ]

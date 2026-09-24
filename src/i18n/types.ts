@@ -79,6 +79,7 @@ export interface Translations {
     emptyStateStep3: string;
     emptyStateTip: string;
     downloadDocx: string;
+    noDetections: string;
     downloadImage: string;
     downloaded: string;
     exportFailed: string;
@@ -128,6 +129,8 @@ export interface Translations {
     cleared: string;
     redactionRemoved: string;
     undo: string;
+    newVersion: string;
+    reload: string;
   };
   loading: {
     setupTitle: string;
@@ -209,6 +212,43 @@ export interface Translations {
       a5: string;
       q6: string;
       a6: string;
+    };
+  };
+  // T188: consent card copy when a model is preselected before the download consent
+  consent: {
+    /** "Download {model} ({size} MB)?" */
+    forModel: (model: string, sizeMB: number) => string;
+    body: string;
+  };
+  // T188: detection watchdog (no progress for 20 s -> worker restarted)
+  detect: {
+    timeout: string;
+  };
+  // T177/T178: UnsupportedDocumentError codes mapped to a message with a one-line remedy
+  fileErrors: {
+    'unrecognized-namespace': string;
+    'invalid-package': string;
+    'too-large': (limit: string) => string;
+    'fast-saved': string;
+    encrypted: string;
+    'unredactable-parts': string;
+    'empty-document': string;
+  };
+  // T177 founder decision: informed-consent export for parts DocCloak cannot redact
+  unredactable: {
+    title: string;
+    body: string;
+    continue: string;
+    cancel: string;
+    continued: string;
+    warningsTitle: string;
+    kinds: {
+      'embedded-object': string;
+      macros: string;
+      'html-chunk': string;
+      'external-data': string;
+      'printer-settings': string;
+      unknown: (part: string) => string;
     };
   };
 }

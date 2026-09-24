@@ -1,21 +1,77 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import type { DetectedEntity, EntityType, ReplacementEntry } from '@doccloak/core';
-import { detectEntities, preloadModel, onDownloadProgress, setDetectionThreshold, getDetectionThreshold, getCustomLabels, setCustomLabels, switchProvider as engineSwitchProvider, getActiveProviderId, isRegexEnabled, setRegexEnabled, getRegexRegion, setRegexRegionSetting } from '../../engine.ts';
+import {
+  detectEntities,
+  preloadModel,
+  onDownloadProgress,
+  setDetectionThreshold,
+  getDetectionThreshold,
+  getCustomLabels,
+  setCustomLabels,
+  switchProvider as engineSwitchProvider,
+  getActiveProviderId,
+  isRegexEnabled,
+  setRegexEnabled,
+  getRegexRegion,
+  setRegexRegionSetting,
+  hasModelConsent,
+  grantModelConsent,
+  ConsentRequiredError,
+  DetectionTimeoutError,
+} from '../../engine.ts';
 import type { RegexRegionId } from '@doccloak/core';
 import type { ProviderId } from '@doccloak/core';
 import { AnonymizationSession } from '@doccloak/core';
 import type { ReplacementMode } from '@doccloak/core';
-import { readDocx, writeAnonymizedDocx, isLegacyDoc, isSupportedFile } from '@doccloak/core/dom';
-import { readDocText, writeAnonymizedDoc } from '@doccloak/core';
+import {
+  readDocx,
+  writeAnonymizedDocxWithReport,
+  isLegacyDoc,
+  isSupportedFile,
+  isUnsupportedDocumentError,
+} from '@doccloak/core/dom';
+import type { DocxExtraction, DocxWriteOptions, UnsupportedDocumentCode } from '@doccloak/core/dom';
+import { readDocText, writeAnonymizedDoc, inspectDoc } from '@doccloak/core';
 import { isImageFile, renderRedactedImage } from '@doccloak/core/dom';
 import { loadImageToCanvas, recognizeCanvas } from '../../ocr.web.ts';
 import type { OcrWord } from '@doccloak/core/dom';
 import { useTranslation } from '../../i18n/LanguageContext.tsx';
+import type { Translations } from '../../i18n/types.ts';
+import { useToast } from '../components/Toast.tsx';
+import type { UnredactableItem } from '../components/UnredactableNotice.tsx';
 import { loadDictionary, saveDictionary, mergeDictionaryEntities, loadIgnoreList, saveIgnoreList, filterIgnoredEntities } from '../dictionary.ts';
 import type { DictionaryEntry } from '../dictionary.ts';
 
+/**
+ * Unpacked-size limit Core enforces on Office packages (T177, zip-bomb
+ * guard). Quoted in the 'too-large' message; keep in sync with Core.
+ */
+export const UNPACKED_SIZE_LIMIT_LABEL = '200 MB';
+
+/** Stable file-refusal codes the UI can translate (Core codes + our own). */
+export type FileErrorCode = UnsupportedDocumentCode | 'empty-document';
+
+/** Translated message with a one-line remedy for a refusal code. */
+export function fileErrorMessage(t: Translations, code: FileErrorCode): string {
+  if (code === 'too-large') return t.fileErrors['too-large'](UNPACKED_SIZE_LIMIT_LABEL);
+  return t.fileErrors[code];
+}
+
+/** Result of loadFile: `code` + `message` are set for typed refusals. */
+export interface LoadFileResult {
+  success: boolean;
+  /** Raw error text or a legacy sentinel ('unsupported', 'no-text'). */
+  error?: string;
+  code?: FileErrorCode;
+  /** Translated, user-facing message when `code` is set. */
+  message?: string;
+}
+
+export type DetectionErrorKind = 'failed' | 'timeout';
+
 export function useAnonymizer() {
-  const { language } = useTranslation();
+  const { language, t } = useTranslation();
+  const { showToast } = useToast();
   const [inputText, setInputText] = useState('');
   const [anonymizedText, setAnonymizedText] = useState('');
   const [entities, setEntities] = useState<DetectedEntity[]>([]);
@@ -23,16 +79,20 @@ export function useAnonymizer() {
   const [excludedIndices, setExcludedIndices] = useState<Set<number>>(new Set());
   const [modelLoaded, setModelLoaded] = useState(false);
   const [modelLoading, setModelLoading] = useState(false);
-  // First-visit gate: the ~83 MB model download starts only after the user accepts.
-  // Once accepted, later visits load (from cache) without asking again.
-  const [modelConsented, setModelConsented] = useState(
-    () => localStorage.getItem('doccloak-model-consented') === '1',
-  );
+  // First-visit gate: the model download starts only after the user accepts.
+  // Once accepted, later visits load (from cache) without asking again. The
+  // engine enforces the same flag (ConsentRequiredError), this mirror only
+  // drives the UI.
+  const [modelConsented, setModelConsented] = useState(hasModelConsent);
+  // Model chosen before consent (preselection): the consent card names it and
+  // Accept switches to it instead of loading the saved default.
+  const [pendingProvider, setPendingProvider] = useState<ProviderId | null>(null);
   const [modelError, setModelError] = useState(false);
   const [anonymizing, setAnonymizing] = useState(false);
   const [detectionProgress, setDetectionProgress] = useState<number | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<{ downloaded: number; total: number } | null>(null);
   const [detectionError, setDetectionError] = useState<string | null>(null);
+  const [detectionErrorKind, setDetectionErrorKind] = useState<DetectionErrorKind | null>(null);
   const [threshold, setThreshold] = useState(getDetectionThreshold());
   const [replacementMode, setReplacementModeState] = useState<ReplacementMode>('labeled');
   const [customLabels, setCustomLabelsState] = useState<string[]>(getCustomLabels());
@@ -45,12 +105,21 @@ export function useAnonymizer() {
   const [docxFileName, setDocxFileName] = useState<string | null>(null);
   const [imageFileName, setImageFileName] = useState<string | null>(null);
   const [ocrProgress, setOcrProgress] = useState<number | null>(null);
+  // Informed-consent export (T177): parts the writer cannot redact, reader
+  // warnings, and whether the user chose Continue for this file.
+  const [unredactableItems, setUnredactableItems] = useState<UnredactableItem[]>([]);
+  const [fileWarnings, setFileWarnings] = useState<string[]>([]);
+  const [allowUnredactable, setAllowUnredactable] = useState(false);
   const imageCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const ocrWordsRef = useRef<OcrWord[]>([]);
   const sessionRef = useRef(new AnonymizationSession());
   const latestRequestRef = useRef(0);
 
-  // Load (or retry loading) the detection model with progress tracking
+  const unredactablePending = unredactableItems.length > 0 && !allowUnredactable;
+
+  // Load (or retry loading) the detection model with progress tracking.
+  // Goes through the engine's consent gate: without the stored flag the
+  // engine refuses, and the UI falls back to the consent card.
   const startModelLoad = useCallback(() => {
     setModelLoading(true);
     setModelError(false);
@@ -66,25 +135,69 @@ export function useAnonymizer() {
         setDownloadProgress(null);
         setCustomLabelsState(getCustomLabels());
       })
-      .catch((err) => {
-        console.error('Model loading failed:', err);
+      .catch((err: unknown) => {
         setModelLoading(false);
-        setModelError(true);
         setDownloadProgress(null);
+        if (err instanceof ConsentRequiredError) {
+          setModelConsented(false);
+          setPendingProvider(err.providerId);
+          return;
+        }
+        console.error('Model loading failed:', err);
+        setModelError(true);
       });
   }, []);
 
-  // Preload detection model in the background on mount, but only after the
-  // user has accepted the first-time download.
+  // Preload the detection model on mount, but only when the user has already
+  // accepted the one-time download on an earlier visit.
   useEffect(() => {
-    if (modelConsented) startModelLoad();
-  }, [modelConsented, startModelLoad]);
+    if (hasModelConsent()) startModelLoad();
+  }, [startModelLoad]);
 
-  // First-visit accept: persist the choice and start the download immediately.
-  const acceptModelDownload = useCallback(() => {
-    localStorage.setItem('doccloak-model-consented', '1');
-    setModelConsented(true);
+  // Switch the engine to `id` (download or cache read). Shared by the
+  // settings selector (after consent) and the Accept button (preselection).
+  const switchTo = useCallback(async (id: ProviderId) => {
+    setModelLoading(true);
+    setModelLoaded(false);
+    setModelError(false);
+    setDownloadProgress(null);
+    try {
+      await engineSwitchProvider(id, (downloaded, total) => {
+        setDownloadProgress({ downloaded, total });
+      });
+      setActiveProvider(id);
+      setPendingProvider(null);
+      setModelLoaded(true);
+      setModelLoading(false);
+      setDownloadProgress(null);
+      setCustomLabelsState(getCustomLabels());
+      setThreshold(getDetectionThreshold());
+    } catch (err) {
+      setModelLoading(false);
+      setDownloadProgress(null);
+      if (err instanceof ConsentRequiredError) {
+        setModelConsented(false);
+        setPendingProvider(id);
+        return;
+      }
+      console.error('Model switch failed:', err);
+      setModelError(true);
+    }
   }, []);
+
+  // First-visit accept: persist the choice, then load the preselected model
+  // (switch) or the saved default (preload). Exactly one engine call.
+  const acceptModelDownload = useCallback(() => {
+    grantModelConsent();
+    setModelConsented(true);
+    const target = pendingProvider;
+    setPendingProvider(null);
+    if (target && target !== activeProvider) {
+      void switchTo(target);
+    } else {
+      startModelLoad();
+    }
+  }, [pendingProvider, activeProvider, switchTo, startModelLoad]);
 
   const rebuildAnonymization = useCallback(
     (text: string, allEntities: DetectedEntity[], excluded: Set<number>) => {
@@ -100,9 +213,12 @@ export function useAnonymizer() {
   const anonymize = useCallback(() => {
     const text = inputText;
     if (!text.trim()) return;
+    // The user has not yet decided what to do with parts we cannot redact.
+    if (unredactablePending) return;
 
     setAnonymizing(true);
     setDetectionError(null);
+    setDetectionErrorKind(null);
     setDetectionProgress(0);
     const requestId = ++latestRequestRef.current;
     const excluded = new Set<number>();
@@ -136,15 +252,30 @@ export function useAnonymizer() {
           }
         }
       })
-      .catch((err) => {
+      .catch((err: unknown) => {
         console.error('[DocCloak] Detection failed:', err);
-        if (requestId === latestRequestRef.current) {
-          setAnonymizing(false);
-          setDetectionProgress(null);
-          setDetectionError(err instanceof Error ? err.message : String(err));
+        if (requestId !== latestRequestRef.current) return;
+        setAnonymizing(false);
+        setDetectionProgress(null);
+        if (err instanceof ConsentRequiredError) {
+          // Consent flag gone (storage cleared): back to the card, no error.
+          setModelLoaded(false);
+          setModelConsented(false);
+          setPendingProvider(err.providerId);
+          return;
         }
+        if (err instanceof DetectionTimeoutError) {
+          // Watchdog: the worker reported no progress for 20 s and was
+          // restarted. The remedy is to split the document.
+          setDetectionErrorKind('timeout');
+          setDetectionError(t.detect.timeout);
+          showToast(t.detect.timeout);
+          return;
+        }
+        setDetectionErrorKind('failed');
+        setDetectionError(err instanceof Error ? err.message : String(err));
       });
-  }, [inputText, dictionary, ignoreList, rebuildAnonymization]);
+  }, [inputText, dictionary, ignoreList, rebuildAnonymization, unredactablePending, showToast, t]);
 
   const handleDictionaryChange = useCallback((entries: DictionaryEntry[]) => {
     saveDictionary(entries);
@@ -259,29 +390,17 @@ export function useAnonymizer() {
     setRegexRegionSetting(region);
   }, []);
 
+  // Settings selector. Before consent a click is a preselection: nothing is
+  // downloaded, the consent card names the chosen model instead.
   const handleSwitchProvider = useCallback(async (id: ProviderId) => {
-    if (id === activeProvider) return;
-    setModelLoading(true);
-    setModelLoaded(false);
-    setModelError(false);
-    setDownloadProgress(null);
-    try {
-      await engineSwitchProvider(id, (downloaded, total) => {
-        setDownloadProgress({ downloaded, total });
-      });
-      setActiveProvider(id);
-      setModelLoaded(true);
-      setModelLoading(false);
-      setDownloadProgress(null);
-      setCustomLabelsState(getCustomLabels());
-      setThreshold(getDetectionThreshold());
-    } catch (err) {
-      console.error('Model switch failed:', err);
-      setModelLoading(false);
-      setModelError(true);
-      setDownloadProgress(null);
+    if (!hasModelConsent()) {
+      setModelConsented(false);
+      setPendingProvider(id);
+      return;
     }
-  }, [activeProvider]);
+    if (id === activeProvider) return;
+    await switchTo(id);
+  }, [activeProvider, switchTo]);
 
   const handleReplacementModeChange = useCallback((mode: ReplacementMode) => {
     setReplacementModeState(mode);
@@ -297,27 +416,67 @@ export function useAnonymizer() {
     ocrWordsRef.current = [];
   }, []);
 
-  const loadDocxFile = useCallback(async (file: File): Promise<{ success: boolean; error?: string }> => {
+  const resetUnredactableState = useCallback(() => {
+    setUnredactableItems([]);
+    setFileWarnings([]);
+    setAllowUnredactable(false);
+  }, []);
+
+  const loadDocxFile = useCallback(async (file: File): Promise<LoadFileResult> => {
     if (!isSupportedFile(file.name)) {
       return { success: false, error: 'unsupported' };
     }
     try {
       let plainText: string;
+      let items: UnredactableItem[] = [];
+      let warnings: string[] = [];
+      let empty = false;
 
       if (isLegacyDoc(file.name)) {
-        // Legacy .doc: try as .docx first (some .doc files are renamed .docx)
+        // Legacy .doc: try as .docx first (some .doc files are renamed .docx).
+        // Only the reader's failure is swallowed; readDocText's typed refusals
+        // (fast-saved, encrypted) reach the outer catch and get translated.
+        let extraction: DocxExtraction | null = null;
         try {
-          const extraction = await readDocx(file);
-          plainText = extraction.plainText;
+          extraction = await readDocx(file);
         } catch {
-          // Not a .docx in disguise - parse as real .doc binary
+          extraction = null;
+        }
+        if (extraction) {
+          plainText = extraction.plainText;
+          items = extraction.unredactable;
+          warnings = extraction.warnings;
+          empty = extraction.empty;
+        } else {
           const buffer = await file.arrayBuffer();
           plainText = readDocText(buffer);
+          empty = plainText.trim().length === 0;
+          // ObjectPool (embedded OLE objects) and Macros (VBA) are copied
+          // through the .doc export unchanged: same informed-consent card.
+          const inspection = inspectDoc(buffer);
+          if (inspection.streams.objectPool) {
+            items.push({ part: 'ObjectPool', kind: 'embedded-object', label: 'embedded OLE objects' });
+          }
+          if (inspection.streams.macros) {
+            items.push({ part: 'Macros', kind: 'macros', label: 'VBA macros' });
+          }
         }
       } else {
         // Standard .docx
         const extraction = await readDocx(file);
         plainText = extraction.plainText;
+        items = extraction.unredactable;
+        warnings = extraction.warnings;
+        empty = extraction.empty;
+      }
+
+      if (empty) {
+        return {
+          success: false,
+          error: 'empty-document',
+          code: 'empty-document',
+          message: fileErrorMessage(t, 'empty-document'),
+        };
       }
 
       resetImageState();
@@ -328,15 +487,21 @@ export function useAnonymizer() {
       setEntities([]);
       setEntries([]);
       setExcludedIndices(new Set());
+      setUnredactableItems(items);
+      setFileWarnings(warnings);
+      setAllowUnredactable(false);
       sessionRef.current.clear();
       return { success: true };
     } catch (err) {
       console.error('[DocCloak] Failed to read file:', err);
+      if (isUnsupportedDocumentError(err)) {
+        return { success: false, error: err.message, code: err.code, message: fileErrorMessage(t, err.code) };
+      }
       return { success: false, error: err instanceof Error ? err.message : String(err) };
     }
-  }, [resetImageState]);
+  }, [resetImageState, t]);
 
-  const loadImageFile = useCallback(async (file: File): Promise<{ success: boolean; error?: string }> => {
+  const loadImageFile = useCallback(async (file: File): Promise<LoadFileResult> => {
     try {
       setOcrProgress(0);
       const canvas = await loadImageToCanvas(file);
@@ -350,6 +515,7 @@ export function useAnonymizer() {
       setImageFileName(file.name);
       setDocxFile(null);
       setDocxFileName(null);
+      resetUnredactableState();
       setInputText(text);
       setAnonymizedText('');
       setEntities([]);
@@ -363,10 +529,10 @@ export function useAnonymizer() {
     } finally {
       setOcrProgress(null);
     }
-  }, [language]);
+  }, [language, resetUnredactableState]);
 
   // Route uploads by type: images go through OCR, documents through the docx reader
-  const loadFile = useCallback(async (file: File): Promise<{ success: boolean; error?: string }> => {
+  const loadFile = useCallback(async (file: File): Promise<LoadFileResult> => {
     if (isImageFile(file.name)) return loadImageFile(file);
     return loadDocxFile(file);
   }, [loadImageFile, loadDocxFile]);
@@ -381,8 +547,15 @@ export function useAnonymizer() {
   }, [entities, excludedIndices]);
 
   const exportDocx = useCallback(async (): Promise<Blob> => {
-    if (!docxFile || entities.length === 0) {
-      throw new Error('No document or entities to export');
+    // A file with no detections can still be exported (T205): the writer
+    // scrubs metadata and revision fingerprints, and a user who added nothing
+    // to the dictionary gets the same file back with those cleaned.
+    if (!docxFile) {
+      throw new Error('No document to export');
+    }
+    if (unredactablePending) {
+      // Fail closed: the user has not confirmed the unredactable parts.
+      throw new Error('Unredactable parts have not been confirmed');
     }
 
     const activeEntities = entities.filter((_, i) => !excludedIndices.has(i));
@@ -401,33 +574,64 @@ export function useAnonymizer() {
       replacement: sessionRef.current.getForward(entity.value) ?? '',
     }));
 
-    if (isLegacyDoc(docxFile.name)) {
-      // Legacy .doc: try .docx first (renamed files), fall back to .doc binary export
+    // The writer stays fail-closed by default; allowUnredactable is true only
+    // after the user chose Continue on the notice.
+    const writeOptions: DocxWriteOptions = { allowUnredactable };
+
+    const writeDocx = async (extraction: DocxExtraction): Promise<Blob> => {
       try {
-        const extraction = await readDocx(docxFile);
-        return await writeAnonymizedDocx(extraction, replacements, valueReplacements);
-      } catch {
-        const buffer = await docxFile.arrayBuffer();
-        return await writeAnonymizedDoc(buffer, replacements);
+        const result = await writeAnonymizedDocxWithReport(extraction, replacements, valueReplacements, writeOptions);
+        if (result.warnings.length > 0) {
+          setFileWarnings((prev) => Array.from(new Set([...prev, ...result.warnings])));
+        }
+        return result.blob;
+      } catch (err) {
+        if (isUnsupportedDocumentError(err) && err.code === 'unredactable-parts') {
+          // Only reachable when the writer knows about parts the reader did
+          // not report: surface the notice so the user can decide.
+          const parts = err.details.length > 0 ? err.details : ['?'];
+          setUnredactableItems(parts.map((part) => ({ part, kind: 'unknown' as const })));
+          setAllowUnredactable(false);
+        }
+        throw err;
       }
-    } else {
-      // Standard .docx
-      const extraction = await readDocx(docxFile);
-      return await writeAnonymizedDocx(extraction, replacements, valueReplacements);
+    };
+
+    if (isLegacyDoc(docxFile.name)) {
+      // Legacy .doc: .docx first (renamed files), else the .doc binary writer.
+      let extraction: DocxExtraction | null = null;
+      try {
+        extraction = await readDocx(docxFile);
+      } catch {
+        extraction = null;
+      }
+      if (extraction) return writeDocx(extraction);
+      const buffer = await docxFile.arrayBuffer();
+      return writeAnonymizedDoc(buffer, replacements, valueReplacements);
     }
-  }, [docxFile, entities, excludedIndices]);
+    // Standard .docx
+    const extraction = await readDocx(docxFile);
+    return writeDocx(extraction);
+  }, [docxFile, entities, excludedIndices, allowUnredactable, unredactablePending]);
 
   const removeFile = useCallback(() => {
     setDocxFile(null);
     setDocxFileName(null);
     resetImageState();
+    resetUnredactableState();
     setInputText('');
     setAnonymizedText('');
     setEntities([]);
     setEntries([]);
     setExcludedIndices(new Set());
     sessionRef.current.clear();
-  }, [resetImageState]);
+  }, [resetImageState, resetUnredactableState]);
+
+  // Informed-consent export: the user accepts that the listed parts stay
+  // exactly as they are in the exported file.
+  const continueWithUnredactable = useCallback(() => {
+    setAllowUnredactable(true);
+  }, []);
 
   const clear = useCallback(() => {
     setInputText('');
@@ -438,8 +642,9 @@ export function useAnonymizer() {
     setDocxFile(null);
     setDocxFileName(null);
     resetImageState();
+    resetUnredactableState();
     sessionRef.current.clear();
-  }, [resetImageState]);
+  }, [resetImageState, resetUnredactableState]);
 
   return {
     inputText,
@@ -453,6 +658,7 @@ export function useAnonymizer() {
     anonymizing,
     detectionProgress,
     detectionError,
+    detectionErrorKind,
     downloadProgress,
     threshold,
     replacementMode,
@@ -475,6 +681,9 @@ export function useAnonymizer() {
     handleReplacementModeChange,
     handleCustomLabelsChange,
     activeProvider,
+    /** Model the settings selector highlights: the preselection before consent, else the active one. */
+    selectedProvider: pendingProvider ?? activeProvider,
+    pendingProvider,
     handleSwitchProvider,
     regexRules,
     handleRegexChange,
@@ -491,5 +700,10 @@ export function useAnonymizer() {
     retryModelLoad: startModelLoad,
     modelConsented,
     acceptModelDownload,
+    unredactableItems,
+    fileWarnings,
+    allowUnredactable,
+    unredactablePending,
+    continueWithUnredactable,
   };
 }

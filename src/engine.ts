@@ -7,10 +7,22 @@
  * talks to it through connectEngine. The export surface is unchanged so
  * useAnonymizer.ts and App.tsx compile as-is; engine logic and the message
  * protocol now live in @doccloak/core.
+ *
+ * Security remediation 2026-09 (T188):
+ * - Consent gate (S2): preloadModel() and switchProvider() are the only two
+ *   paths that can start a model download, and both refuse with
+ *   ConsentRequiredError until localStorage['doccloak-model-consented'] is
+ *   '1'. detectEntities() awaits preloadModel() first (the worker runs with
+ *   autoLoad: false, so detect() alone never downloads anything).
+ * - Watchdog (R1): a detect call that reports no progress for
+ *   DETECTION_STALL_MS terminates the worker, spawns a fresh one and rejects
+ *   with DetectionTimeoutError. Progress-based on purpose: ML detection on a
+ *   phone legitimately takes minutes and reports per chunk; a hung regex
+ *   reports nothing. There is no total time budget.
  */
 
 import {
-  PROVIDERS,
+  PROVIDERS as CORE_PROVIDERS,
   REGEX_REGIONS,
   ENGINE_SETTINGS_KEYS,
   clampThreshold,
@@ -28,10 +40,90 @@ import type {
   RegexRegionId,
 } from '@doccloak/core';
 
-// Re-export the registry and region catalog (moved to core in T009) so the
-// adapter keeps the full legacy engine surface in one module.
-export { PROVIDERS, REGEX_REGIONS };
+// Re-export the region catalog (moved to core in T009) so the adapter keeps
+// the full legacy engine surface in one module.
+export { REGEX_REGIONS };
 export type { ProviderId, ProviderEntry, RegexRegionId };
+
+// ── Provider table with download sizes ─────────────────────
+
+/** Approximate download size per provider in MB (consent card, setup copy). */
+export const PROVIDER_SIZE_MB: Record<ProviderId, number> = {
+  gliner: 83,
+  'gliner-base': 197,
+  bardsai: 279,
+};
+
+/** Core's provider entry plus the download size the consent card quotes. */
+export type WebProviderEntry = ProviderEntry & { sizeMB: number };
+
+/**
+ * The provider registry with `sizeMB` next to `label`. Same order and ids as
+ * core's PROVIDERS; UI code that needs the size reads it from here.
+ */
+export const PROVIDERS: readonly WebProviderEntry[] = CORE_PROVIDERS.map((p) => ({
+  ...p,
+  sizeMB: PROVIDER_SIZE_MB[p.id],
+}));
+
+/** Approximate download size per provider, formatted for copy ("83 MB"). */
+export const PROVIDER_SIZES: Record<ProviderId, string> = Object.fromEntries(
+  (Object.keys(PROVIDER_SIZE_MB) as ProviderId[]).map((id) => [id, `${PROVIDER_SIZE_MB[id]} MB`]),
+) as Record<ProviderId, string>;
+
+// ── Consent gate (S2) ──────────────────────────────────────
+
+/** localStorage key that records the user's one-time download consent. */
+export const CONSENT_STORAGE_KEY = 'doccloak-model-consented';
+
+/**
+ * Thrown by preloadModel() / switchProvider() when the consent flag is not
+ * stored. The hook catches it, remembers `providerId` as the pending choice
+ * and shows the consent card; nothing has been downloaded or spawned.
+ */
+export class ConsentRequiredError extends Error {
+  readonly providerId: ProviderId;
+  constructor(providerId: ProviderId) {
+    super(`Model download for "${providerId}" requires the user's consent (${CONSENT_STORAGE_KEY} is not set)`);
+    this.name = 'ConsentRequiredError';
+    this.providerId = providerId;
+    Object.setPrototypeOf(this, new.target.prototype);
+  }
+}
+
+/** True when the user has accepted the one-time model download. */
+export function hasModelConsent(): boolean {
+  try {
+    return localStorage.getItem(CONSENT_STORAGE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+/** Persist the consent flag. Only the Accept button calls this. */
+export function grantModelConsent(): void {
+  localStorage.setItem(CONSENT_STORAGE_KEY, '1');
+}
+
+// ── Watchdog (R1) ──────────────────────────────────────────
+
+/** No progress event for this long during a detect call = hung worker. */
+export const DETECTION_STALL_MS = 20_000;
+
+/**
+ * Rejection reason for a detect call the watchdog gave up on. The worker has
+ * already been terminated and a fresh one is warming up (from cache, through
+ * the consent gate); the UI tells the user to split the document.
+ */
+export class DetectionTimeoutError extends Error {
+  readonly stallMs: number;
+  constructor(stallMs: number = DETECTION_STALL_MS) {
+    super(`Detection reported no progress for ${Math.round(stallMs / 1000)} s; the worker was restarted`);
+    this.name = 'DetectionTimeoutError';
+    this.stallMs = stallMs;
+    Object.setPrototypeOf(this, new.target.prototype);
+  }
+}
 
 // ── Acceleration setting ───────────────────────────────────
 export type AccelMode = 'auto' | 'webgpu' | 'wasm';
@@ -85,13 +177,6 @@ function loadSavedProviderId(): ProviderId {
   return pickDefaultProvider(mainThreadHardwareHints());
 }
 
-/** Approximate download size per provider, for consent/setup copy. */
-export const PROVIDER_SIZES: Record<ProviderId, string> = {
-  gliner: '83 MB',
-  'gliner-base': '197 MB',
-  bardsai: '279 MB',
-};
-
 /**
  * The provider core would pick for this device, ignoring any saved choice.
  * Desktop gets the large high-accuracy model; mobile/low-memory devices get
@@ -103,7 +188,54 @@ export function getRecommendedProviderId(): ProviderId {
 }
 
 // ── Worker connection + settings mirrors ──────────────────
-let worker: Worker | null = null;
+
+/**
+ * What getClient() spawns: the engine client plus a way to kill the worker
+ * behind it. Tests inject a stub through _setClientFactoryForTests so no
+ * Worker (and no network) is ever touched.
+ */
+export interface ClientHandle {
+  client: EngineClient;
+  terminate: () => void;
+}
+
+type ClientFactory = (initial: {
+  providerId: ProviderId;
+  threshold: number;
+  regexEnabled: boolean;
+  regexRegion: RegexRegionId;
+  customLabels: string[];
+}, onWorkerError: (err: Error) => void) => ClientHandle;
+
+function spawnWorkerClient(
+  initial: Parameters<ClientFactory>[0],
+  onWorkerError: (err: Error) => void,
+): ClientHandle {
+  const w = new Worker(
+    new URL('./detection.worker.ts', import.meta.url),
+    { type: 'module' },
+  );
+  const c = connectEngine(
+    {
+      postMessage: (msg) => w.postMessage(msg),
+      onMessage: (cb) => {
+        w.onmessage = (e) => { void cb(e.data); };
+        return () => { w.onmessage = null; };
+      },
+    },
+    initial,
+  );
+  w.onerror = (e) => {
+    // The worker itself crashed (commonly WASM out-of-memory on mobile).
+    console.error('[DocCloak] Worker error:', e);
+    onWorkerError(new Error(e.message || 'Detection worker crashed'));
+  };
+  return { client: c, terminate: () => w.terminate() };
+}
+
+let clientFactory: ClientFactory = spawnWorkerClient;
+
+let handle: ClientHandle | null = null;
 let client: EngineClient | null = null;
 let activeId: ProviderId = loadSavedProviderId();
 let loaded = false;
@@ -117,21 +249,32 @@ let regexRegion = loadRegexRegion();
 // Callbacks
 let downloadProgressCallback: ProgressCallback | null = null;
 
+/**
+ * Drop the current worker: reject every pending promise with `reason`, stop
+ * listening, terminate, and forget it so the next call spawns a fresh one.
+ * Shared by the crash handler and the watchdog.
+ */
+function discardWorker(reason: Error): void {
+  const h = handle;
+  const c = client;
+  handle = null;
+  client = null;
+  loading = false;
+  loaded = false;
+  inflightLoad = null;
+  c?.close(reason);
+  h?.terminate();
+}
+
+/**
+ * Connect to (or spawn) the detection worker. Never triggers a model load:
+ * the worker runs createEngine({ autoLoad: false }) and only preloadModel()
+ * / switchProvider() ask it to load, both behind the consent gate.
+ */
 function getClient(): EngineClient {
   if (!client) {
-    const w = new Worker(
-      new URL('./detection.worker.ts', import.meta.url),
-      { type: 'module' },
-    );
-    worker = w;
-    const c = connectEngine(
-      {
-        postMessage: (msg) => w.postMessage(msg),
-        onMessage: (cb) => {
-          w.onmessage = (e) => { void cb(e.data); };
-          return () => { w.onmessage = null; };
-        },
-      },
+    let h: ClientHandle | null = null;
+    h = clientFactory(
       {
         providerId: activeId,
         threshold,
@@ -139,26 +282,18 @@ function getClient(): EngineClient {
         regexRegion,
         customLabels: loadCustomLabelsFromStorage(),
       },
+      (err) => {
+        // Fail every pending promise so the UI can surface an error and
+        // offer a retry instead of hanging forever, and drop the dead worker
+        // so the next call spawns a fresh one.
+        if (handle === h) discardWorker(err);
+      },
     );
-    c.onDownloadProgress(({ loaded: downloaded, total }) => {
+    h.client.onDownloadProgress(({ loaded: downloaded, total }) => {
       downloadProgressCallback?.(downloaded, total);
     });
-    w.onerror = (e) => {
-      // The worker itself crashed (commonly WASM out-of-memory on mobile).
-      // Fail every pending promise so the UI can surface an error and offer
-      // a retry instead of hanging forever, and drop the dead worker so the
-      // next call spawns a fresh one.
-      console.error('[DocCloak] Worker error:', e);
-      const err = new Error(e.message || 'Detection worker crashed');
-      loading = false;
-      loaded = false;
-      inflightLoad = null;
-      c.close(err);
-      if (client === c) client = null;
-      w.terminate();
-      if (worker === w) worker = null;
-    };
-    client = c;
+    handle = h;
+    client = h.client;
   }
   return client;
 }
@@ -167,20 +302,78 @@ function getClient(): EngineClient {
 
 /**
  * Detect entities in text using the active provider (runs in Web Worker).
+ *
+ * Awaits preloadModel() first (consent gate, autoLoad is off in the worker)
+ * and runs under the progress watchdog: every progress event re-arms a
+ * DETECTION_STALL_MS timer; when it fires, the worker is terminated, a fresh
+ * one is spawned and warmed from cache, and the call rejects with
+ * DetectionTimeoutError.
  */
-export function detectEntities(
+export async function detectEntities(
   text: string,
   onProgress?: (progress: number) => void,
 ): Promise<DetectedEntity[]> {
-  return getClient().detect(text, undefined, onProgress);
+  await preloadModel();
+  const c = getClient();
+
+  return new Promise<DetectedEntity[]>((resolve, reject) => {
+    let settled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const disarm = () => {
+      if (timer !== null) clearTimeout(timer);
+      timer = null;
+    };
+    const onStall = () => {
+      if (settled) return;
+      settled = true;
+      timer = null;
+      const err = new DetectionTimeoutError();
+      console.error('[DocCloak] Detection watchdog:', err.message);
+      if (client === c) {
+        discardWorker(err);
+        // Warm the replacement in the background so the next attempt starts
+        // fast. From cache, through the same consent gate; failures surface
+        // on the next detect call.
+        preloadModel().catch(() => { /* reported by the next call */ });
+      }
+      reject(err);
+    };
+    const arm = () => {
+      disarm();
+      timer = setTimeout(onStall, DETECTION_STALL_MS);
+    };
+
+    arm();
+    c.detect(text, undefined, (progress) => {
+      if (settled) return;
+      arm();
+      onProgress?.(progress);
+    })
+      .then((results) => {
+        if (settled) return;
+        settled = true;
+        disarm();
+        resolve(results);
+      })
+      .catch((err: unknown) => {
+        if (settled) return;
+        settled = true;
+        disarm();
+        reject(err instanceof Error ? err : new Error(String(err)));
+      });
+  });
 }
 
 /**
- * Preload the detection model in the background.
+ * Preload the detection model in the background. Refuses with
+ * ConsentRequiredError until the consent flag is stored; the worker is not
+ * even spawned in that case.
  */
 export function preloadModel(): Promise<void> {
   if (loaded) return Promise.resolve();
   if (inflightLoad) return inflightLoad;
+  if (!hasModelConsent()) return Promise.reject(new ConsentRequiredError(activeId));
 
   loading = true;
   const c = getClient();
@@ -239,7 +432,9 @@ export function getActiveProviderId(): ProviderId {
 }
 
 /**
- * Switch to a different detection provider.
+ * Switch to a different detection provider. Refuses with
+ * ConsentRequiredError until the consent flag is stored: nothing is saved,
+ * spawned or downloaded, the caller keeps `id` as a preselection.
  */
 export async function switchProvider(
   id: ProviderId,
@@ -249,6 +444,7 @@ export async function switchProvider(
 
   const entry = PROVIDERS.find((p) => p.id === id);
   if (!entry) throw new Error(`Unknown provider: ${id}`);
+  if (!hasModelConsent()) throw new ConsentRequiredError(id);
 
   loaded = false;
   loading = true;
@@ -354,6 +550,30 @@ export function setRegexRegionSetting(region: RegexRegionId): void {
   }
 }
 
+// ── Test seams ─────────────────────────────────────────────
+
+/**
+ * Replace the worker spawner (tests only). Pass null to restore the real
+ * one. Also resets the connection state so each test starts cold.
+ */
+export function _setClientFactoryForTests(factory: ClientFactory | null): void {
+  clientFactory = factory ?? spawnWorkerClient;
+  _resetEngineStateForTests();
+}
+
+/** Forget the current worker and loaded state without terminating (tests only). */
+export function _resetEngineStateForTests(): void {
+  handle = null;
+  client = null;
+  loaded = false;
+  loading = false;
+  inflightLoad = null;
+  activeId = loadSavedProviderId();
+  threshold = defaultThresholdFor(activeId);
+  customLabels = [];
+  downloadProgressCallback = null;
+}
+
 // ── Helpers ────────────────────────────────────────────────
 
 function loadRegexRegion(): RegexRegionId {
@@ -369,7 +589,8 @@ function loadRegexSetting(): boolean {
     const saved = localStorage.getItem(ENGINE_SETTINGS_KEYS.regexEnabled);
     if (saved !== null) return JSON.parse(saved);
   } catch { /* ignore */ }
-  return false;
+  // On by default (T203): a fresh profile gets ML + regex, as the README says.
+  return true;
 }
 
 function loadCustomLabelsFromStorage(): string[] {

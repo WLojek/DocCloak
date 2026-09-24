@@ -13,6 +13,11 @@ const coreVersion = JSON.parse(
   readFileSync(path.resolve(__dirname, 'node_modules/@doccloak/core/package.json'), 'utf8'),
 ).version as string
 
+// index.html carries the same version in its JSON-LD block (softwareVersion)
+// through Vite's HTML env replacement (%VITE_APP_VERSION%), so the published
+// structured data can never drift from package.json either.
+process.env.VITE_APP_VERSION = appVersion
+
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   define: {
@@ -31,5 +36,14 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: './src/test-setup.ts',
+    server: {
+      deps: {
+        // Core is installed from a tarball in releases (dist JS under
+        // node_modules) and linked to ../DocCloak.Core in dev checkouts.
+        // Inlining it makes vi.mock of its dependencies (onnxruntime-web)
+        // apply in both layouts.
+        inline: ['@doccloak/core'],
+      },
+    },
   },
 })
