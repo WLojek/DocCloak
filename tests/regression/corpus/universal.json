@@ -237,7 +237,7 @@
     },
     {
       "id": "u-03-generic-identifiers",
-      "description": "Labeled identifier, standalone long number, postal-code-plus-city, month-first date.",
+      "description": "Labeled identifier, standalone 9-digit number (PHONE via regex:pl:phone since T227; postal_city no longer swallows \"987654321 remains\"), postal-code-plus-city, month-first date.",
       "settings": {
         "regexEnabled": true,
         "regexRegion": "all",
@@ -266,12 +266,12 @@
             "detector": "regex:pl:postal"
           },
           {
-            "type": "ADDRESS",
-            "value": "987654321 remains",
+            "type": "PHONE",
+            "value": "987654321",
             "start": 56,
-            "end": 73,
-            "confidence": 0.65,
-            "detector": "regex:universal:postal_city"
+            "end": 65,
+            "confidence": 0.8,
+            "detector": "regex:pl:phone"
           },
           {
             "type": "DATE",
@@ -282,7 +282,7 @@
             "detector": "regex:universal:date_month_first"
           }
         ],
-        "anonymized": "Ref: [SSN_1] filed at [ADDRESS_2]. Case number [ADDRESS_1] open until [DATE_1].",
+        "anonymized": "Ref: [SSN_1] filed at [ADDRESS_1]. Case number [PHONE_1] remains open until [DATE_1].",
         "anonymizedAfterRename": null,
         "restored": "Ref: ABC 12345678 filed at 00-950 Warszawa. Case number 987654321 remains open until March 15, 2025.",
         "replacements": [
@@ -292,13 +292,13 @@
             "entityType": "DATE"
           },
           {
-            "original": "987654321 remains",
-            "replacement": "[ADDRESS_1]",
-            "entityType": "ADDRESS"
+            "original": "987654321",
+            "replacement": "[PHONE_1]",
+            "entityType": "PHONE"
           },
           {
             "original": "00-950 Warszawa",
-            "replacement": "[ADDRESS_2]",
+            "replacement": "[ADDRESS_1]",
             "entityType": "ADDRESS"
           },
           {

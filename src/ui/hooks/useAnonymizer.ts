@@ -14,11 +14,14 @@ import {
   setRegexEnabled,
   getRegexRegion,
   setRegexRegionSetting,
+  applyUiLanguage,
   hasModelConsent,
   grantModelConsent,
   ConsentRequiredError,
   DetectionTimeoutError,
+  DetectionAbortedError,
 } from '../../engine.ts';
+import { appendEtaSample, etaSeconds, type EtaSample } from '../../lib/detection-eta.ts';
 import type { RegexRegionId } from '@doccloak/core';
 import type { ProviderId } from '@doccloak/core';
 import { AnonymizationSession } from '@doccloak/core';
@@ -34,6 +37,10 @@ import type { DocxExtraction, DocxWriteOptions, UnsupportedDocumentCode } from '
 import { readDocText, writeAnonymizedDoc, inspectDoc } from '@doccloak/core';
 import { isImageFile, renderRedactedImage } from '@doccloak/core/dom';
 import { loadImageToCanvas, recognizeCanvas } from '../../ocr.web.ts';
+// Type-only: '@doccloak/core/pdf' (pdf.js, pdf-lib, fontkit) is loaded with a
+// dynamic import where it is needed so it stays out of the main chunk.
+import type { PdfExtraction, RemovedPart } from '@doccloak/core/pdf';
+import { isPdfFile, pdfAssets } from '../../pdf.web.ts';
 import type { OcrWord } from '@doccloak/core/dom';
 import { useTranslation } from '../../i18n/LanguageContext.tsx';
 import type { Translations } from '../../i18n/types.ts';
@@ -48,13 +55,74 @@ import type { DictionaryEntry } from '../dictionary.ts';
  */
 export const UNPACKED_SIZE_LIMIT_LABEL = '200 MB';
 
+/** Core's PDF caps (src/pdf/extract.ts DEFAULT_MAX_BYTES / DEFAULT_MAX_PAGES); keep in sync with Core. */
+export const PDF_MAX_BYTES = 50 * 1024 * 1024;
+export const PDF_SIZE_LIMIT_LABEL = '50 MB / 500 pages';
+
 /** Stable file-refusal codes the UI can translate (Core codes + our own). */
-export type FileErrorCode = UnsupportedDocumentCode | 'empty-document';
+export type FileErrorCode = UnsupportedDocumentCode | 'empty-document' | 'verify-failed' | 'stale-extraction';
 
 /** Translated message with a one-line remedy for a refusal code. */
-export function fileErrorMessage(t: Translations, code: FileErrorCode): string {
-  if (code === 'too-large') return t.fileErrors['too-large'](UNPACKED_SIZE_LIMIT_LABEL);
+export function fileErrorMessage(t: Translations, code: FileErrorCode, kind: 'office' | 'pdf' = 'office'): string {
+  if (code === 'too-large') {
+    return kind === 'pdf' ? t.fileErrors['pdf-too-large'](PDF_SIZE_LIMIT_LABEL) : t.fileErrors['too-large'](UNPACKED_SIZE_LIMIT_LABEL);
+  }
+  if (code === 'invalid-package' && kind === 'pdf') return t.fileErrors['pdf-invalid'];
   return t.fileErrors[code];
+}
+
+/**
+ * Refusal code of a reader/writer error, or null for untyped failures.
+ * Core's typed errors are matched by name as well as instance so the check
+ * works across the lazily loaded PDF chunk and mocked modules:
+ * - UnsupportedDocumentError -> its code
+ * - PdfVerifyError (T216): the post-write verification found a trace of an
+ *   original value; the file is never shipped
+ * - StalePdfExtractionError (T216): the bytes no longer produce the analysed
+ *   text; the remedy is to upload the file again
+ */
+export function fileErrorCode(err: unknown): FileErrorCode | null {
+  if (isUnsupportedDocumentError(err)) return err.code;
+  const name = typeof err === 'object' && err !== null ? (err as { name?: unknown }).name : undefined;
+  if (name === 'PdfVerifyError') return 'verify-failed';
+  if (name === 'StalePdfExtractionError') return 'stale-extraction';
+  return null;
+}
+
+/** Download name of the redacted PDF: `<base>_redacted.pdf` (T216). */
+export function pdfDownloadName(fileName: string | null | undefined): string {
+  const base = fileName?.replace(/\.pdf$/i, '').trim() || 'document';
+  return `${base}_redacted.pdf`;
+}
+
+interface OffsetReplacement { start: number; end: number; replacement: string }
+interface ValueReplacement { value: string; replacement: string }
+
+/**
+ * Offset replacements (from the detected spans) and value-level pairs (for
+ * places offsets cannot reach: hyperlink targets, field instructions, PDF
+ * metadata) for the active entities. Fails closed: an entity without a
+ * mapping aborts the export instead of writing its original value.
+ */
+function replacementsFor(
+  entities: DetectedEntity[],
+  excluded: Set<number>,
+  session: AnonymizationSession,
+): { replacements: OffsetReplacement[]; valueReplacements: ValueReplacement[] } {
+  const activeEntities = entities.filter((_, i) => !excluded.has(i));
+  const replacements = activeEntities.map((entity) => {
+    const replacement = session.getForward(entity.value);
+    if (replacement === undefined) {
+      // Fail closed: never write an original value into a redacted export
+      throw new Error('Missing replacement mapping for a detected entity');
+    }
+    return { start: entity.start, end: entity.end, replacement };
+  });
+  const valueReplacements = activeEntities.map((entity) => ({
+    value: entity.value,
+    replacement: session.getForward(entity.value) ?? '',
+  }));
+  return { replacements, valueReplacements };
 }
 
 /** Result of loadFile: `code` + `message` are set for typed refusals. */
@@ -90,6 +158,11 @@ export function useAnonymizer() {
   const [modelError, setModelError] = useState(false);
   const [anonymizing, setAnonymizing] = useState(false);
   const [detectionProgress, setDetectionProgress] = useState<number | null>(null);
+  /** T222: seconds left in the running detection, once the rate is measurable. */
+  const [detectionEta, setDetectionEta] = useState<number | null>(null);
+  /** T222: controller of the running detection; cancelAnonymize aborts it. */
+  const abortRef = useRef<AbortController | null>(null);
+  const etaSamplesRef = useRef<EtaSample[]>([]);
   const [downloadProgress, setDownloadProgress] = useState<{ downloaded: number; total: number } | null>(null);
   const [detectionError, setDetectionError] = useState<string | null>(null);
   const [detectionErrorKind, setDetectionErrorKind] = useState<DetectionErrorKind | null>(null);
@@ -103,6 +176,12 @@ export function useAnonymizer() {
   const [ignoreList, setIgnoreListState] = useState<DictionaryEntry[]>(loadIgnoreList);
   const [docxFile, setDocxFile] = useState<File | null>(null);
   const [docxFileName, setDocxFileName] = useState<string | null>(null);
+  // PDF (T216): the parsed extraction lives in a ref (the writer re-extracts
+  // from its bytes, so the File is not needed again); the name and the parts
+  // the writer drops are state because the UI shows them.
+  const [pdfFileName, setPdfFileName] = useState<string | null>(null);
+  const [pdfRemoved, setPdfRemoved] = useState<RemovedPart[]>([]);
+  const pdfExtractionRef = useRef<PdfExtraction | null>(null);
   const [imageFileName, setImageFileName] = useState<string | null>(null);
   const [ocrProgress, setOcrProgress] = useState<number | null>(null);
   // Informed-consent export (T177): parts the writer cannot redact, reader
@@ -220,18 +299,28 @@ export function useAnonymizer() {
     setDetectionError(null);
     setDetectionErrorKind(null);
     setDetectionProgress(0);
+    setDetectionEta(null);
     const requestId = ++latestRequestRef.current;
     const excluded = new Set<number>();
     setExcludedIndices(excluded);
+    // T222: one controller per run; a run superseded by a new one is
+    // cancelled so the worker does not keep computing for nobody.
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    etaSamplesRef.current = [{ progress: 0, at: Date.now() }];
 
     // Detection runs in a Web Worker - no need to yield to the browser
     detectEntities(text, (progress) => {
       if (requestId === latestRequestRef.current) {
         setDetectionProgress(progress);
+        etaSamplesRef.current = appendEtaSample(etaSamplesRef.current, progress, Date.now());
+        setDetectionEta(etaSeconds(etaSamplesRef.current));
       }
-    })
+    }, controller.signal)
       .then((results) => {
         if (requestId === latestRequestRef.current) {
+          abortRef.current = null;
           // Dictionary words are always redacted; detected entities win overlaps.
           // The ignore list is applied last so a listed term is never
           // anonymized, whichever tier found it.
@@ -244,6 +333,7 @@ export function useAnonymizer() {
           rebuildAnonymization(text, withDictionary, excluded);
           setAnonymizing(false);
           setDetectionProgress(null);
+          setDetectionEta(null);
           // Scroll the tool back into view in case the page has drifted.
           // We target <main> which wraps the tool; falls back to no-op if not found.
           const toolEl = document.querySelector('main');
@@ -253,10 +343,18 @@ export function useAnonymizer() {
         }
       })
       .catch((err: unknown) => {
+        if (err instanceof DetectionAbortedError) {
+          // Cancelled by the user (cancelAnonymize already reset the UI) or
+          // superseded by a newer run: nothing to report.
+          if (abortRef.current === controller) abortRef.current = null;
+          return;
+        }
         console.error('[DocCloak] Detection failed:', err);
         if (requestId !== latestRequestRef.current) return;
+        abortRef.current = null;
         setAnonymizing(false);
         setDetectionProgress(null);
+        setDetectionEta(null);
         if (err instanceof ConsentRequiredError) {
           // Consent flag gone (storage cleared): back to the card, no error.
           setModelLoaded(false);
@@ -276,6 +374,24 @@ export function useAnonymizer() {
         setDetectionError(err instanceof Error ? err.message : String(err));
       });
   }, [inputText, dictionary, ignoreList, rebuildAnonymization, unredactablePending, showToast, t]);
+
+  /**
+   * T222: stop the running detection. The overlay closes at once; the worker
+   * stops at its next inference chunk (or is replaced if it does not
+   * acknowledge in time), and no result of this run is applied.
+   */
+  const cancelAnonymize = useCallback(() => {
+    const controller = abortRef.current;
+    if (!controller || controller.signal.aborted) return;
+    abortRef.current = null;
+    // Retire the request id so a late result or error of this run is ignored.
+    latestRequestRef.current += 1;
+    controller.abort();
+    setAnonymizing(false);
+    setDetectionProgress(null);
+    setDetectionEta(null);
+    showToast(t.detect.cancelled);
+  }, [showToast, t]);
 
   const handleDictionaryChange = useCallback((entries: DictionaryEntry[]) => {
     saveDictionary(entries);
@@ -390,6 +506,12 @@ export function useAnonymizer() {
     setRegexRegionSetting(region);
   }, []);
 
+  // T228: without an explicit choice the regex region follows the UI language
+  // (a Polish interface runs the Polish + universal rules, not every country's).
+  useEffect(() => {
+    setRegexRegionState(applyUiLanguage(language));
+  }, [language]);
+
   // Settings selector. Before consent a click is a preselection: nothing is
   // downloaded, the consent card names the chosen model instead.
   const handleSwitchProvider = useCallback(async (id: ProviderId) => {
@@ -420,6 +542,21 @@ export function useAnonymizer() {
     setUnredactableItems([]);
     setFileWarnings([]);
     setAllowUnredactable(false);
+  }, []);
+
+  const resetPdfState = useCallback(() => {
+    setPdfFileName(null);
+    setPdfRemoved([]);
+    pdfExtractionRef.current = null;
+  }, []);
+
+  /** Resets every input-side state before a newly loaded file's text replaces it. */
+  const resetTextState = useCallback(() => {
+    setAnonymizedText('');
+    setEntities([]);
+    setEntries([]);
+    setExcludedIndices(new Set());
+    sessionRef.current.clear();
   }, []);
 
   const loadDocxFile = useCallback(async (file: File): Promise<LoadFileResult> => {
@@ -480,17 +617,14 @@ export function useAnonymizer() {
       }
 
       resetImageState();
+      resetPdfState();
       setDocxFile(file);
       setDocxFileName(file.name);
       setInputText(plainText);
-      setAnonymizedText('');
-      setEntities([]);
-      setEntries([]);
-      setExcludedIndices(new Set());
+      resetTextState();
       setUnredactableItems(items);
       setFileWarnings(warnings);
       setAllowUnredactable(false);
-      sessionRef.current.clear();
       return { success: true };
     } catch (err) {
       console.error('[DocCloak] Failed to read file:', err);
@@ -499,7 +633,50 @@ export function useAnonymizer() {
       }
       return { success: false, error: err instanceof Error ? err.message : String(err) };
     }
-  }, [resetImageState, t]);
+  }, [resetImageState, resetPdfState, resetTextState, t]);
+
+  // PDF (T216): the reader keeps the text layer's geometry; detection runs on
+  // its plainText like any other document. Scanned pages and undecodable
+  // text arrive as unredactable parts and go through the same
+  // Continue/Cancel notice as docx; the parts the writer will drop are
+  // listed for information.
+  const loadPdfFile = useCallback(async (file: File): Promise<LoadFileResult> => {
+    // Refuse oversized files before the PDF chunk is even downloaded (Core re-checks the cap).
+    if (file.size > PDF_MAX_BYTES) {
+      return { success: false, error: `PDF is ${file.size} bytes; the limit is ${PDF_MAX_BYTES}`, code: 'too-large', message: fileErrorMessage(t, 'too-large', 'pdf') };
+    }
+    try {
+      const { readPdf } = await import('@doccloak/core/pdf');
+      const extraction = await readPdf(file, { assets: pdfAssets() });
+      if (extraction.empty) {
+        return {
+          success: false,
+          error: 'empty-document',
+          code: 'empty-document',
+          message: fileErrorMessage(t, 'empty-document'),
+        };
+      }
+
+      resetImageState();
+      setDocxFile(null);
+      setDocxFileName(null);
+      pdfExtractionRef.current = extraction;
+      setPdfFileName(file.name);
+      setPdfRemoved(extraction.removed);
+      setInputText(extraction.plainText);
+      resetTextState();
+      setUnredactableItems(extraction.unredactable);
+      setFileWarnings(extraction.warnings);
+      setAllowUnredactable(false);
+      return { success: true };
+    } catch (err) {
+      console.error('[DocCloak] Failed to read PDF:', err);
+      if (isUnsupportedDocumentError(err)) {
+        return { success: false, error: err.message, code: err.code, message: fileErrorMessage(t, err.code, 'pdf') };
+      }
+      return { success: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  }, [resetImageState, resetTextState, t]);
 
   const loadImageFile = useCallback(async (file: File): Promise<LoadFileResult> => {
     try {
@@ -515,13 +692,10 @@ export function useAnonymizer() {
       setImageFileName(file.name);
       setDocxFile(null);
       setDocxFileName(null);
+      resetPdfState();
       resetUnredactableState();
       setInputText(text);
-      setAnonymizedText('');
-      setEntities([]);
-      setEntries([]);
-      setExcludedIndices(new Set());
-      sessionRef.current.clear();
+      resetTextState();
       return { success: true };
     } catch (err) {
       console.error('[DocCloak] OCR failed:', err);
@@ -529,13 +703,15 @@ export function useAnonymizer() {
     } finally {
       setOcrProgress(null);
     }
-  }, [language, resetUnredactableState]);
+  }, [language, resetPdfState, resetTextState, resetUnredactableState]);
 
-  // Route uploads by type: images go through OCR, documents through the docx reader
+  // Route uploads by type: images go through OCR, PDFs through the PDF
+  // reader, everything else through the docx reader.
   const loadFile = useCallback(async (file: File): Promise<LoadFileResult> => {
     if (isImageFile(file.name)) return loadImageFile(file);
+    if (isPdfFile(file.name)) return loadPdfFile(file);
     return loadDocxFile(file);
-  }, [loadImageFile, loadDocxFile]);
+  }, [loadImageFile, loadPdfFile, loadDocxFile]);
 
   const exportRedactedImage = useCallback(async (): Promise<Blob> => {
     const canvas = imageCanvasRef.current;
@@ -558,21 +734,7 @@ export function useAnonymizer() {
       throw new Error('Unredactable parts have not been confirmed');
     }
 
-    const activeEntities = entities.filter((_, i) => !excludedIndices.has(i));
-    const replacements = activeEntities.map((entity) => {
-      const replacement = sessionRef.current.getForward(entity.value);
-      if (replacement === undefined) {
-        // Fail closed: never write an original value into a redacted export
-        throw new Error('Missing replacement mapping for a detected entity');
-      }
-      return { start: entity.start, end: entity.end, replacement };
-    });
-    // Value-level pairs let the writer scrub places offsets cannot reach
-    // (hyperlink targets, field instructions)
-    const valueReplacements = activeEntities.map((entity) => ({
-      value: entity.value,
-      replacement: sessionRef.current.getForward(entity.value) ?? '',
-    }));
+    const { replacements, valueReplacements } = replacementsFor(entities, excludedIndices, sessionRef.current);
 
     // The writer stays fail-closed by default; allowUnredactable is true only
     // after the user chose Continue on the notice.
@@ -614,18 +776,60 @@ export function useAnonymizer() {
     return writeDocx(extraction);
   }, [docxFile, entities, excludedIndices, allowUnredactable, unredactablePending]);
 
+  // PDF export (T216), mirroring exportDocx. The writer re-extracts from the
+  // bytes kept in the extraction, verifies its own output and throws
+  // PdfVerifyError rather than ship a file with a trace of an original value;
+  // StalePdfExtractionError means the bytes changed under us. Both map to
+  // fileErrors through fileErrorCode(). A PDF with no detections may still be
+  // downloaded (T205): metadata, annotations and the other dropped parts are
+  // still cleaned.
+  const exportPdf = useCallback(async (): Promise<Blob> => {
+    const extraction = pdfExtractionRef.current;
+    if (!extraction) {
+      throw new Error('No PDF to export');
+    }
+    if (unredactablePending) {
+      // Fail closed: the user has not confirmed the unredactable parts.
+      throw new Error('Unredactable parts have not been confirmed');
+    }
+    const { replacements, valueReplacements } = replacementsFor(entities, excludedIndices, sessionRef.current);
+    const { writeAnonymizedPdfWithReport } = await import('@doccloak/core/pdf');
+    try {
+      const result = await writeAnonymizedPdfWithReport(extraction, replacements, valueReplacements, {
+        assets: pdfAssets(),
+        allowUnredactable,
+      });
+      const notes = [...result.warnings];
+      if (result.rasterizedPages.length > 0) {
+        const pages = result.rasterizedPages.map((p) => p + 1).join(', ');
+        notes.push(t.pdf.rasterizedPages(pages, result.rasterizedPages.length));
+      }
+      if (notes.length > 0) {
+        setFileWarnings((prev) => Array.from(new Set([...prev, ...notes])));
+      }
+      if (result.removed.length > 0) setPdfRemoved(result.removed);
+      return result.blob;
+    } catch (err) {
+      if (isUnsupportedDocumentError(err) && err.code === 'unredactable-parts') {
+        // Only reachable when the writer knows about parts the reader did
+        // not report: surface the notice so the user can decide.
+        const parts = err.details.length > 0 ? err.details : ['?'];
+        setUnredactableItems(parts.map((part) => ({ part, kind: 'unknown' as const })));
+        setAllowUnredactable(false);
+      }
+      throw err;
+    }
+  }, [entities, excludedIndices, allowUnredactable, unredactablePending, t]);
+
   const removeFile = useCallback(() => {
     setDocxFile(null);
     setDocxFileName(null);
+    resetPdfState();
     resetImageState();
     resetUnredactableState();
     setInputText('');
-    setAnonymizedText('');
-    setEntities([]);
-    setEntries([]);
-    setExcludedIndices(new Set());
-    sessionRef.current.clear();
-  }, [resetImageState, resetUnredactableState]);
+    resetTextState();
+  }, [resetImageState, resetPdfState, resetTextState, resetUnredactableState]);
 
   // Informed-consent export: the user accepts that the listed parts stay
   // exactly as they are in the exported file.
@@ -635,16 +839,13 @@ export function useAnonymizer() {
 
   const clear = useCallback(() => {
     setInputText('');
-    setAnonymizedText('');
-    setEntities([]);
-    setEntries([]);
-    setExcludedIndices(new Set());
+    resetTextState();
     setDocxFile(null);
     setDocxFileName(null);
+    resetPdfState();
     resetImageState();
     resetUnredactableState();
-    sessionRef.current.clear();
-  }, [resetImageState, resetUnredactableState]);
+  }, [resetImageState, resetPdfState, resetTextState, resetUnredactableState]);
 
   return {
     inputText,
@@ -657,6 +858,7 @@ export function useAnonymizer() {
     modelError,
     anonymizing,
     detectionProgress,
+    detectionEta,
     detectionError,
     detectionErrorKind,
     downloadProgress,
@@ -664,13 +866,20 @@ export function useAnonymizer() {
     replacementMode,
     customLabels,
     docxFileName,
+    pdfFileName,
     imageFileName,
-    fileName: docxFileName ?? imageFileName,
+    fileName: docxFileName ?? pdfFileName ?? imageFileName,
     hasDocxExtraction: docxFile !== null,
+    hasPdfExtraction: pdfFileName !== null,
+    /** A document (.doc, .docx or .pdf) is loaded: the export buttons and the unredactable notice apply. */
+    hasDocumentExtraction: docxFile !== null || pdfFileName !== null,
+    /** Parts the PDF writer drops from the export (annotations, forms, ...), for the information card. */
+    pdfRemoved,
     hasImage: imageFileName !== null,
     ocrProgress,
     handleInputChange,
     anonymize,
+    cancelAnonymize,
     addManualEntity,
     removeEntity,
     renameLabel,
@@ -695,6 +904,7 @@ export function useAnonymizer() {
     handleIgnoreListChange,
     loadFile,
     exportDocx,
+    exportPdf,
     exportRedactedImage,
     removeFile,
     retryModelLoad: startModelLoad,

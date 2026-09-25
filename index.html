@@ -65,7 +65,7 @@
         "Multiple ML models (GLiNER PII Small, GLiNER PII Base, BardS.ai EU PII), downloaded from pinned commits and SHA-256 verified",
         "Regex pattern detection for 19 regions (US, China, Japan and 16 European countries)",
         "Round-trip de-anonymization restores names in AI responses",
-        "Supports .doc and .docx documents with formatting preserved and metadata scrubbed",
+        "Supports .doc, .docx and .pdf documents with formatting preserved and metadata scrubbed; redacted PDFs keep their text layer (pages that cannot be edited safely are rasterized)",
         "OCR for images and screenshots (local Tesseract WASM) with redacted image export",
         "Works offline after the first load (Service Worker app shell, cached model)",
         "8 UI languages: English, Polish, German, French, Spanish, Portuguese, Swedish, Norwegian"
@@ -95,7 +95,7 @@
 
         <h2>How it works</h2>
         <ol>
-          <li><strong>Paste</strong> your document or upload a .doc/.docx file or an image (.png, .jpg) - text is extracted locally with OCR</li>
+          <li><strong>Paste</strong> your document or upload a .doc/.docx/.pdf file or an image (.png, .jpg) - text is extracted locally with OCR</li>
           <li><strong>Redact</strong> - DocCloak detects names, emails, phone numbers, addresses, and other PII using a local ML model and regex patterns</li>
           <li><strong>Copy</strong> the anonymized text into any AI service (ChatGPT, Claude, Gemini, etc.) - or download the redacted document</li>
           <li><strong>Restore</strong> - paste the AI's response back into DocCloak to replace placeholders with the original names</li>
@@ -105,7 +105,7 @@
         <ul>
           <li>Runs locally - ML models run in-browser via ONNX Runtime WebAssembly, zero network requests during anonymization</li>
           <li>14 entity types: persons, emails, phones, SSNs, credit cards, dates, currencies, IP addresses, IBANs, addresses, companies, custom labels</li>
-          <li>Supports .doc and .docx documents with all formatting preserved</li>
+          <li>Supports .doc, .docx and .pdf documents with formatting preserved (the redacted PDF keeps its text layer; pages that cannot be edited safely are rasterized)</li>
           <li>OCR for images and screenshots (.png, .jpg) - text is extracted locally with Tesseract WebAssembly, with redacted image export</li>
           <li>Regex pattern detection for 19 regions: the US, China, Japan and 16 European countries</li>
           <li>8 UI languages: English, Polish, German, French, Spanish, Portuguese, Swedish, Norwegian</li>

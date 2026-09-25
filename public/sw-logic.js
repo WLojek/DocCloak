@@ -55,6 +55,8 @@
   function isRuntimeAsset(pathname) {
     if (pathname.indexOf('/tesseract/') === 0) return true;
     if (pathname.indexOf('/ort-wasm-') === 0) return true;
+    // pdf.js worker, CMaps, standard fonts, wasm decoders and the Liberation fallback faces.
+    if (pathname.indexOf('/pdf/') === 0) return true;
     // Vite also emits hashed copies of the ORT binaries under /assets; keep
     // them out of the shell precache and treat them like the root copies.
     if (pathname.indexOf('/assets/') === 0 && /\.wasm$/.test(pathname)) return true;
@@ -66,7 +68,7 @@
    *   'navigation' -> network-first, fallback to the cached /index.html
    *   'asset'      -> hashed /assets/* file, cache-first
    *   'shell'      -> other precached shell file (fonts, icons), cache-first
-   *   'runtime'    -> ORT WASM / Tesseract, runtime cache-first
+   *   'runtime'    -> ORT WASM / Tesseract / PDF assets, runtime cache-first
    *   'other'      -> not handled, pass through untouched
    */
   function classify(url, precached, origin) {

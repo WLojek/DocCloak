@@ -19,9 +19,16 @@
  *   with DetectionTimeoutError. Progress-based on purpose: ML detection on a
  *   phone legitimately takes minutes and reports per chunk; a hung regex
  *   reports nothing. There is no total time budget.
+ * - Cancel (T222): detectEntities takes an AbortSignal. Aborting it sends
+ *   cancelDetect to the worker, which stops at its next inference chunk and
+ *   acknowledges; the call then rejects with DetectionAbortedError and the
+ *   worker stays warm. A worker that does not acknowledge within
+ *   CANCEL_GRACE_MS (a chunk on a slow phone takes seconds, a hung regex
+ *   never returns) is terminated and replaced, like on a watchdog stall.
  */
 
 import {
+  DetectionAbortedError,
   PROVIDERS as CORE_PROVIDERS,
   REGEX_REGIONS,
   ENGINE_SETTINGS_KEYS,
@@ -39,6 +46,21 @@ import type {
   ProviderEntry,
   RegexRegionId,
 } from '@doccloak/core';
+import { detectUiLanguage } from './i18n/storage.ts';
+import { languages as UI_LANGUAGES } from './i18n/translations/index.ts';
+
+const UI_LANGUAGE_CODES: readonly string[] = UI_LANGUAGES.map((l) => l.code);
+
+/**
+ * UI language -> regex region used while the user has not picked one (T228).
+ * 'all' runs every country's rules on every text, which on Polish documents
+ * let the Spanish "C" (Calle) and Portuguese "R." street rules and the
+ * 4-digit postal rules of no/be/at/ch/dk swallow parts of e-mails and names.
+ * English has no single region, so it keeps 'all'.
+ */
+const REGION_FOR_LANGUAGE: Record<string, RegexRegionId> = {
+  pl: 'pl', de: 'de', fr: 'fr', es: 'es', pt: 'pt', no: 'no', sv: 'se', en: 'all',
+};
 
 // Re-export the region catalog (moved to core in T009) so the adapter keeps
 // the full legacy engine surface in one module.
@@ -109,6 +131,14 @@ export function grantModelConsent(): void {
 
 /** No progress event for this long during a detect call = hung worker. */
 export const DETECTION_STALL_MS = 20_000;
+
+/**
+ * T222: after a cancel, how long the worker gets to acknowledge (finish the
+ * inference chunk in flight) before it is terminated and replaced.
+ */
+export const CANCEL_GRACE_MS = 5_000;
+
+export { DetectionAbortedError };
 
 /**
  * Rejection reason for a detect call the watchdog gave up on. The worker has
@@ -312,24 +342,30 @@ function getClient(): EngineClient {
 export async function detectEntities(
   text: string,
   onProgress?: (progress: number) => void,
+  signal?: AbortSignal,
 ): Promise<DetectedEntity[]> {
+  if (signal?.aborted) throw new DetectionAbortedError();
   await preloadModel();
+  if (signal?.aborted) throw new DetectionAbortedError();
   const c = getClient();
 
   return new Promise<DetectedEntity[]>((resolve, reject) => {
     let settled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    let graceTimer: ReturnType<typeof setTimeout> | null = null;
 
     const disarm = () => {
       if (timer !== null) clearTimeout(timer);
       timer = null;
     };
-    const onStall = () => {
-      if (settled) return;
-      settled = true;
-      timer = null;
-      const err = new DetectionTimeoutError();
-      console.error('[DocCloak] Detection watchdog:', err.message);
+    const cleanup = () => {
+      disarm();
+      if (graceTimer !== null) clearTimeout(graceTimer);
+      graceTimer = null;
+      signal?.removeEventListener('abort', onAbort);
+    };
+    /** Terminate and replace the worker, then reject with `err` (watchdog and cancel-grace path). */
+    const replaceWorker = (err: Error) => {
       if (client === c) {
         discardWorker(err);
         // Warm the replacement in the background so the next attempt starts
@@ -339,27 +375,51 @@ export async function detectEntities(
       }
       reject(err);
     };
+    const onStall = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      const err = new DetectionTimeoutError();
+      console.error('[DocCloak] Detection watchdog:', err.message);
+      replaceWorker(err);
+    };
     const arm = () => {
       disarm();
       timer = setTimeout(onStall, DETECTION_STALL_MS);
     };
+    const onAbort = () => {
+      if (settled) return;
+      // The client has sent cancelDetect; the worker answers at its next
+      // chunk boundary (rejection below). Progress may still arrive for the
+      // chunk in flight, so the stall timer is replaced by the grace timer.
+      disarm();
+      graceTimer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        const err = new DetectionAbortedError('Detection cancelled; the worker did not stop in time and was restarted');
+        console.warn('[DocCloak] Cancel grace period elapsed:', err.message);
+        replaceWorker(err);
+      }, CANCEL_GRACE_MS);
+    };
 
     arm();
-    c.detect(text, undefined, (progress) => {
+    signal?.addEventListener('abort', onAbort, { once: true });
+    c.detect(text, signal, (progress) => {
       if (settled) return;
-      arm();
+      if (graceTimer === null) arm();
       onProgress?.(progress);
     })
       .then((results) => {
         if (settled) return;
         settled = true;
-        disarm();
+        cleanup();
         resolve(results);
       })
       .catch((err: unknown) => {
         if (settled) return;
         settled = true;
-        disarm();
+        cleanup();
         reject(err instanceof Error ? err : new Error(String(err)));
       });
   });
@@ -550,6 +610,23 @@ export function setRegexRegionSetting(region: RegexRegionId): void {
   }
 }
 
+/**
+ * The UI language changed (or mounted): while the user has not picked a
+ * region explicitly, the region follows the language. Nothing is persisted,
+ * so a later language switch keeps following. Returns the active region.
+ */
+export function applyUiLanguage(language: string): RegexRegionId {
+  if (hasExplicitRegexRegion()) return regexRegion;
+  const region = regexRegionForLanguage(language);
+  if (region !== regexRegion) {
+    regexRegion = region;
+    if (client) {
+      void client.updateSettings({ regexRegion: region });
+    }
+  }
+  return regexRegion;
+}
+
 // ── Test seams ─────────────────────────────────────────────
 
 /**
@@ -571,17 +648,33 @@ export function _resetEngineStateForTests(): void {
   activeId = loadSavedProviderId();
   threshold = defaultThresholdFor(activeId);
   customLabels = [];
+  regexEnabled = loadRegexSetting();
+  regexRegion = loadRegexRegion();
   downloadProgressCallback = null;
 }
 
 // ── Helpers ────────────────────────────────────────────────
+
+export function regexRegionForLanguage(language: string): RegexRegionId {
+  return REGION_FOR_LANGUAGE[language.slice(0, 2).toLowerCase()] ?? 'all';
+}
+
+/** True when the user picked a region explicitly (the choice is persisted). */
+export function hasExplicitRegexRegion(): boolean {
+  try {
+    const saved = localStorage.getItem(ENGINE_SETTINGS_KEYS.regexRegion);
+    return !!saved && REGEX_REGIONS.includes(saved as RegexRegionId);
+  } catch {
+    return false;
+  }
+}
 
 function loadRegexRegion(): RegexRegionId {
   try {
     const saved = localStorage.getItem(ENGINE_SETTINGS_KEYS.regexRegion);
     if (saved && REGEX_REGIONS.includes(saved as RegexRegionId)) return saved as RegexRegionId;
   } catch { /* ignore */ }
-  return 'all';
+  return regexRegionForLanguage(detectUiLanguage(UI_LANGUAGE_CODES));
 }
 
 function loadRegexSetting(): boolean {

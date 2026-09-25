@@ -13,15 +13,16 @@ import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover
 import { LanguageSwitcher } from './ui/components/LanguageSwitcher.tsx';
 import { DictionaryBar } from './ui/components/DictionaryBar.tsx';
 import { Lock, Settings, ArrowRight, Plus, X, ChevronDown, Info, FileText, Image as ImageIcon, Download, Github, RotateCw } from 'lucide-react';
-import { isImageFile, isUnsupportedDocumentError } from '@doccloak/core/dom';
+import { isImageFile } from '@doccloak/core/dom';
 import { UnredactableNotice } from './ui/components/UnredactableNotice.tsx';
-import { fileErrorMessage } from './ui/hooks/useAnonymizer.ts';
+import { fileErrorCode, fileErrorMessage, pdfDownloadName } from './ui/hooks/useAnonymizer.ts';
 import logoSrc from './ui/assets/doc-cloak-logo-light.png';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useToast } from './ui/components/Toast.tsx';
 import { Hero, TrustBand, Audience, HowItWorks, FAQ } from './ui/components/Landing.tsx';
 import { REGEX_REGIONS } from '@doccloak/core';
 import { PROVIDERS, getRecommendedProviderId } from './engine.ts';
+import { formatEta } from './lib/detection-eta.ts';
 import type { RegexRegionId } from '@doccloak/core';
 
 function formatBytes(bytes: number): string {
@@ -43,12 +44,14 @@ export default function App() {
     modelLoading,
     anonymizing,
     detectionProgress,
+    detectionEta,
     detectionError,
     detectionErrorKind,
     modelError,
     downloadProgress,
     handleInputChange,
     anonymize,
+    cancelAnonymize,
     addManualEntity,
     removeEntity,
     renameLabel,
@@ -75,10 +78,14 @@ export default function App() {
     docxFileName,
     fileName,
     hasDocxExtraction,
+    hasPdfExtraction,
+    hasDocumentExtraction,
+    pdfRemoved,
     hasImage,
     ocrProgress,
     loadFile,
     exportDocx,
+    exportPdf,
     exportRedactedImage,
     removeFile,
     retryModelLoad,
@@ -92,6 +99,16 @@ export default function App() {
   } = useAnonymizer();
 
   const { showToast } = useToast();
+
+  // T222: Escape cancels the running detection (the overlay is modal).
+  useEffect(() => {
+    if (!anonymizing) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') cancelAnonymize();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [anonymizing, cancelAnonymize]);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [newLabelInput, setNewLabelInput] = useState('');
   const [labelsExpanded, setLabelsExpanded] = useState(false);
@@ -143,11 +160,30 @@ export default function App() {
       showToast(t.textOutput.downloaded);
     } catch (err) {
       console.error('[DocCloak] Export failed:', err);
-      showToast(isUnsupportedDocumentError(err) ? fileErrorMessage(t, err.code) : (t.textOutput.exportFailed ?? 'Export failed.'));
+      const code = fileErrorCode(err);
+      showToast(code ? fileErrorMessage(t, code) : (t.textOutput.exportFailed ?? 'Export failed.'));
     } finally {
       setDownloading(false);
     }
   }, [exportDocx, docxFileName, triggerBlobDownload, showToast, t]);
+
+  // PDF (T216): same flow as docx; a verify-failed or stale-extraction error
+  // from the writer maps to its own translated message and nothing is saved.
+  const handleDownloadPdf = useCallback(async () => {
+    if (!exportPdf) return;
+    setDownloading(true);
+    try {
+      const blob = await exportPdf();
+      triggerBlobDownload(blob, pdfDownloadName(fileName));
+      showToast(t.textOutput.downloaded);
+    } catch (err) {
+      console.error('[DocCloak] PDF export failed:', err);
+      const code = fileErrorCode(err);
+      showToast(code ? fileErrorMessage(t, code) : (t.textOutput.exportFailed ?? 'Export failed.'));
+    } finally {
+      setDownloading(false);
+    }
+  }, [exportPdf, fileName, triggerBlobDownload, showToast, t]);
 
   const handleDownloadImage = useCallback(async () => {
     if (!exportRedactedImage) return;
@@ -268,12 +304,20 @@ export default function App() {
               </div>
               <p className="font-serif text-lg font-medium tracking-tight mb-1">{t.anonymizing.title}</p>
               {detectionProgress !== null && (
-                <div className="w-48 mx-auto mt-3 mb-2">
+                <div className="w-56 mx-auto mt-3 mb-2">
                   <Progress value={Math.round(detectionProgress * 100)} className="h-1.5" />
-                  <p className="text-[10px] text-muted-foreground mt-1">{Math.round(detectionProgress * 100)}%</p>
+                  <p className="text-[10px] text-muted-foreground mt-1" aria-live="polite">
+                    {Math.round(detectionProgress * 100)}%
+                    {detectionEta !== null && (
+                      <span data-testid="detection-eta"> · {t.anonymizing.remaining(formatEta(detectionEta, t.anonymizing))}</span>
+                    )}
+                  </p>
                 </div>
               )}
               <p className="text-sm text-[#525252]">{t.anonymizing.description}</p>
+              <Button variant="outline" size="sm" className="mt-5" onClick={cancelAnonymize} autoFocus>
+                {t.anonymizing.cancel}
+              </Button>
             </CardContent>
           </Card>
         </div>
@@ -372,21 +416,9 @@ export default function App() {
                         }`} />
                       </button>
                     </label>
+                    {/* T228: the text language itself is picked next to the Redact button */}
                     {regexRules && (
-                      <div className="mt-2">
-                        <span className="label-meta text-muted-foreground">{t.settings.regexRegion}</span>
-                        <select
-                          value={regexRegion}
-                          onChange={(e) => handleRegexRegionChange(e.target.value as RegexRegionId)}
-                          className="mt-1 w-full px-2 py-1.5 text-xs border border-[#C8C5BC] bg-white text-[#111111] cursor-pointer focus:outline-none focus:border-[#111111]"
-                        >
-                          {REGEX_REGIONS.map((r) => (
-                            <option key={r} value={r}>
-                              {t.settings.regexRegions[r] ?? r}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                      <p className="text-[10px] text-muted-foreground mt-2 leading-snug">{t.settings.regexRegionHint}</p>
                     )}
                   </div>
                   {/* Heavier rule: detection settings above, output settings below */}
@@ -537,7 +569,7 @@ export default function App() {
 
         {/* Informed-consent export (T177): parts the writer cannot redact. Redact and
             Download stay disabled for this file until the user chooses Continue or Cancel. */}
-        {hasDocxExtraction && (
+        {hasDocumentExtraction && (
           <UnredactableNotice
             items={unredactableItems}
             warnings={fileWarnings}
@@ -545,6 +577,32 @@ export default function App() {
             onContinue={continueWithUnredactable}
             onCancel={removeFile}
           />
+        )}
+
+        {/* PDF (T216): parts the writer drops from the export instead of redacting them
+            (annotations, forms, bookmarks, ...). Informational: nothing to decide. */}
+        {hasPdfExtraction && pdfRemoved.length > 0 && (
+          <section
+            aria-label={t.pdf.removedTitle}
+            data-testid="pdf-removed"
+            className="animate-content-reveal mb-4 border border-[#C8C5BC] bg-[#F4F3EE] px-4 py-3"
+          >
+            <div className="flex items-start gap-3">
+              <Info className="w-4 h-4 text-[#525252] shrink-0 mt-0.5" aria-hidden="true" />
+              <div className="min-w-0">
+                <p className="text-sm text-[#111111] font-semibold">{t.pdf.removedTitle}</p>
+                <ul className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[#111111]">
+                  {pdfRemoved.map((part, i) => (
+                    <li key={`${part.kind}-${i}`}>
+                      {t.pdf.removed[part.kind]}
+                      {part.count ? ` (${part.count})` : ''}
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-xs text-[#525252] mt-2 leading-relaxed max-w-xl">{t.pdf.removedBody}</p>
+              </div>
+            </div>
+          </section>
         )}
 
         {/* File bar - input file (left) + download (right) */}
@@ -567,6 +625,16 @@ export default function App() {
                 >
                   <Download className="w-3 h-3" />
                   {t.textOutput.downloadDocx}
+                </button>
+              )}
+              {hasPdfExtraction && (
+                <button
+                  onClick={handleDownloadPdf}
+                  disabled={downloading || unredactablePending}
+                  className="pressable flex items-center gap-2 px-3 py-1.5 border border-[#C8C5BC] bg-[#FFFFFF] text-[#111111] hover:bg-[#111111] hover:text-[#F9F9F7] hover:border-[#111111] transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-xs font-medium"
+                >
+                  <Download className="w-3 h-3" />
+                  {t.textOutput.downloadPdf}
                 </button>
               )}
               {hasImage && entries.length > 0 && (
@@ -608,19 +676,41 @@ export default function App() {
         {/* Redact button */}
         <div className="sticky bottom-0 z-30 chrome-material py-4 -mx-6 px-6">
           <div className="flex flex-col items-center gap-2 border-t border-[#E5E5E0] pt-4">
-            <Button
-              onClick={anonymize}
-              disabled={!inputText.trim() || !modelLoaded || anonymizing || unredactablePending}
-              size="lg"
-              variant="solid"
-              className="gap-2 px-12 py-4 text-sm font-semibold disabled:opacity-100 disabled:bg-[#111111]/55 disabled:text-[#F9F9F7] disabled:cursor-not-allowed"
-            >
-              {modelLoading
-                ? `${t.header.notReady}... ${downloadProgress && downloadProgress.total > 0 ? `${progressPercent}%` : ''}`
-                : anonymizing
-                  ? t.redactButton.redacting
-                  : <>{t.redactButton.redact} <ArrowRight className="w-4 h-4" /></>}
-            </Button>
+            <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-5">
+              {/* T228: the text language (which country's rules apply) sits with the
+                  action it changes, not in the settings popover. Hidden when regex rules
+                  are off: the ML models are language-agnostic. */}
+              {regexRules && (
+                <label className="flex items-center gap-2" data-testid="text-language">
+                  <span className="label-meta text-muted-foreground whitespace-nowrap">{t.settings.regexRegion}</span>
+                  <select
+                    value={regexRegion}
+                    onChange={(e) => handleRegexRegionChange(e.target.value as RegexRegionId)}
+                    aria-label={t.settings.regexRegion}
+                    className="h-9 px-2 text-xs border border-[#C8C5BC] bg-white text-[#111111] cursor-pointer focus:outline-none focus:border-[#111111]"
+                  >
+                    {REGEX_REGIONS.map((r) => (
+                      <option key={r} value={r}>
+                        {t.settings.regexRegions[r] ?? r}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              <Button
+                onClick={anonymize}
+                disabled={!inputText.trim() || !modelLoaded || anonymizing || unredactablePending}
+                size="lg"
+                variant="solid"
+                className="gap-2 px-12 py-4 text-sm font-semibold disabled:opacity-100 disabled:bg-[#111111]/55 disabled:text-[#F9F9F7] disabled:cursor-not-allowed"
+              >
+                {modelLoading
+                  ? `${t.header.notReady}... ${downloadProgress && downloadProgress.total > 0 ? `${progressPercent}%` : ''}`
+                  : anonymizing
+                    ? t.redactButton.redacting
+                    : <>{t.redactButton.redact} <ArrowRight className="w-4 h-4" /></>}
+              </Button>
+            </div>
             {/* Keyboard notation needs no translation; hidden on touch-only devices */}
             <p className="label-meta text-muted-foreground/50 hidden [@media(pointer:fine)]:block">
               {isMac ? '⌘Enter' : 'Ctrl+Enter'}

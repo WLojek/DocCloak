@@ -10,7 +10,7 @@ import { UnsupportedDocumentError } from '@doccloak/core/dom';
 import type { UnsupportedDocumentCode } from '@doccloak/core/dom';
 import { UnredactableNotice } from '../../src/ui/components/UnredactableNotice.tsx';
 import { TextInput } from '../../src/ui/components/TextInput.tsx';
-import { useAnonymizer, fileErrorMessage, UNPACKED_SIZE_LIMIT_LABEL } from '../../src/ui/hooks/useAnonymizer.ts';
+import { useAnonymizer, fileErrorMessage, UNPACKED_SIZE_LIMIT_LABEL, PDF_SIZE_LIMIT_LABEL } from '../../src/ui/hooks/useAnonymizer.ts';
 import { LanguageProvider } from '../../src/i18n/LanguageContext.tsx';
 import { ToastProvider } from '../../src/ui/components/Toast.tsx';
 import { languages } from '../../src/i18n/translations/index.ts';
@@ -231,6 +231,12 @@ describe('UnsupportedDocumentError code mapping (T177/T178)', () => {
         expect(msg.includes(String.fromCharCode(0x2014))).toBe(false);
       }
       expect(fileErrorMessage(t, 'too-large')).toContain(UNPACKED_SIZE_LIMIT_LABEL);
+      // PDFs quote Core's PDF caps, not the docx unpacked-size limit.
+      expect(fileErrorMessage(t, 'too-large', 'pdf')).toContain(PDF_SIZE_LIMIT_LABEL);
+      expect(fileErrorMessage(t, 'too-large', 'pdf')).not.toContain(UNPACKED_SIZE_LIMIT_LABEL);
+      // A damaged PDF must not be told to open the file in Word and save it as .docx.
+      expect(fileErrorMessage(t, 'invalid-package', 'pdf')).not.toMatch(/docx|Word/);
+      expect(fileErrorMessage(t, 'invalid-package', 'pdf').length).toBeGreaterThan(20);
       expect(fileErrorMessage(t, 'empty-document').length).toBeGreaterThan(5);
       expect(t.consent.forModel('GLiNER PII Small', 83)).toContain('GLiNER PII Small');
       expect(t.consent.forModel('GLiNER PII Small', 83)).toContain('83');

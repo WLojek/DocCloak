@@ -254,7 +254,7 @@ export function TextInput({ value, onChange, onClear, entities, onAddEntity, onR
         <input
           ref={fileInputRef}
           type="file"
-          accept=".doc,.docx,.png,.jpg,.jpeg,.webp,.bmp,.gif"
+          accept=".doc,.docx,.pdf,.png,.jpg,.jpeg,.webp,.bmp,.gif"
           onChange={handleFileUpload}
           className="hidden"
         />
@@ -340,6 +340,10 @@ export function TextInput({ value, onChange, onClear, entities, onAddEntity, onR
         ) : fileName ? (
           /* Loaded file (document or OCR'd image) - read-only text preview */
           <div className="p-4 text-sm leading-relaxed whitespace-pre-wrap break-words text-foreground overflow-auto max-h-[60vh]">
+            {/* A file dropped while another is loaded can fail too: the message must not stay inside the hidden dropzone. */}
+            {fileError && (
+              <p className="mb-3 text-xs text-[#CC0000]" role="alert">{fileError}</p>
+            )}
             {/* File loaded banner */}
             <div className="flex items-center gap-3 mb-4 px-3 py-2.5 bg-[#111111]/5 border border-[#E5E5E0]">
               <div className="w-8 h-8 bg-[#111111] flex items-center justify-center flex-shrink-0">

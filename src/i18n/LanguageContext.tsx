@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, type ReactNode } from 'react';
 import type { Translations } from './types.ts';
 import { getLanguage, languages } from './translations/index.ts';
+import { LANGUAGE_STORAGE_KEY, detectUiLanguage } from './storage.ts';
 
 interface LanguageContextValue {
   t: Translations;
@@ -8,16 +9,10 @@ interface LanguageContextValue {
   setLanguage: (code: string) => void;
 }
 
-const STORAGE_KEY = 'doccloak-lang';
+const LANGUAGE_CODES = languages.map((l) => l.code);
 
 function detectLanguage(): string {
-  const stored = localStorage.getItem(STORAGE_KEY);
-  if (stored && languages.some((l) => l.code === stored)) return stored;
-
-  const browserLang = navigator.language.slice(0, 2);
-  if (languages.some((l) => l.code === browserLang)) return browserLang;
-
-  return 'en';
+  return detectUiLanguage(LANGUAGE_CODES);
 }
 
 const LanguageContext = createContext<LanguageContextValue | null>(null);
@@ -27,7 +22,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
 
   const setLanguage = (code: string) => {
     setLanguageState(code);
-    localStorage.setItem(STORAGE_KEY, code);
+    localStorage.setItem(LANGUAGE_STORAGE_KEY, code);
   };
 
   const t = getLanguage(language).translations;

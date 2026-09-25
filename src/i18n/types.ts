@@ -33,6 +33,8 @@ export interface Translations {
     regexRules: string;
     regexRulesDescription: string;
     regexRegion: string;
+    /** Settings popover, under the regex toggle: where the language is picked (T228). */
+    regexRegionHint: string;
     regexRegions: Record<string, string>;
   };
   dictionary: {
@@ -79,6 +81,8 @@ export interface Translations {
     emptyStateStep3: string;
     emptyStateTip: string;
     downloadDocx: string;
+    /** T216: the PDF export keeps its text layer, so the button names the format. */
+    downloadPdf: string;
     noDetections: string;
     downloadImage: string;
     downloaded: string;
@@ -150,6 +154,12 @@ export interface Translations {
   anonymizing: {
     title: string;
     description: string;
+    // T222: remaining-time estimate and cancel on the overlay
+    remaining: (time: string) => string;
+    hours: (n: number) => string;
+    minutes: (n: number) => string;
+    seconds: (n: number) => string;
+    cancel: string;
   };
   ocr: {
     processingTitle: string;
@@ -223,16 +233,26 @@ export interface Translations {
   // T188: detection watchdog (no progress for 20 s -> worker restarted)
   detect: {
     timeout: string;
+    // T222: toast after the user cancelled a run
+    cancelled: string;
   };
   // T177/T178: UnsupportedDocumentError codes mapped to a message with a one-line remedy
   fileErrors: {
     'unrecognized-namespace': string;
     'invalid-package': string;
     'too-large': (limit: string) => string;
+    // T216 (PDF): Core's PDF caps (bytes and pages), quoted without the docx 'unpacked' wording
+    'pdf-too-large': (limit: string) => string;
+    // T221 (PDF): a damaged or non-PDF file (the docx wording talks about Word and .docx)
+    'pdf-invalid': string;
     'fast-saved': string;
     encrypted: string;
     'unredactable-parts': string;
     'empty-document': string;
+    // T216 (PDF): post-write verification found a trace of an original value; nothing is shipped
+    'verify-failed': string;
+    // T216 (PDF): the bytes no longer produce the analysed text (re-upload)
+    'stale-extraction': string;
   };
   // T177 founder decision: informed-consent export for parts DocCloak cannot redact
   unredactable: {
@@ -248,8 +268,31 @@ export interface Translations {
       'html-chunk': string;
       'external-data': string;
       'printer-settings': string;
+      // T216 (PDF): image-only page, and text no decoder can read
+      'scanned-page': string;
+      'undecodable-text': string;
       unknown: (part: string) => string;
     };
+  };
+  // T216: PDF export report (parts the writer drops, pages it rasterized)
+  pdf: {
+    removedTitle: string;
+    removedBody: string;
+    removed: {
+      annotations: string;
+      'form-fields': string;
+      outlines: string;
+      attachments: string;
+      javascript: string;
+      metadata: string;
+      'structure-tree': string;
+      'page-labels': string;
+      'named-destinations': string;
+      'optional-content': string;
+      signatures: string;
+    };
+    /** `pages` is the 1-based list ("3, 7"), `count` its length (for plural forms). */
+    rasterizedPages: (pages: string, count: number) => string;
   };
 }
 

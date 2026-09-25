@@ -6,7 +6,9 @@
  *
  * Runs on postinstall. All copied files are gitignored.
  */
-import { copyFileSync, mkdirSync, rmSync } from 'fs';
+import { copyFileSync, mkdirSync, readdirSync, realpathSync, rmSync } from 'fs';
+import { createRequire } from 'module';
+import { dirname, join } from 'path';
 
 // ONNX Runtime WASM (PII detection models)
 // ort 1.29: core imports the onnxruntime-web/webgpu entry
@@ -57,4 +59,39 @@ for (const lang of TESSERACT_LANGS) {
   );
 }
 
-console.log('[copy-assets] ONNX Runtime and Tesseract assets copied to public/');
+// PDF redaction (@doccloak/core/pdf): the pdf.js worker, its binary CMaps
+// and standard fonts, plus the Liberation fallback faces the writer embeds.
+// The worker MUST come from the pdfjs-dist instance core itself resolves:
+// pdf.js refuses a worker whose version differs from the API, and in a dev
+// checkout core is a file: link with its own node_modules.
+// Core's exports map does not expose package.json, so take the real path of
+// the installed package (a symlink in dev checkouts, a directory in releases).
+const require = createRequire(import.meta.url);
+const corePackageDir = realpathSync('node_modules/@doccloak/core');
+const pdfjsDir = dirname(require.resolve('pdfjs-dist/package.json', { paths: [corePackageDir] }));
+
+function copyDir(from, to, filter = () => true) {
+  mkdirSync(to, { recursive: true });
+  let n = 0;
+  for (const name of readdirSync(from)) {
+    if (!filter(name)) continue;
+    copyFileSync(join(from, name), join(to, name));
+    n++;
+  }
+  return n;
+}
+
+rmSync('public/pdf', { recursive: true, force: true });
+mkdirSync('public/pdf', { recursive: true });
+copyFileSync(join(pdfjsDir, 'legacy/build/pdf.worker.mjs'), 'public/pdf/pdf.worker.mjs');
+const cmaps = copyDir(join(pdfjsDir, 'cmaps'), 'public/pdf/cmaps', (n) => n.endsWith('.bcmap'));
+const stdFonts = copyDir(join(pdfjsDir, 'standard_fonts'), 'public/pdf/standard_fonts');
+const fonts = copyDir(join(corePackageDir, 'fonts/liberation'), 'public/pdf/fonts', (n) => n.endsWith('.ttf'));
+if (fonts !== 12) throw new Error(`[copy-assets] expected 12 Liberation faces, found ${fonts}`);
+// Image decoders pdf.js loads on demand when a rasterized page holds JPX
+// (openjpeg) or JBIG2 images, plus the qcms colour management module, with
+// their no-wasm fallbacks and licences. quickjs-eval (JavaScript actions) is
+// never needed: the writer drops document JavaScript.
+const wasm = copyDir(join(pdfjsDir, 'wasm'), 'public/pdf/wasm', (n) => !n.startsWith('quickjs-eval'));
+
+console.log(`[copy-assets] ONNX Runtime, Tesseract and PDF assets copied to public/ (pdf.js ${require(join(pdfjsDir, 'package.json')).version}: ${cmaps} cmaps, ${stdFonts} standard fonts, ${wasm} decoder files, ${fonts} fallback fonts)`);

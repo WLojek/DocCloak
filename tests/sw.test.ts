@@ -160,6 +160,19 @@ describe('classify', () => {
     expect(logic.classify(`${ORIGIN}/assets/ort-wasm-simd-threaded.asyncify-CsxMlmQ8.wasm`, PRECACHED)).toBe('runtime');
   });
 
+  it('routes the self-hosted PDF assets (worker, cmaps, fonts) to the runtime cache', () => {
+    expect(logic.isRuntimeAsset('/pdf/pdf.worker.mjs')).toBe(true);
+    expect(logic.classify(`${ORIGIN}/pdf/pdf.worker.mjs`, PRECACHED)).toBe('runtime');
+    expect(logic.classify(`${ORIGIN}/pdf/cmaps/UniJIS-UCS2-H.bcmap`, PRECACHED)).toBe('runtime');
+    expect(logic.classify(`${ORIGIN}/pdf/standard_fonts/FoxitSans.pfb`, PRECACHED)).toBe('runtime');
+    expect(logic.classify(`${ORIGIN}/pdf/fonts/LiberationSans-Regular.ttf`, PRECACHED)).toBe('runtime');
+    expect(logic.classify(`${ORIGIN}/pdf/wasm/openjpeg.wasm`, PRECACHED)).toBe('runtime');
+    // The lazily loaded PDF chunk under /assets stays a hashed asset.
+    expect(logic.classify(`${ORIGIN}/assets/index-pdf-abc.js`, PRECACHED)).toBe('asset');
+    // A page path that merely starts with "pdf" is not a runtime asset.
+    expect(logic.classify(`${ORIGIN}/pdf-guide`, PRECACHED)).toBe('other');
+  });
+
   it('routes precached fonts and icons to the shell', () => {
     expect(logic.classify(`${ORIGIN}/fonts/inter-latin.woff2`, PRECACHED)).toBe('shell');
     expect(logic.classify(`${ORIGIN}/favicon-32x32.png`, PRECACHED)).toBe('shell');
@@ -267,14 +280,16 @@ describe('fetch handler', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('ORT and Tesseract: runtime cache-first, stored on first successful GET', async () => {
+  it('ORT, Tesseract and PDF assets: runtime cache-first, stored on first successful GET', async () => {
     fetchMock.mockResolvedValue(new Response('wasm bytes', { status: 200 }));
     await handle(get('/ort-wasm-simd-threaded.asyncify.wasm'))!;
     await handle(get('/tesseract/lang/eng.traineddata.gz'))!;
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await handle(get('/pdf/fonts/LiberationSerif-Bold.ttf'))!;
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     const runtime = await storage.open(logic.runtimeCacheName(BUILD));
     expect([...runtime.store.keys()].sort()).toEqual([
       `${ORIGIN}/ort-wasm-simd-threaded.asyncify.wasm`,
+      `${ORIGIN}/pdf/fonts/LiberationSerif-Bold.ttf`,
       `${ORIGIN}/tesseract/lang/eng.traineddata.gz`,
     ]);
     // Nothing leaked into the shell cache.
