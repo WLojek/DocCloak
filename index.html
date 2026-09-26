@@ -103,7 +103,7 @@
 
         <h2>Features</h2>
         <ul>
-          <li>Runs locally - ML models run in-browser via ONNX Runtime WebAssembly, zero network requests during anonymization</li>
+          <li>Runs locally - ML models run in-browser via ONNX Runtime WebAssembly, zero network requests while a text is anonymized (opening a PDF or an image loads the app's own PDF or OCR files; documents are never sent)</li>
           <li>14 entity types: persons, emails, phones, SSNs, credit cards, dates, currencies, IP addresses, IBANs, addresses, companies, custom labels</li>
           <li>Supports .doc, .docx and .pdf documents with formatting preserved (the redacted PDF keeps its text layer; pages that cannot be edited safely are rasterized)</li>
           <li>OCR for images and screenshots (.png, .jpg) - text is extracted locally with Tesseract WebAssembly, with redacted image export</li>

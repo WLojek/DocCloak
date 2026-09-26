@@ -31,7 +31,7 @@ export const sv: Translations = {
       bardsai: { label: 'BardS.ai EU PII', description: 'Bäst flerspråkig precision, 24+ EU-språk, 35 PII-typer (~279 MB)' },
     },
     regexRules: 'Regex-mönsterigenkänning',
-    regexRulesDescription: 'Upptäck strukturerade mönster (IBAN, ID, skyltar) utöver ML',
+    regexRulesDescription: "Upptäck strukturerade mönster (IBAN, ID, telefonnummer) utöver ML",
     regexRegion: 'Textspråk',
     regexRegionHint: 'Textspråket (vilket lands regler som gäller) väljs bredvid knappen ”Maskera dokument”. Tills du väljer följer det gränssnittets språk.',
     regexRegions: {
@@ -157,8 +157,8 @@ export const sv: Translations = {
   },
   footer: {
     offlineMessage: 'Allt stannar i din webbläsare · Ingen data skickas någonstans',
-    verifyText: 'Verifiera: DevTools → Nätverksfliken → noll förfrågningar',
-    verifyTooltip: 'Öppna webbläsarens DevTools (F12 eller Cmd+Option+I), gå till fliken Nätverk och bekräfta att inga förfrågningar skickas. All bearbetning sker lokalt.',
+    verifyText: "Så kontrollerar du",
+    verifyTooltip: "Öppna webbläsarens DevTools (F12 eller Cmd+Option+I), gå till fliken Nätverk och maskera en inklistrad text: inga förfrågningar skickas. När du öppnar en PDF eller en bild laddar DocCloak sina egna PDF- eller OCR-filer; ditt dokument skickas aldrig. All bearbetning sker lokalt.",
   },
   toast: {
     copiedToClipboard: 'Kopierat till urklipp',
@@ -239,7 +239,7 @@ export const sv: Translations = {
       eyebrow: 'Vanliga frågor',
       heading: 'Frågor du bör ställa',
       q1: 'Laddas mina uppgifter verkligen inte upp någonstans?',
-      a1: 'Korrekt. DocCloak körs helt i din webbläsare. Modellen och dess tokenizer-filer laddas ner en gång från Hugging Face, från en fastlåst commit och verifierade mot SHA-256-summor, och först efter att du godkänt engångsinställningen; sedan sker allt lokalt, och efter den första laddningen öppnas appen även utan nätverksanslutning. Du kan verifiera detta själv: öppna DevTools, gå till fliken Nätverk och se efter - det görs noll förfrågningar under anonymiseringen. Källkoden finns på GitHub under AGPL-3.0.',
+      a1: 'Korrekt. DocCloak körs helt i din webbläsare. Modellen och dess tokenizer-filer laddas ner en gång från Hugging Face, från en fastlåst commit och verifierade mot SHA-256-summor, och först efter att du godkänt engångsinställningen; sedan sker allt lokalt, och efter den första laddningen öppnas appen även utan nätverksanslutning. Du kan verifiera detta själv: öppna DevTools, gå till fliken Nätverk och se efter - det görs noll förfrågningar när en inklistrad text anonymiseras. När du öppnar en PDF eller en bild laddar DocCloak sina egna PDF- eller OCR-filer (från doccloak.com eller webbläsarens cache); ingen av de förfrågningarna innehåller ditt dokument. Källkoden finns på GitHub under AGPL-3.0.',
       q2: 'Hur träffsäker är identifieringen?',
       a2: "DocCloak använder GLiNER- och BardS.ai-modeller som är tränade specifikt för PII-detektering, plus regex-mönster för 19 regioner (USA, Kina, Japan och 16 europeiska länder) som täcker IBAN, nationella ID-nummer, kreditkort och telefonnummer. För namn, e-post, telefonnummer och standardidentifierare är den mycket träffsäker - men ingen detektor hittar 100 %, och du bör misstro varje verktyg som påstår det. Därför visas varje träff för granskning: du kan redigera, lägga till eller ta bort vilken post som helst innan texten lämnar din skärm. Ingenting delas utan ditt godkännande.",
       q3: 'Kan jag använda detta för GDPR, HIPAA eller efterlevnadsarbete?',

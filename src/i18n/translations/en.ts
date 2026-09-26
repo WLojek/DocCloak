@@ -31,7 +31,7 @@ export const en: Translations = {
       bardsai: { label: 'BardS.ai EU PII', description: 'Best multilingual accuracy, 24+ EU languages, 35 PII types (~279 MB)' },
     },
     regexRules: 'Regex Pattern Detection',
-    regexRulesDescription: 'Detect structured patterns (IBANs, IDs, plates) using rules in addition to ML',
+    regexRulesDescription: "Detect structured patterns (IBANs, IDs, phone numbers) using rules in addition to ML",
     regexRegion: 'Text language',
     regexRegionHint: "The text language (which country's rules apply) is picked next to the \u201CRedact Document\u201D button. It follows the interface language until you choose one.",
     regexRegions: {
@@ -158,7 +158,7 @@ export const en: Translations = {
   footer: {
     offlineMessage: 'Everything stays in your browser \u00B7 No data is sent anywhere',
     verifyText: 'How to verify',
-    verifyTooltip: 'Open your browser DevTools (F12 or Cmd+Option+I), switch to the Network tab, and confirm zero requests are made while using DocCloak. All processing happens locally on your device.',
+    verifyTooltip: "Open your browser DevTools (F12 or Cmd+Option+I), switch to the Network tab and redact a pasted text: no requests are made. Opening a PDF or an image loads DocCloak's own PDF or OCR files; your document is never sent. All processing happens locally on your device.",
   },
   toast: {
     copiedToClipboard: 'Copied to clipboard',
@@ -239,7 +239,7 @@ export const en: Translations = {
       eyebrow: 'Frequently asked',
       heading: 'Questions you should ask',
       q1: 'Is my data really not uploaded anywhere?',
-      a1: 'There is nowhere for it to go. DocCloak has no server: detection runs on an ML model loaded into your browser, and your document is processed on your own device. The model and its tokenizer files download once from Hugging Face, from a pinned commit and verified against SHA-256 hashes, and only after you accept the one-time setup; then everything happens locally, and after that first load the app also opens without a network connection. Do not take our word for it - open DevTools, go to the Network tab, and watch: zero requests while you redact. The code that touches your text is on GitHub under AGPL-3.0, so you can read it too.',
+      a1: "There is nowhere for it to go. DocCloak has no server: detection runs on an ML model loaded into your browser, and your document is processed on your own device. The model and its tokenizer files download once from Hugging Face, from a pinned commit and verified against SHA-256 hashes, and only after you accept the one-time setup; then everything happens locally, and after that first load the app also opens without a network connection. Do not take our word for it - open DevTools, go to the Network tab, and watch: zero requests while you redact a pasted text. Opening a PDF or an image loads DocCloak's own PDF or OCR files (from doccloak.com or the browser's cache), and none of those requests carries your document. The code that touches your text is on GitHub under AGPL-3.0, so you can read it too.",
       q2: 'How accurate is the detection?',
       a2: 'DocCloak uses GLiNER and BardS.ai models trained specifically for PII detection, plus regex patterns for 19 regions (US, China, Japan and 16 European countries) covering IBANs, national IDs, credit cards and phone numbers. For names, emails, phones, and standard identifiers it is highly accurate - but no detector catches 100%, and you should distrust any tool that claims one does. That is why every detection is shown for review: you can edit, add or remove any item before the text leaves your screen. Nothing is shared without your approval.',
       q3: 'Can I use this for GDPR, HIPAA, or compliance work?',

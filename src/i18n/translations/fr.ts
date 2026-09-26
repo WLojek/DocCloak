@@ -31,7 +31,7 @@ export const fr: Translations = {
       bardsai: { label: 'BardS.ai EU PII', description: 'Meilleure précision multilingue, 24+ langues UE, 35 types PII (~279 Mo)' },
     },
     regexRules: 'Détection par motifs (regex)',
-    regexRulesDescription: 'Détecter des motifs structurés (IBAN, identifiants, plaques) en plus du ML',
+    regexRulesDescription: "Détecter des motifs structurés (IBAN, identifiants, téléphones) en plus du ML",
     regexRegion: 'Langue du texte',
     regexRegionHint: "La langue du texte (règles du pays concerné) se choisit à côté du bouton « Censurer le document ». Sans choix, elle suit la langue de l'interface.",
     regexRegions: {
@@ -157,8 +157,8 @@ export const fr: Translations = {
   },
   footer: {
     offlineMessage: 'Tout reste dans votre navigateur · Aucune donnée n\'est envoyée nulle part',
-    verifyText: 'Vérifier\u00A0: DevTools → Onglet Réseau → zéro requête',
-    verifyTooltip: 'Ouvrez les DevTools du navigateur (F12 ou Cmd+Option+I), allez dans l\'onglet Réseau et vérifiez qu\'aucune requête n\'est envoyée. Tout le traitement se fait localement.',
+    verifyText: "Comment vérifier",
+    verifyTooltip: "Ouvrez les DevTools du navigateur (F12 ou Cmd+Option+I), allez dans l'onglet Réseau et censurez un texte collé : aucune requête n'est envoyée. L'ouverture d'un PDF ou d'une image charge les propres fichiers PDF ou OCR de DocCloak ; votre document n'est jamais envoyé. Tout le traitement se fait localement.",
   },
   toast: {
     copiedToClipboard: 'Copié dans le presse-papiers',
@@ -239,7 +239,7 @@ export const fr: Translations = {
       eyebrow: 'Questions fréquentes',
       heading: 'Les questions à se poser',
       q1: "Mes données ne sont-elles vraiment envoyées nulle part ?",
-      a1: "Exact. DocCloak fonctionne entièrement dans votre navigateur. Le modèle et ses fichiers de tokenizer sont téléchargés une seule fois depuis Hugging Face, à partir d'un commit épinglé et vérifiés par des empreintes SHA-256, et seulement après que vous avez accepté la configuration initiale ; ensuite tout se passe localement, et après ce premier chargement l'application s'ouvre aussi sans connexion réseau. Vous pouvez le vérifier vous-même : ouvrez les DevTools, allez dans l'onglet Réseau et observez - aucune requête n'est envoyée pendant l'anonymisation. Le code source est disponible sur GitHub sous licence AGPL-3.0.",
+      a1: "Exact. DocCloak fonctionne entièrement dans votre navigateur. Le modèle et ses fichiers de tokenizer sont téléchargés une seule fois depuis Hugging Face, à partir d'un commit épinglé et vérifiés par des empreintes SHA-256, et seulement après que vous avez accepté la configuration initiale ; ensuite tout se passe localement, et après ce premier chargement l'application s'ouvre aussi sans connexion réseau. Vous pouvez le vérifier vous-même : ouvrez les DevTools, allez dans l'onglet Réseau et observez - aucune requête n'est envoyée pendant l'anonymisation d'un texte collé. L'ouverture d'un PDF ou d'une image charge les propres fichiers PDF ou OCR de DocCloak (depuis doccloak.com ou le cache du navigateur) ; aucune de ces requêtes ne contient votre document. Le code source est disponible sur GitHub sous licence AGPL-3.0.",
       q2: "Quelle est la précision de la détection ?",
       a2: "DocCloak utilise les modèles GLiNER et BardS.ai, entraînés spécifiquement pour la détection des données personnelles, ainsi que des expressions régulières pour 19 régions (États-Unis, Chine, Japon et 16 pays européens) couvrant les IBAN, les numéros d'identité nationaux, les cartes bancaires et les numéros de téléphone. Pour les noms, e-mails, téléphones et identifiants standard, la précision est très élevée - mais aucun détecteur ne trouve 100 %, et méfiez-vous de tout outil qui le prétend. C'est pourquoi chaque détection vous est présentée pour vérification : vous pouvez modifier, ajouter ou retirer n'importe quel élément avant que le texte ne quitte votre écran. Rien n'est partagé sans votre accord.",
       q3: "Puis-je l'utiliser pour des travaux liés au RGPD, HIPAA ou à la conformité ?",

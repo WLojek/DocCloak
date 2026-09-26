@@ -31,7 +31,7 @@ export const pt: Translations = {
       bardsai: { label: 'BardS.ai EU PII', description: 'Melhor precisão multilingue, 24+ idiomas UE, 35 tipos PII (~279 MB)' },
     },
     regexRules: 'Deteção por padrões (regex)',
-    regexRulesDescription: 'Detetar padrões estruturados (IBAN, IDs, matrículas) além do ML',
+    regexRulesDescription: "Detetar padrões estruturados (IBAN, IDs, telefones) além do ML",
     regexRegion: 'Idioma do texto',
     regexRegionHint: 'O idioma do texto (regras do país correspondente) escolhe-se junto ao botão «Redigir documento». Até escolher, segue o idioma da interface.',
     regexRegions: {
@@ -157,8 +157,8 @@ export const pt: Translations = {
   },
   footer: {
     offlineMessage: 'Tudo permanece no seu navegador · Nenhum dado é enviado para lugar nenhum',
-    verifyText: 'Verificar: DevTools → Separador Rede → zero pedidos',
-    verifyTooltip: 'Abra as DevTools do navegador (F12 ou Cmd+Option+I), vá ao separador Rede e confirme que não é feito nenhum pedido. Todo o processamento é local.',
+    verifyText: "Como verificar",
+    verifyTooltip: "Abra as DevTools do navegador (F12 ou Cmd+Option+I), vá ao separador Rede e redija um texto colado: não é feito nenhum pedido. Ao abrir um PDF ou uma imagem, o DocCloak carrega os seus próprios ficheiros de PDF ou OCR; o seu documento nunca é enviado. Todo o processamento é local.",
   },
   toast: {
     copiedToClipboard: 'Copiado para a área de transferência',
@@ -239,7 +239,7 @@ export const pt: Translations = {
       eyebrow: 'Perguntas frequentes',
       heading: 'Questões que deve colocar',
       q1: 'Os meus dados não são mesmo carregados para lado nenhum?',
-      a1: 'Correto. O DocCloak funciona inteiramente no seu navegador. O modelo e os seus ficheiros de tokenizador são descarregados uma vez a partir do Hugging Face, de um commit fixado e verificados com somas SHA-256, e só depois de aceitar a configuração inicial; depois, tudo acontece localmente, e após esse primeiro carregamento a aplicação também abre sem ligação à rede. Pode verificar por si próprio: abra as DevTools, vá ao separador Rede e observe - não existem pedidos durante a anonimização. O código-fonte está no GitHub sob AGPL-3.0.',
+      a1: 'Correto. O DocCloak funciona inteiramente no seu navegador. O modelo e os seus ficheiros de tokenizador são descarregados uma vez a partir do Hugging Face, de um commit fixado e verificados com somas SHA-256, e só depois de aceitar a configuração inicial; depois, tudo acontece localmente, e após esse primeiro carregamento a aplicação também abre sem ligação à rede. Pode verificar por si próprio: abra as DevTools, vá ao separador Rede e observe - não existem pedidos durante a anonimização de um texto colado. Ao abrir um PDF ou uma imagem, o DocCloak carrega os seus próprios ficheiros de PDF ou OCR (a partir de doccloak.com ou da cache do navegador); nenhum desses pedidos contém o seu documento. O código-fonte está no GitHub sob AGPL-3.0.',
       q2: 'Qual é a precisão da deteção?',
       a2: "O DocCloak utiliza modelos GLiNER e BardS.ai treinados especificamente para deteção de PII, além de padrões regex para 19 regiões (EUA, China, Japão e 16 países europeus) que abrangem IBAN, números de identificação nacionais, cartões de crédito e números de telefone. Para nomes, e-mails, telefones e identificadores padrão a precisão é muito elevada - mas nenhum detetor encontra 100 %, e deve desconfiar de qualquer ferramenta que o afirme. Por isso, cada deteção é mostrada para revisão: pode editar, acrescentar ou remover qualquer item antes de o texto sair do seu ecrã. Nada é partilhado sem a sua aprovação.",
       q3: 'Posso usar isto para trabalhos de RGPD, HIPAA ou conformidade?',

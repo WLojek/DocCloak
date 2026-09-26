@@ -850,7 +850,7 @@ export default function App() {
             {footerTooltipOpen && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setFooterTooltipOpen(false)} />
-                <div className="absolute bottom-full right-0 mb-2 z-50 bg-[#111111] text-[#F9F9F7] p-3 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.2)] max-w-xs">
+                <div className="absolute bottom-full left-0 mb-2 z-50 bg-[#111111] text-[#F9F9F7] p-3 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.2)] w-80 max-w-[calc(100vw-3rem)]">
                   <p className="text-xs font-sans leading-relaxed">{t.footer.verifyTooltip}</p>
                 </div>
               </>

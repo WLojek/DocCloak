@@ -31,7 +31,7 @@ export const pl: Translations = {
       bardsai: { label: 'BardS.ai EU PII', description: 'Najlepsza wielojęzyczna skuteczność, 24+ języki UE, 35 typów PII (~279 MB)' },
     },
     regexRules: 'Wykrywanie wzorców (regex)',
-    regexRulesDescription: 'Wykrywaj strukturalne wzorce (IBAN, numery ID, tablice) za pomocą reguł oprócz ML',
+    regexRulesDescription: "Wykrywaj strukturalne wzorce (IBAN, numery ID, telefony) za pomocą reguł oprócz ML",
     regexRegion: 'Język tekstu',
     regexRegionHint: 'Język tekstu (reguły dla danego kraju) wybierasz obok przycisku „Redaguj dokument”. Do czasu wyboru podąża za językiem interfejsu.',
     regexRegions: {
@@ -165,8 +165,8 @@ export const pl: Translations = {
   },
   footer: {
     offlineMessage: 'Wszystko pozostaje w Twojej przeglądarce · Żadne dane nie są nigdzie wysyłane',
-    verifyText: 'Weryfikacja: DevTools → Zakładka Sieć → zero żądań',
-    verifyTooltip: 'Otwórz DevTools przeglądarki (F12 lub Cmd+Option+I), przejdź do zakładki Sieć i potwierdź, że nie wysłano żadnych żądań podczas korzystania z DocCloak. Całe przetwarzanie odbywa się lokalnie.',
+    verifyText: "Jak sprawdzić",
+    verifyTooltip: "Otwórz DevTools przeglądarki (F12 lub Cmd+Option+I), przejdź do zakładki Sieć i zredaguj wklejony tekst: nie zostanie wysłane żadne żądanie. Otwarcie PDF lub obrazu ładuje własne pliki DocCloak do obsługi PDF lub OCR; Twój dokument nigdy nie jest wysyłany. Całe przetwarzanie odbywa się lokalnie.",
   },
   toast: {
     copiedToClipboard: 'Skopiowano do schowka',
@@ -247,7 +247,7 @@ export const pl: Translations = {
       eyebrow: 'Często zadawane',
       heading: 'Pytania, które warto zadać',
       q1: 'Czy moje dane naprawdę nigdzie nie są przesyłane?',
-      a1: 'Nie mają dokąd trafić. DocCloak nie ma serwera: wykrywanie działa na modelu ML załadowanym do Twojej przeglądarki, a dokument jest przetwarzany na Twoim urządzeniu. Model i pliki jego tokenizera pobierają się raz z Hugging Face, z przypiętego commita i ze sprawdzeniem sum SHA-256, dopiero po zaakceptowaniu jednorazowej konfiguracji; potem wszystko dzieje się lokalnie, a po tym pierwszym załadowaniu aplikacja otwiera się także bez połączenia z siecią. Nie wierz nam na słowo - otwórz DevTools, przejdź do zakładki Network i obserwuj: zero żądań podczas redagowania. Kod, który dotyka Twojego tekstu, jest na GitHubie na licencji AGPL-3.0, więc możesz go też przeczytać.',
+      a1: 'Nie mają dokąd trafić. DocCloak nie ma serwera: wykrywanie działa na modelu ML załadowanym do Twojej przeglądarki, a dokument jest przetwarzany na Twoim urządzeniu. Model i pliki jego tokenizera pobierają się raz z Hugging Face, z przypiętego commita i ze sprawdzeniem sum SHA-256, dopiero po zaakceptowaniu jednorazowej konfiguracji; potem wszystko dzieje się lokalnie, a po tym pierwszym załadowaniu aplikacja otwiera się także bez połączenia z siecią. Nie wierz nam na słowo - otwórz DevTools, przejdź do zakładki Network (Sieć) i obserwuj: zero żądań podczas redagowania wklejonego tekstu. Otwarcie pliku PDF lub obrazu ładuje własne pliki DocCloak do obsługi PDF lub OCR (z doccloak.com albo z pamięci przeglądarki); żadne z tych żądań nie zawiera Twojego dokumentu. Kod, który dotyka Twojego tekstu, jest na GitHubie na licencji AGPL-3.0, więc możesz go też przeczytać.',
       q2: 'Jak dokładne jest wykrywanie?',
       a2: 'DocCloak korzysta z modeli GLiNER i BardS.ai wytrenowanych specjalnie do wykrywania danych osobowych, a także ze wzorców regex dla 19 regionów (USA, Chiny, Japonia i 16 krajów europejskich), obejmujących IBAN-y, numery ID, karty płatnicze i telefony. W przypadku nazwisk, e-maili, telefonów i standardowych identyfikatorów jest bardzo dokładny - ale żaden detektor nie wykrywa 100% i nie ufaj narzędziu, które tak twierdzi. Dlatego każde wykrycie jest pokazywane do przeglądu: możesz edytować, dodać lub usunąć dowolny element, zanim tekst opuści Twój ekran. Nic nie jest udostępniane bez Twojej zgody.',
       q3: 'Czy mogę używać tego do pracy zgodnej z GDPR, HIPAA lub innymi regulacjami?',

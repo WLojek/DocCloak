@@ -31,7 +31,7 @@ export const no: Translations = {
       bardsai: { label: 'BardS.ai EU PII', description: 'Best flerspråklig presisjon, 24+ EU-språk, 35 PII-typer (~279 MB)' },
     },
     regexRules: 'Regex-mønstergjenkjenning',
-    regexRulesDescription: 'Oppdag strukturerte mønstre (IBAN, ID-er, skilter) i tillegg til ML',
+    regexRulesDescription: "Oppdag strukturerte mønstre (IBAN, ID-er, telefonnumre) i tillegg til ML",
     regexRegion: 'Tekstspråk',
     regexRegionHint: 'Tekstspråket (hvilket lands regler som gjelder) velges ved siden av knappen «Maskér dokument». Inntil du velger, følger det grensesnittspråket.',
     regexRegions: {
@@ -157,8 +157,8 @@ export const no: Translations = {
   },
   footer: {
     offlineMessage: 'Alt forblir i nettleseren din · Ingen data sendes noe sted',
-    verifyText: 'Verifiser: DevTools → Nettverksfanen → null forespørsler',
-    verifyTooltip: 'Åpne nettleserens DevTools (F12 eller Cmd+Option+I), gå til Nettverksfanen og bekreft at ingen forespørsler sendes. All behandling skjer lokalt.',
+    verifyText: "Slik kontrollerer du",
+    verifyTooltip: "Åpne nettleserens DevTools (F12 eller Cmd+Option+I), gå til Nettverksfanen og masker en innlimt tekst: ingen forespørsler sendes. Når du åpner en PDF eller et bilde, laster DocCloak sine egne PDF- eller OCR-filer; dokumentet ditt sendes aldri. All behandling skjer lokalt.",
   },
   toast: {
     copiedToClipboard: 'Kopiert til utklippstavlen',
@@ -239,7 +239,7 @@ export const no: Translations = {
       eyebrow: 'Ofte stilte spørsmål',
       heading: 'Spørsmål du bør stille',
       q1: 'Blir dataene mine virkelig ikke lastet opp noe sted?',
-      a1: 'Riktig. DocCloak kjører utelukkende i nettleseren din. Modellen og tokenizer-filene dens lastes ned én gang fra Hugging Face, fra en fastlåst commit og verifisert mot SHA-256-summer, og først etter at du har godtatt engangsoppsettet; deretter skjer alt lokalt, og etter den første innlastingen åpnes appen også uten nettverkstilkobling. Du kan verifisere dette selv: åpne DevTools, gå til Nettverk-fanen og se etter - det er null forespørsler under anonymiseringen. Kildekoden ligger på GitHub under AGPL-3.0.',
+      a1: 'Riktig. DocCloak kjører utelukkende i nettleseren din. Modellen og tokenizer-filene dens lastes ned én gang fra Hugging Face, fra en fastlåst commit og verifisert mot SHA-256-summer, og først etter at du har godtatt engangsoppsettet; deretter skjer alt lokalt, og etter den første innlastingen åpnes appen også uten nettverkstilkobling. Du kan verifisere dette selv: åpne DevTools, gå til Nettverk-fanen og se etter - det er null forespørsler når en innlimt tekst anonymiseres. Når du åpner en PDF eller et bilde, laster DocCloak sine egne PDF- eller OCR-filer (fra doccloak.com eller nettleserens hurtigbuffer); ingen av disse forespørslene inneholder dokumentet ditt. Kildekoden ligger på GitHub under AGPL-3.0.',
       q2: 'Hvor nøyaktig er deteksjonen?',
       a2: "DocCloak bruker GLiNER- og BardS.ai-modeller som er spesifikt trent for PII-deteksjon, samt regex-mønstre for 19 regioner (USA, Kina, Japan og 16 europeiske land) som dekker IBAN, nasjonale ID-numre, kredittkort og telefonnumre. For navn, e-postadresser, telefonnumre og standardidentifikatorer er den svært nøyaktig - men ingen detektor finner 100 %, og du bør mistro ethvert verktøy som påstår det. Derfor vises hver deteksjon for gjennomgang: du kan redigere, legge til eller fjerne ethvert element før teksten forlater skjermen din. Ingenting deles uten din godkjenning.",
       q3: 'Kan jeg bruke dette til GDPR-, HIPAA- eller etterlevelsesarbeid?',
