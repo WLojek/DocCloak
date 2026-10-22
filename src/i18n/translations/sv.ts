@@ -270,6 +270,7 @@ export const sv: Translations = {
     encrypted: 'Filen är krypterad. Ta bort lösenordet och försök igen.',
     'unredactable-parts': 'Filen innehåller delar som DocCloak inte kan anonymisera. Läs meddelandet ovanför dokumentet och välj Fortsätt eller Avbryt.',
     'empty-document': 'Ingen text hittades i dokumentet.',
+    'pdf-scan-no-text': "Den här PDF-filen är en skanning utan textlager (ingen OCR), så det finns ingen text att anonymisera. Kör OCR på den först (de flesta skannerappar och PDF-verktyg kan det) eller ladda upp sidorna som bilder: DocCloak läser bilder med OCR.",
     'verify-failed': 'DocCloak hittade ett spår av originaldata i utdatafilen och vägrade exportera. Inget laddades ner.',
     'stale-extraction': 'Den här PDF-filen motsvarar inte längre den analyserade texten. Ta bort filen och ladda upp den igen.',
   },
@@ -308,5 +309,7 @@ export const sv: Translations = {
       signatures: 'digitala signaturer',
     },
     rasterizedPages: (pages, count) => count === 1 ? `Sidan ${pages} gjordes om till en bild: dess textlager är borta.` : `Sidorna ${pages} gjordes om till bilder: deras textlager är borta.`,
+    scanPagesFound: (pages, count) => count === 1 ? `Sidan ${pages} är en skanning med ett OCR-textlager: uppgifterna som hittas på den täcks över i bilden med sina platshållare, och sidan sparas som en bild.` : `Sidorna ${pages} är skanningar med ett OCR-textlager: uppgifterna som hittas på dem täcks över i bilden med sina platshållare, och sidorna sparas som bilder.`,
+    scanPages: (pages, count) => count === 1 ? `Sidan ${pages} (skanning): uppgifterna täcktes över i bilden med sina platshållare; sidan sparas som en bild utan textlager.` : `Sidorna ${pages} (skanningar): uppgifterna täcktes över i bilden med sina platshållare; sidorna sparas som bilder utan textlager.`,
   },
 };

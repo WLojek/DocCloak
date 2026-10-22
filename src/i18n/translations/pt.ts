@@ -270,6 +270,7 @@ export const pt: Translations = {
     encrypted: 'Este ficheiro está encriptado. Remova a palavra-passe e tente novamente.',
     'unredactable-parts': 'Este ficheiro contém partes que o DocCloak não consegue anonimizar. Veja o aviso acima do documento e escolha Continuar ou Cancelar.',
     'empty-document': 'Nenhum texto encontrado neste documento.',
+    'pdf-scan-no-text': "Este PDF é uma digitalização sem camada de texto (sem OCR), por isso não tem texto para anonimizar. Passe-o primeiro por OCR (a maioria das aplicações de digitalização e ferramentas de PDF consegue fazê-lo) ou carregue as suas páginas como imagens: o DocCloak lê imagens com OCR.",
     'verify-failed': 'O DocCloak encontrou um vestígio dos dados originais no ficheiro gerado e recusou a exportação. Nada foi transferido.',
     'stale-extraction': 'Este PDF já não corresponde ao texto analisado. Remova o ficheiro e carregue-o novamente.',
   },
@@ -308,5 +309,7 @@ export const pt: Translations = {
       signatures: 'assinaturas digitais',
     },
     rasterizedPages: (pages, count) => count === 1 ? `A página ${pages} foi convertida em imagem: a sua camada de texto desapareceu.` : `As páginas ${pages} foram convertidas em imagens: a sua camada de texto desapareceu.`,
+    scanPagesFound: (pages, count) => count === 1 ? `A página ${pages} é uma digitalização com camada de texto OCR: os dados encontrados nela são tapados na imagem pelos seus marcadores e a página é guardada como imagem.` : `As páginas ${pages} são digitalizações com camada de texto OCR: os dados encontrados nelas são tapados na imagem pelos seus marcadores e as páginas são guardadas como imagens.`,
+    scanPages: (pages, count) => count === 1 ? `Página ${pages} (digitalização): os dados foram tapados na imagem pelos seus marcadores; a página é guardada como imagem sem camada de texto.` : `Páginas ${pages} (digitalizações): os dados foram tapados na imagem pelos seus marcadores; as páginas são guardadas como imagens sem camada de texto.`,
   },
 };

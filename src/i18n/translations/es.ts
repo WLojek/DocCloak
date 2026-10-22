@@ -270,6 +270,7 @@ export const es: Translations = {
     encrypted: 'Este archivo está cifrado. Quite la contraseña e inténtelo de nuevo.',
     'unredactable-parts': 'Este archivo contiene partes que DocCloak no puede anonimizar. Revise el aviso sobre el documento y elija Continuar o Cancelar.',
     'empty-document': 'No se encontró texto en este documento.',
+    'pdf-scan-no-text': "Este PDF es un escaneo sin capa de texto (sin OCR), así que no contiene texto que anonimizar. Páselo antes por OCR (la mayoría de las aplicaciones de escaneo y herramientas PDF pueden hacerlo) o suba sus páginas como imágenes: DocCloak lee las imágenes con OCR.",
     'verify-failed': 'DocCloak encontró un rastro de los datos originales en el archivo generado y rechazó la exportación. No se descargó nada.',
     'stale-extraction': 'Este PDF ya no coincide con el texto analizado. Quite el archivo y súbalo de nuevo.',
   },
@@ -308,5 +309,7 @@ export const es: Translations = {
       signatures: 'firmas digitales',
     },
     rasterizedPages: (pages, count) => count === 1 ? `La página ${pages} se convirtió en imagen: su capa de texto ha desaparecido.` : `Las páginas ${pages} se convirtieron en imágenes: su capa de texto ha desaparecido.`,
+    scanPagesFound: (pages, count) => count === 1 ? `La página ${pages} es un escaneo con capa de texto OCR: los datos encontrados en ella se tapan en la imagen con sus marcadores y la página se guarda como imagen.` : `Las páginas ${pages} son escaneos con capa de texto OCR: los datos encontrados en ellas se tapan en la imagen con sus marcadores y las páginas se guardan como imágenes.`,
+    scanPages: (pages, count) => count === 1 ? `Página ${pages} (escaneo): los datos se taparon en la imagen con sus marcadores; la página se guarda como imagen sin capa de texto.` : `Páginas ${pages} (escaneos): los datos se taparon en la imagen con sus marcadores; las páginas se guardan como imágenes sin capa de texto.`,
   },
 };

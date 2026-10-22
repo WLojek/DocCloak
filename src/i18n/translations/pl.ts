@@ -278,6 +278,7 @@ export const pl: Translations = {
     encrypted: 'Ten plik jest zaszyfrowany. Usuń hasło i spróbuj ponownie.',
     'unredactable-parts': 'Ten plik zawiera części, których DocCloak nie może zanonimizować. Przejrzyj komunikat nad dokumentem i wybierz Kontynuuj albo Anuluj.',
     'empty-document': 'W tym dokumencie nie znaleziono tekstu.',
+    'pdf-scan-no-text': "Ten PDF to skan bez warstwy tekstowej (bez OCR), więc nie ma w nim tekstu do zanonimizowania. Najpierw przepuść go przez OCR (potrafi to większość aplikacji do skanowania i narzędzi PDF) albo wgraj jego strony jako obrazy: DocCloak odczytuje obrazy przez OCR.",
     'verify-failed': 'DocCloak znalazł ślad oryginalnych danych w pliku wynikowym i odmówił eksportu. Nic nie zostało pobrane.',
     'stale-extraction': 'Ten PDF nie odpowiada już przeanalizowanemu tekstowi. Usuń plik i wgraj go ponownie.',
   },
@@ -316,5 +317,7 @@ export const pl: Translations = {
       signatures: 'podpisy cyfrowe',
     },
     rasterizedPages: (pages, count) => count === 1 ? `Strona ${pages} została zamieniona na obraz: jej warstwa tekstowa zniknęła.` : `Strony ${pages} zostały zamienione na obrazy: ich warstwa tekstowa zniknęła.`,
+    scanPagesFound: (pages, count) => count === 1 ? `Strona ${pages} to skan z warstwą tekstową OCR: znalezione na niej dane zostaną zakryte na obrazie etykietami zastępczymi, a strona zostanie zapisana jako obraz.` : `Strony ${pages} to skany z warstwą tekstową OCR: znalezione na nich dane zostaną zakryte na obrazie etykietami zastępczymi, a strony zostaną zapisane jako obrazy.`,
+    scanPages: (pages, count) => count === 1 ? `Strona ${pages} (skan): dane zostały zakryte na obrazie etykietami zastępczymi; strona jest zapisana jako obraz bez warstwy tekstowej.` : `Strony ${pages} (skany): dane zostały zakryte na obrazie etykietami zastępczymi; strony są zapisane jako obrazy bez warstwy tekstowej.`,
   },
 };

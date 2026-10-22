@@ -270,6 +270,7 @@ export const fr: Translations = {
     encrypted: 'Ce fichier est chiffré. Supprimez le mot de passe et réessayez.',
     'unredactable-parts': "Ce fichier contient des éléments que DocCloak ne peut pas anonymiser. Consultez l'avis au-dessus du document et choisissez Continuer ou Annuler.",
     'empty-document': 'Aucun texte trouvé dans ce document.',
+    'pdf-scan-no-text': "Ce PDF est un document numérisé sans couche de texte (sans OCR) : il n'y a donc aucun texte à anonymiser. Passez-le d'abord à l'OCR (la plupart des applications de numérisation et des outils PDF le font), ou importez ses pages comme images : DocCloak lit les images par OCR.",
     'verify-failed': "DocCloak a trouvé une trace des données d'origine dans le fichier produit et a refusé l'exportation. Rien n'a été téléchargé.",
     'stale-extraction': 'Ce PDF ne correspond plus au texte analysé. Retirez le fichier et importez-le à nouveau.',
   },
@@ -308,5 +309,7 @@ export const fr: Translations = {
       signatures: 'signatures numériques',
     },
     rasterizedPages: (pages, count) => count === 1 ? `La page ${pages} a été convertie en image : sa couche de texte a disparu.` : `Les pages ${pages} ont été converties en images : leur couche de texte a disparu.`,
+    scanPagesFound: (pages, count) => count === 1 ? `La page ${pages} est numérisée avec une couche de texte OCR : les données qui y sont trouvées sont masquées dans l'image par leurs marqueurs, et la page est enregistrée comme image.` : `Les pages ${pages} sont numérisées avec une couche de texte OCR : les données qui y sont trouvées sont masquées dans l'image par leurs marqueurs, et les pages sont enregistrées comme images.`,
+    scanPages: (pages, count) => count === 1 ? `Page ${pages} (numérisée) : les données ont été masquées dans l'image par leurs marqueurs ; la page est enregistrée comme image, sans couche de texte.` : `Pages ${pages} (numérisées) : les données ont été masquées dans l'image par leurs marqueurs ; les pages sont enregistrées comme images, sans couche de texte.`,
   },
 };

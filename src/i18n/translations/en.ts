@@ -270,6 +270,7 @@ export const en: Translations = {
     encrypted: 'This file is encrypted. Remove the password and try again.',
     'unredactable-parts': 'This file contains parts DocCloak cannot anonymise. Review the notice above the document and choose Continue or Cancel.',
     'empty-document': 'No text found in this document.',
+    'pdf-scan-no-text': "This PDF is a scan without a text layer (no OCR), so there is no text to anonymize. Run OCR on it first (most scanner apps and PDF tools can), or upload its pages as images: DocCloak reads images with OCR.",
     'verify-failed': 'DocCloak found a trace of the original data in the output and refused to export. Nothing was downloaded.',
     'stale-extraction': 'This PDF no longer matches the text that was analysed. Remove the file and upload it again.',
   },
@@ -308,5 +309,7 @@ export const en: Translations = {
       signatures: 'digital signatures',
     },
     rasterizedPages: (pages, count) => count === 1 ? `Page ${pages} was converted to an image: its text layer is gone.` : `Pages ${pages} were converted to images: their text layer is gone.`,
+    scanPagesFound: (pages, count) => count === 1 ? `Page ${pages} is a scan with an OCR text layer: the values found on it are covered in the picture with their placeholders, and the page is saved as an image.` : `Pages ${pages} are scans with an OCR text layer: the values found on them are covered in the picture with their placeholders, and the pages are saved as images.`,
+    scanPages: (pages, count) => count === 1 ? `Page ${pages} (scan): the values were covered in the picture with their placeholders; the page is saved as an image without a text layer.` : `Pages ${pages} (scans): the values were covered in the picture with their placeholders; the pages are saved as images without a text layer.`,
   },
 };

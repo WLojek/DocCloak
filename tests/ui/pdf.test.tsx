@@ -12,7 +12,7 @@ import { UnsupportedDocumentError } from '@doccloak/core/dom';
 import type { UnredactablePart } from '@doccloak/core/dom';
 import { UnredactableNotice } from '../../src/ui/components/UnredactableNotice.tsx';
 import { TextInput } from '../../src/ui/components/TextInput.tsx';
-import { useAnonymizer, fileErrorCode, fileErrorMessage, pdfDownloadName, PDF_MAX_BYTES, PDF_SIZE_LIMIT_LABEL } from '../../src/ui/hooks/useAnonymizer.ts';
+import { useAnonymizer, fileErrorCode, fileErrorMessage, pageList, pdfDownloadName, PDF_MAX_BYTES, PDF_SIZE_LIMIT_LABEL } from '../../src/ui/hooks/useAnonymizer.ts';
 import { isPdfFile, pdfAssets } from '../../src/pdf.web.ts';
 import { LanguageProvider } from '../../src/i18n/LanguageContext.tsx';
 import { ToastProvider } from '../../src/ui/components/Toast.tsx';
@@ -76,7 +76,7 @@ function extraction(overrides: Partial<PdfExtraction> = {}): PdfExtraction {
 }
 
 function writeResult(overrides: Partial<Awaited<ReturnType<typeof import('@doccloak/core/pdf').writeAnonymizedPdfWithReport>>> = {}) {
-  return { blob: new Blob(['%PDF-1.7'], { type: 'application/pdf' }), warnings: [], removed: [], rasterizedPages: [], shiftedLines: 0, ...overrides };
+  return { blob: new Blob(['%PDF-1.7'], { type: 'application/pdf' }), warnings: [], removed: [], rasterizedPages: [], scanPages: [], shiftedLines: 0, ...overrides };
 }
 
 function Providers({ children }: { children: ReactNode }) {
@@ -262,6 +262,35 @@ describe('useAnonymizer with a PDF', () => {
     expect(loaded).toMatchObject({ success: false, code: 'too-large', message: fileErrorMessage(en, 'too-large', 'pdf') });
     expect(loaded?.message).toContain(PDF_SIZE_LIMIT_LABEL);
     expect(mocks.readPdf).not.toHaveBeenCalled();
+  });
+
+  it('scan pages with an OCR text layer are announced on load and reported after export (T236)', async () => {
+    const page = (index: number, ocrText: boolean) => ({ index, width: 595, height: 842, rotate: 0, hasImages: true, imageOnly: true, ocrText, textStart: 0, textEnd: 0 });
+    mocks.readPdf.mockResolvedValue(extraction({ pages: [page(0, true), page(1, true), page(2, true), page(3, false)], unredactable: [SCANNED], warnings: ['a reader note'] }));
+    mocks.writeAnonymizedPdfWithReport.mockResolvedValue(writeResult({ scanPages: [0, 1, 2] }));
+    const { result } = renderHook(() => useAnonymizer(), { wrapper: Providers });
+    await act(async () => { await result.current.loadFile(new File(['%PDF'], 'judgment.pdf')); });
+    expect(result.current.fileWarnings).toEqual([en.pdf.scanPagesFound('1-3', 3), 'a reader note']);
+    expect(en.pdf.scanPagesFound('1-3', 3)).toMatch(/^Pages 1-3 are scans with an OCR text layer/);
+    act(() => { result.current.continueWithUnredactable(); });
+    await act(async () => { await result.current.exportPdf(); });
+    expect(result.current.fileWarnings).toContain(en.pdf.scanPages('1-3', 3));
+  });
+
+  it('pageList shortens runs of pages', () => {
+    expect(pageList([3, 7])).toBe('3, 7');
+    expect(pageList([1, 2, 3, 5, 9, 10])).toBe('1-3, 5, 9, 10');
+    expect(pageList([4, 2, 3, 3])).toBe('2-4');
+  });
+
+  it('a scanned PDF without any text names the cause and the remedies, not just "no text found" (T236)', async () => {
+    const scan = { index: 0, width: 595, height: 842, rotate: 0, hasImages: true, imageOnly: true, ocrText: false, textStart: 0, textEnd: 0 };
+    mocks.readPdf.mockResolvedValue(extraction({ plainText: '', empty: true, pages: [scan], unredactable: [SCANNED] }));
+    const { result } = renderHook(() => useAnonymizer(), { wrapper: Providers });
+    let loaded: { success: boolean; code?: string; message?: string } | undefined;
+    await act(async () => { loaded = await result.current.loadFile(new File(['%PDF'], 'scan.pdf')); });
+    expect(loaded).toMatchObject({ success: false, code: 'empty-document', message: en.fileErrors['pdf-scan-no-text'] });
+    expect(en.fileErrors['pdf-scan-no-text']).toMatch(/scan without a text layer.*upload its pages as images/);
   });
 
   it('a PDF without readable text is refused with the empty-document code', async () => {

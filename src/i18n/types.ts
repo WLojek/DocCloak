@@ -249,6 +249,8 @@ export interface Translations {
     encrypted: string;
     'unredactable-parts': string;
     'empty-document': string;
+    // T236 (PDF): no text at all because the PDF is a scan without OCR; the remedy names OCR and image upload
+    'pdf-scan-no-text': string;
     // T216 (PDF): post-write verification found a trace of an original value; nothing is shipped
     'verify-failed': string;
     // T216 (PDF): the bytes no longer produce the analysed text (re-upload)
@@ -293,6 +295,9 @@ export interface Translations {
     };
     /** `pages` is the 1-based list ("3, 7"), `count` its length (for plural forms). */
     rasterizedPages: (pages: string, count: number) => string;
+    // T236: scan pages with an OCR text layer, on load (what will happen) and after export (what happened)
+    scanPagesFound: (pages: string, count: number) => string;
+    scanPages: (pages: string, count: number) => string;
   };
 }
 

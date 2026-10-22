@@ -270,6 +270,7 @@ export const de: Translations = {
     encrypted: 'Diese Datei ist verschlüsselt. Entfernen Sie das Passwort und versuchen Sie es erneut.',
     'unredactable-parts': 'Diese Datei enthält Teile, die DocCloak nicht anonymisieren kann. Prüfen Sie den Hinweis über dem Dokument und wählen Sie Fortfahren oder Abbrechen.',
     'empty-document': 'In diesem Dokument wurde kein Text gefunden.',
+    'pdf-scan-no-text': "Diese PDF-Datei ist ein Scan ohne Textebene (ohne OCR), daher gibt es keinen Text zum Anonymisieren. Lassen Sie zuerst eine Texterkennung (OCR) darüber laufen (das können die meisten Scanner-Apps und PDF-Programme) oder laden Sie die Seiten als Bilder hoch: DocCloak liest Bilder per OCR.",
     'verify-failed': 'DocCloak hat in der Ausgabe eine Spur der Originaldaten gefunden und den Export verweigert. Es wurde nichts heruntergeladen.',
     'stale-extraction': 'Diese PDF entspricht nicht mehr dem analysierten Text. Entfernen Sie die Datei und laden Sie sie erneut hoch.',
   },
@@ -308,5 +309,7 @@ export const de: Translations = {
       signatures: 'digitale Signaturen',
     },
     rasterizedPages: (pages, count) => count === 1 ? `Seite ${pages} wurde in ein Bild umgewandelt: ihre Textebene ist weg.` : `Die Seiten ${pages} wurden in Bilder umgewandelt: ihre Textebene ist weg.`,
+    scanPagesFound: (pages, count) => count === 1 ? `Seite ${pages} ist ein Scan mit OCR-Textebene: Die darauf gefundenen Daten werden im Bild durch ihre Platzhalter verdeckt, und die Seite wird als Bild gespeichert.` : `Die Seiten ${pages} sind Scans mit OCR-Textebene: Die darauf gefundenen Daten werden im Bild durch ihre Platzhalter verdeckt, und die Seiten werden als Bilder gespeichert.`,
+    scanPages: (pages, count) => count === 1 ? `Seite ${pages} (Scan): Die Daten wurden im Bild durch ihre Platzhalter verdeckt; die Seite ist als Bild ohne Textebene gespeichert.` : `Die Seiten ${pages} (Scans): Die Daten wurden im Bild durch ihre Platzhalter verdeckt; die Seiten sind als Bilder ohne Textebene gespeichert.`,
   },
 };

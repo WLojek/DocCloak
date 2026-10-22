@@ -270,6 +270,7 @@ export const no: Translations = {
     encrypted: 'Filen er kryptert. Fjern passordet og prøv igjen.',
     'unredactable-parts': 'Filen inneholder deler som DocCloak ikke kan anonymisere. Se meldingen over dokumentet og velg Fortsett eller Avbryt.',
     'empty-document': 'Fant ingen tekst i dokumentet.',
+    'pdf-scan-no-text': "Denne PDF-filen er en skanning uten tekstlag (ingen OCR), så det finnes ingen tekst å anonymisere. Kjør OCR på den først (de fleste skanneapper og PDF-verktøy kan det), eller last opp sidene som bilder: DocCloak leser bilder med OCR.",
     'verify-failed': 'DocCloak fant et spor av originaldataene i utdatafilen og nektet å eksportere. Ingenting ble lastet ned.',
     'stale-extraction': 'Denne PDF-en samsvarer ikke lenger med den analyserte teksten. Fjern filen og last den opp på nytt.',
   },
@@ -308,5 +309,7 @@ export const no: Translations = {
       signatures: 'digitale signaturer',
     },
     rasterizedPages: (pages, count) => count === 1 ? `Side ${pages} ble gjort om til et bilde: tekstlaget er borte.` : `Sidene ${pages} ble gjort om til bilder: tekstlaget deres er borte.`,
+    scanPagesFound: (pages, count) => count === 1 ? `Side ${pages} er en skanning med et OCR-tekstlag: opplysningene som finnes på den, dekkes til i bildet med plassholderne sine, og siden lagres som et bilde.` : `Sidene ${pages} er skanninger med et OCR-tekstlag: opplysningene som finnes på dem, dekkes til i bildet med plassholderne sine, og sidene lagres som bilder.`,
+    scanPages: (pages, count) => count === 1 ? `Side ${pages} (skanning): opplysningene ble dekket til i bildet med plassholderne sine; siden lagres som et bilde uten tekstlag.` : `Sidene ${pages} (skanninger): opplysningene ble dekket til i bildet med plassholderne sine; sidene lagres som bilder uten tekstlag.`,
   },
 };

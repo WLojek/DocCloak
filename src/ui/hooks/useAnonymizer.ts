@@ -89,6 +89,19 @@ export function fileErrorCode(err: unknown): FileErrorCode | null {
   return null;
 }
 
+/** 1-based page numbers as a short list for notes: [1, 2, 3, 5] -> "1-3, 5" (T236). */
+export function pageList(pages: number[]): string {
+  const sorted = [...new Set(pages)].sort((a, b) => a - b);
+  const parts: string[] = [];
+  for (let i = 0; i < sorted.length; i++) {
+    let j = i;
+    while (j + 1 < sorted.length && sorted[j + 1] === sorted[j] + 1) j++;
+    parts.push(j > i + 1 ? `${sorted[i]}-${sorted[j]}` : j === i + 1 ? `${sorted[i]}, ${sorted[j]}` : `${sorted[i]}`);
+    i = j;
+  }
+  return parts.join(', ');
+}
+
 /** Download name of the redacted PDF: `<base>_redacted.pdf` (T216). */
 export function pdfDownloadName(fileName: string | null | undefined): string {
   const base = fileName?.replace(/\.pdf$/i, '').trim() || 'document';
@@ -649,13 +662,18 @@ export function useAnonymizer() {
       const { readPdf } = await import('@doccloak/core/pdf');
       const extraction = await readPdf(file, { assets: pdfAssets() });
       if (extraction.empty) {
+        // A scan without OCR has no text at all: say so, with the remedies (OCR first, or the pages as images).
+        const scan = extraction.pages.some((p) => p.imageOnly);
         return {
           success: false,
           error: 'empty-document',
           code: 'empty-document',
-          message: fileErrorMessage(t, 'empty-document'),
+          message: scan ? t.fileErrors['pdf-scan-no-text'] : fileErrorMessage(t, 'empty-document'),
         };
       }
+      // Scan pages with an OCR text layer (T236): their values are painted over in the picture on export.
+      const scanned = extraction.pages.filter((p) => p.ocrText).map((p) => p.index + 1);
+      const notes = scanned.length > 0 ? [t.pdf.scanPagesFound(pageList(scanned), scanned.length)] : [];
 
       resetImageState();
       setDocxFile(null);
@@ -666,7 +684,7 @@ export function useAnonymizer() {
       setInputText(extraction.plainText);
       resetTextState();
       setUnredactableItems(extraction.unredactable);
-      setFileWarnings(extraction.warnings);
+      setFileWarnings([...notes, ...extraction.warnings]);
       setAllowUnredactable(false);
       return { success: true };
     } catch (err) {
@@ -801,8 +819,11 @@ export function useAnonymizer() {
       });
       const notes = [...result.warnings];
       if (result.rasterizedPages.length > 0) {
-        const pages = result.rasterizedPages.map((p) => p + 1).join(', ');
+        const pages = pageList(result.rasterizedPages.map((p) => p + 1));
         notes.push(t.pdf.rasterizedPages(pages, result.rasterizedPages.length));
+      }
+      if (result.scanPages.length > 0) {
+        notes.push(t.pdf.scanPages(pageList(result.scanPages.map((p) => p + 1)), result.scanPages.length));
       }
       if (notes.length > 0) {
         setFileWarnings((prev) => Array.from(new Set([...prev, ...notes])));
