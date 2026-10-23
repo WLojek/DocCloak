@@ -125,7 +125,7 @@ describe('pdf.web adapter', () => {
 
 describe('useAnonymizer with a PDF', () => {
   it('loads a .pdf through readPdf with the self-hosted assets and reports its parts', async () => {
-    mocks.readPdf.mockResolvedValue(extraction({ unredactable: [SCANNED], removed: REMOVED, warnings: ['page 3: form XObject shared by two pages'] }));
+    mocks.readPdf.mockResolvedValue(extraction({ unredactable: [SCANNED], removed: REMOVED, warnings: ['page 3: contains images; text inside images is not scanned'] }));
     const { result } = renderHook(() => useAnonymizer(), { wrapper: Providers });
 
     let loaded: { success: boolean } | undefined;
@@ -134,7 +134,7 @@ describe('useAnonymizer with a PDF', () => {
     expect(loaded?.success).toBe(true);
     expect(mocks.readPdf).toHaveBeenCalledTimes(1);
     expect(mocks.readPdf.mock.calls[0][0]).toBe(file);
-    expect(mocks.readPdf.mock.calls[0][1]).toEqual({ assets: ASSETS });
+    expect(mocks.readPdf.mock.calls[0][1]).toEqual({ assets: ASSETS, recognizeText: expect.any(Function), onOcrProgress: expect.any(Function) });
     expect(mocks.readDocx).not.toHaveBeenCalled();
 
     expect(result.current.inputText).toBe('Hello Jan Kowalski, welcome.');
@@ -145,7 +145,8 @@ describe('useAnonymizer with a PDF', () => {
     expect(result.current.hasDocxExtraction).toBe(false);
     expect(result.current.hasImage).toBe(false);
     expect(result.current.unredactableItems).toEqual([SCANNED]);
-    expect(result.current.fileWarnings).toEqual(['page 3: form XObject shared by two pages']);
+    // Core's English note, in the interface language.
+    expect(result.current.fileWarnings).toEqual([en.coreNotes.imagesNotScanned('3', 1)]);
     expect(result.current.pdfRemoved).toEqual(REMOVED);
     expect(result.current.unredactablePending).toBe(true);
     expect(result.current.allowUnredactable).toBe(false);
@@ -178,7 +179,10 @@ describe('useAnonymizer with a PDF', () => {
     expect(replacements).toEqual([{ start: 6, end: 18, replacement: '[PERSON_1]' }]);
     expect(valueReplacements).toEqual([{ value: 'Jan Kowalski', replacement: '[PERSON_1]' }]);
     expect(options).toEqual({ assets: ASSETS, allowUnredactable: true });
-    await waitFor(() => expect(result.current.fileWarnings).toContain('scanned page 2 (image only) (exported as is)'));
+    // The writer's English note repeats what the card lists: it is not shown again.
+    await waitFor(() => expect(mocks.writeAnonymizedPdfWithReport).toHaveBeenCalledTimes(1));
+    expect(result.current.fileWarnings).not.toContain('scanned page 2 (image only) (exported as is)');
+    expect(result.current.fileWarnings.every((w) => !w.includes('exported as is'))).toBe(true);
   });
 
   it('a clean PDF with no detections can still be exported (allowUnredactable: false, no replacements)', async () => {
@@ -203,7 +207,8 @@ describe('useAnonymizer with a PDF', () => {
     const { result } = renderHook(() => useAnonymizer(), { wrapper: Providers });
     await act(async () => { await result.current.loadFile(new File(['%PDF'], 'scan.pdf')); });
     await act(async () => { await result.current.exportPdf(); });
-    expect(result.current.fileWarnings).toEqual(['page 3 uses a Type3 font', en.pdf.rasterizedPages('3, 7', 2)]);
+    // A note without a translation is counted in the interface language, never shown in English.
+    expect(result.current.fileWarnings).toEqual([en.coreNotes.other(1), en.pdf.rasterizedPages('3, 7', 2)]);
     expect(en.pdf.rasterizedPages('3, 7', 2)).toContain('3, 7');
   });
 
@@ -270,11 +275,55 @@ describe('useAnonymizer with a PDF', () => {
     mocks.writeAnonymizedPdfWithReport.mockResolvedValue(writeResult({ scanPages: [0, 1, 2] }));
     const { result } = renderHook(() => useAnonymizer(), { wrapper: Providers });
     await act(async () => { await result.current.loadFile(new File(['%PDF'], 'judgment.pdf')); });
-    expect(result.current.fileWarnings).toEqual([en.pdf.scanPagesFound('1-3', 3), 'a reader note']);
+    expect(result.current.fileWarnings).toEqual([en.pdf.scanPagesFound('1-3', 3), en.coreNotes.other(1)]);
     expect(en.pdf.scanPagesFound('1-3', 3)).toMatch(/^Pages 1-3 are scans with an OCR text layer/);
     act(() => { result.current.continueWithUnredactable(); });
     await act(async () => { await result.current.exportPdf(); });
     expect(result.current.fileWarnings).toContain(en.pdf.scanPages('1-3', 3));
+  });
+
+  it('scan pages whose picture holds text the OCR layer does not have get a note (T238)', async () => {
+    const page = (index: number, ocrMissingLines?: number) => ({ index, width: 595, height: 842, rotate: 0, hasImages: true, imageOnly: true, ocrText: true, ocrMissingLines, textStart: 0, textEnd: 0 });
+    mocks.readPdf.mockResolvedValue(extraction({ pages: [page(0), page(1, 17), page(2, 9)] }));
+    const { result } = renderHook(() => useAnonymizer(), { wrapper: Providers });
+    await act(async () => { await result.current.loadFile(new File(['%PDF'], 'scan.pdf')); });
+    expect(result.current.fileWarnings).toEqual([en.pdf.scanPagesFound('1-3', 3), en.pdf.ocrMissing('2, 3', 2)]);
+    expect(en.pdf.ocrMissing('2', 1)).toMatch(/^Page 2: part of the picture holds text the scan's OCR layer does not have/);
+  });
+
+  it('pages whose missing text DocCloak read with its own OCR get their own note; the rest keep the warning (T238)', async () => {
+    const page = (index: number, extra: Record<string, number>) => ({ index, width: 595, height: 842, rotate: 0, hasImages: true, imageOnly: true, ocrText: true, textStart: 0, textEnd: 0, ...extra });
+    mocks.readPdf.mockResolvedValue(extraction({ pages: [page(0, {}), page(1, { ocrMissingLines: 17, ocrReadWords: 62 }), page(2, { ocrMissingLines: 2 })] }));
+    const { result } = renderHook(() => useAnonymizer(), { wrapper: Providers });
+    await act(async () => { await result.current.loadFile(new File(['%PDF'], 'scan.pdf')); });
+    expect(result.current.fileWarnings).toEqual([en.pdf.scanPagesFound('1-3', 3), en.pdf.ocrRead('2', 1), en.pdf.ocrMissing('3', 1)]);
+    expect(typeof mocks.readPdf.mock.calls[0][1].recognizeText).toBe('function');
+  });
+
+  it('pages without a text layer read by DocCloak\'s OCR and text in images get their own notes (T239)', async () => {
+    const page = (index: number, extra: Record<string, unknown>) => ({ index, width: 595, height: 842, rotate: 0, hasImages: true, imageOnly: true, ocrText: false, textStart: 0, textEnd: 0, ...extra });
+    mocks.readPdf.mockResolvedValue(extraction({ pages: [
+      page(0, { ocrText: true }),
+      page(1, { ocrText: true, ocrWholePage: 22, ocrReadWords: 22 }),
+      page(2, { imageOnly: false, ocrReadWords: 5, ocrMissingLines: 1 }),
+      page(3, { imageOnly: false, ocrMissingLines: 2 }),
+    ] }));
+    const { result } = renderHook(() => useAnonymizer(), { wrapper: Providers });
+    await act(async () => { await result.current.loadFile(new File(['%PDF'], 'mixed.pdf', { type: 'application/pdf' })); });
+    expect(result.current.fileWarnings).toEqual([
+      en.pdf.scanPagesFound('1', 1),
+      en.pdf.ocrWholePage('2', 1),
+      en.pdf.ocrInImages('3', 1),
+      en.pdf.imagesTextUnread('4', 1),
+    ]);
+  });
+
+  it('a scan whose pages DocCloak\'s OCR read without finding text gets its own message (T239)', async () => {
+    mocks.readPdf.mockResolvedValue(extraction({ empty: true, pages: [{ index: 0, width: 595, height: 842, rotate: 0, hasImages: true, imageOnly: true, ocrText: false, ocrWholePage: 0, textStart: 0, textEnd: 0 }] }));
+    const { result } = renderHook(() => useAnonymizer(), { wrapper: Providers });
+    let loaded: { success: boolean; message?: string } | undefined;
+    await act(async () => { loaded = await result.current.loadFile(new File(['%PDF'], 'blank.pdf', { type: 'application/pdf' })); });
+    expect(loaded).toMatchObject({ success: false, message: en.fileErrors['pdf-scan-ocr-nothing'] });
   });
 
   it('pageList shortens runs of pages', () => {

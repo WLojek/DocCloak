@@ -117,6 +117,33 @@
    * request must pass through untouched (caller must not call respondWith),
    * otherwise a Promise<Response>.
    */
+  /**
+   * Download one shell file for the precache: `makeRequest()` builds a fresh
+   * request for every attempt, a network error or any status but 200 counts
+   * as a failure, and a failed attempt is tried again after each of `delays`
+   * (ms, waited through `wait`). The install is all or nothing, so without
+   * this a single dropped request on a first visit left the app without a
+   * service worker, and without offline use, until the next online visit.
+   * Resolves the 200 response, rejects with the last failure.
+   */
+  function fetchWithRetry(fetchFn, makeRequest, delays, wait) {
+    var attempt = 0;
+    function once() {
+      return Promise.resolve()
+        .then(function () { return fetchFn(makeRequest()); })
+        .then(function (response) {
+          if (response && response.status === 200) return response;
+          throw new Error('status ' + (response && response.status));
+        })
+        .catch(function (err) {
+          if (attempt >= delays.length) throw err;
+          var delay = delays[attempt++];
+          return wait(delay).then(once);
+        });
+    }
+    return once();
+  }
+
   function createFetchHandler(deps) {
     var shellName = shellCacheName(deps.buildId);
     var runtimeName = runtimeCacheName(deps.buildId);
@@ -193,6 +220,7 @@
     isRuntimeAsset: isRuntimeAsset,
     isStaleCache: isStaleCache,
     cleanResponse: cleanResponse,
+    fetchWithRetry: fetchWithRetry,
     createFetchHandler: createFetchHandler,
   };
 })(typeof self !== 'undefined' ? self : globalThis);

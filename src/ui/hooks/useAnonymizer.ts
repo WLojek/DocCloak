@@ -36,7 +36,7 @@ import {
 import type { DocxExtraction, DocxWriteOptions, UnsupportedDocumentCode } from '@doccloak/core/dom';
 import { readDocText, writeAnonymizedDoc, inspectDoc } from '@doccloak/core';
 import { isImageFile, renderRedactedImage } from '@doccloak/core/dom';
-import { loadImageToCanvas, recognizeCanvas } from '../../ocr.web.ts';
+import { loadImageToCanvas, recognizeCanvas, recognizePdfRegion, releasePdfOcr } from '../../ocr.web.ts';
 // Type-only: '@doccloak/core/pdf' (pdf.js, pdf-lib, fontkit) is loaded with a
 // dynamic import where it is needed so it stays out of the main chunk.
 import type { PdfExtraction, RemovedPart } from '@doccloak/core/pdf';
@@ -46,6 +46,7 @@ import { useTranslation } from '../../i18n/LanguageContext.tsx';
 import type { Translations } from '../../i18n/types.ts';
 import { useToast } from '../components/Toast.tsx';
 import type { UnredactableItem } from '../components/UnredactableNotice.tsx';
+import { localizeCoreNotes, pageList } from '../coreNotes.ts';
 import { loadDictionary, saveDictionary, mergeDictionaryEntities, loadIgnoreList, saveIgnoreList, filterIgnoredEntities } from '../dictionary.ts';
 import type { DictionaryEntry } from '../dictionary.ts';
 
@@ -89,18 +90,8 @@ export function fileErrorCode(err: unknown): FileErrorCode | null {
   return null;
 }
 
-/** 1-based page numbers as a short list for notes: [1, 2, 3, 5] -> "1-3, 5" (T236). */
-export function pageList(pages: number[]): string {
-  const sorted = [...new Set(pages)].sort((a, b) => a - b);
-  const parts: string[] = [];
-  for (let i = 0; i < sorted.length; i++) {
-    let j = i;
-    while (j + 1 < sorted.length && sorted[j + 1] === sorted[j] + 1) j++;
-    parts.push(j > i + 1 ? `${sorted[i]}-${sorted[j]}` : j === i + 1 ? `${sorted[i]}, ${sorted[j]}` : `${sorted[i]}`);
-    i = j;
-  }
-  return parts.join(', ');
-}
+// 1-based page numbers as a short list for notes (T236); lives with the other note helpers.
+export { pageList };
 
 /** Download name of the redacted PDF: `<base>_redacted.pdf` (T216). */
 export function pdfDownloadName(fileName: string | null | undefined): string {
@@ -197,6 +188,8 @@ export function useAnonymizer() {
   const pdfExtractionRef = useRef<PdfExtraction | null>(null);
   const [imageFileName, setImageFileName] = useState<string | null>(null);
   const [ocrProgress, setOcrProgress] = useState<number | null>(null);
+  // T239: while DocCloak's OCR reads the pages of a PDF, how far it is.
+  const [ocrPages, setOcrPages] = useState<{ done: number; total: number } | null>(null);
   // Informed-consent export (T177): parts the writer cannot redact, reader
   // warnings, and whether the user chose Continue for this file.
   const [unredactableItems, setUnredactableItems] = useState<UnredactableItem[]>([]);
@@ -376,8 +369,8 @@ export function useAnonymizer() {
           return;
         }
         if (err instanceof DetectionTimeoutError) {
-          // Watchdog: the worker reported no progress for 20 s and was
-          // restarted. The remedy is to split the document.
+          // Watchdog: the worker reported no progress for DETECTION_STALL_MS
+          // and was restarted. The remedy is to split the document.
           setDetectionErrorKind('timeout');
           setDetectionError(t.detect.timeout);
           showToast(t.detect.timeout);
@@ -636,7 +629,7 @@ export function useAnonymizer() {
       setInputText(plainText);
       resetTextState();
       setUnredactableItems(items);
-      setFileWarnings(warnings);
+      setFileWarnings(localizeCoreNotes(t, warnings));
       setAllowUnredactable(false);
       return { success: true };
     } catch (err) {
@@ -660,20 +653,51 @@ export function useAnonymizer() {
     }
     try {
       const { readPdf } = await import('@doccloak/core/pdf');
-      const extraction = await readPdf(file, { assets: pdfAssets() });
+      // Each page by what it holds (T238, T239): DocCloak's own OCR reads the pages without any text
+      // layer, the text a scan's OCR layer missed and the text inside images on text pages.
+      let extraction: Awaited<ReturnType<typeof readPdf>>;
+      try {
+        extraction = await readPdf(file, {
+          assets: pdfAssets(),
+          recognizeText: (page, region, dpi) => recognizePdfRegion(page, region, dpi, language),
+          onOcrProgress: (done, total) => {
+            setOcrProgress(total > 0 ? done / total : 0);
+            setOcrPages({ done, total });
+          },
+        });
+      } finally {
+        setOcrProgress(null);
+        setOcrPages(null);
+        void releasePdfOcr();
+      }
       if (extraction.empty) {
-        // A scan without OCR has no text at all: say so, with the remedies (OCR first, or the pages as images).
+        // A scan without text: say so, with the remedies. DocCloak's own OCR found nothing either when it read the pages.
         const scan = extraction.pages.some((p) => p.imageOnly);
+        const readByOcr = extraction.pages.some((p) => p.ocrWholePage !== undefined);
         return {
           success: false,
           error: 'empty-document',
           code: 'empty-document',
-          message: scan ? t.fileErrors['pdf-scan-no-text'] : fileErrorMessage(t, 'empty-document'),
+          message: scan ? t.fileErrors[readByOcr ? 'pdf-scan-ocr-nothing' : 'pdf-scan-no-text'] : fileErrorMessage(t, 'empty-document'),
         };
       }
+      const pagesWhere = (keep: (p: (typeof extraction.pages)[number]) => boolean): number[] => extraction.pages.filter(keep).map((p) => p.index + 1);
       // Scan pages with an OCR text layer (T236): their values are painted over in the picture on export.
-      const scanned = extraction.pages.filter((p) => p.ocrText).map((p) => p.index + 1);
+      const scanned = pagesWhere((p) => p.ocrText && !p.ocrWholePage);
       const notes = scanned.length > 0 ? [t.pdf.scanPagesFound(pageList(scanned), scanned.length)] : [];
+      // T239: pages without any text layer, read whole by DocCloak's own OCR.
+      const whole = pagesWhere((p) => (p.ocrWholePage ?? 0) > 0);
+      if (whole.length > 0) notes.push(t.pdf.ocrWholePage(pageList(whole), whole.length));
+      // T238: text in a scan's picture its OCR layer does not have: read by DocCloak's own OCR, or left as it is.
+      const readByUs = pagesWhere((p) => p.ocrText && !p.ocrWholePage && (p.ocrReadWords ?? 0) > 0);
+      if (readByUs.length > 0) notes.push(t.pdf.ocrRead(pageList(readByUs), readByUs.length));
+      const unread = pagesWhere((p) => p.ocrText && !p.ocrWholePage && (p.ocrMissingLines ?? 0) > 0 && !p.ocrReadWords);
+      if (unread.length > 0) notes.push(t.pdf.ocrMissing(pageList(unread), unread.length));
+      // T239: text inside images on text pages: read by DocCloak's own OCR, or left as it is.
+      const inImages = pagesWhere((p) => !p.imageOnly && (p.ocrReadWords ?? 0) > 0);
+      if (inImages.length > 0) notes.push(t.pdf.ocrInImages(pageList(inImages), inImages.length));
+      const imagesUnread = pagesWhere((p) => !p.imageOnly && (p.ocrMissingLines ?? 0) > 0 && !p.ocrReadWords);
+      if (imagesUnread.length > 0) notes.push(t.pdf.imagesTextUnread(pageList(imagesUnread), imagesUnread.length));
 
       resetImageState();
       setDocxFile(null);
@@ -684,7 +708,7 @@ export function useAnonymizer() {
       setInputText(extraction.plainText);
       resetTextState();
       setUnredactableItems(extraction.unredactable);
-      setFileWarnings([...notes, ...extraction.warnings]);
+      setFileWarnings([...notes, ...localizeCoreNotes(t, extraction.warnings)]);
       setAllowUnredactable(false);
       return { success: true };
     } catch (err) {
@@ -694,7 +718,7 @@ export function useAnonymizer() {
       }
       return { success: false, error: err instanceof Error ? err.message : String(err) };
     }
-  }, [resetImageState, resetTextState, t]);
+  }, [resetImageState, resetTextState, t, language]);
 
   const loadImageFile = useCallback(async (file: File): Promise<LoadFileResult> => {
     try {
@@ -761,8 +785,9 @@ export function useAnonymizer() {
     const writeDocx = async (extraction: DocxExtraction): Promise<Blob> => {
       try {
         const result = await writeAnonymizedDocxWithReport(extraction, replacements, valueReplacements, writeOptions);
-        if (result.warnings.length > 0) {
-          setFileWarnings((prev) => Array.from(new Set([...prev, ...result.warnings])));
+        const notes = localizeCoreNotes(t, result.warnings);
+        if (notes.length > 0) {
+          setFileWarnings((prev) => Array.from(new Set([...prev, ...notes])));
         }
         return result.blob;
       } catch (err) {
@@ -792,7 +817,7 @@ export function useAnonymizer() {
     // Standard .docx
     const extraction = await readDocx(docxFile);
     return writeDocx(extraction);
-  }, [docxFile, entities, excludedIndices, allowUnredactable, unredactablePending]);
+  }, [docxFile, entities, excludedIndices, allowUnredactable, unredactablePending, t]);
 
   // PDF export (T216), mirroring exportDocx. The writer re-extracts from the
   // bytes kept in the extraction, verifies its own output and throws
@@ -817,7 +842,7 @@ export function useAnonymizer() {
         assets: pdfAssets(),
         allowUnredactable,
       });
-      const notes = [...result.warnings];
+      const notes = localizeCoreNotes(t, result.warnings);
       if (result.rasterizedPages.length > 0) {
         const pages = pageList(result.rasterizedPages.map((p) => p + 1));
         notes.push(t.pdf.rasterizedPages(pages, result.rasterizedPages.length));
@@ -898,6 +923,7 @@ export function useAnonymizer() {
     pdfRemoved,
     hasImage: imageFileName !== null,
     ocrProgress,
+    ocrPages,
     handleInputChange,
     anonymize,
     cancelAnonymize,

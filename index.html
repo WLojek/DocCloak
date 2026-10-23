@@ -65,7 +65,7 @@
         "Multiple ML models (GLiNER PII Small, GLiNER PII Base, BardS.ai EU PII), downloaded from pinned commits and SHA-256 verified",
         "Regex pattern detection for 19 regions (US, China, Japan and 16 European countries)",
         "Round-trip de-anonymization restores names in AI responses",
-        "Supports .doc, .docx and .pdf documents with formatting preserved and metadata scrubbed; redacted PDFs keep their text layer (pages that cannot be edited safely are rasterized)",
+        "Supports .doc, .docx and .pdf documents with formatting preserved and metadata scrubbed; redacted PDFs keep their text layer (pages that cannot be edited safely are rasterized); scanned pages are read with OCR and redacted in the picture",
         "OCR for images and screenshots (local Tesseract WASM) with redacted image export",
         "Works offline after the first load (Service Worker app shell, cached model)",
         "8 UI languages: English, Polish, German, French, Spanish, Portuguese, Swedish, Norwegian"
@@ -105,7 +105,7 @@
         <ul>
           <li>Runs locally - ML models run in-browser via ONNX Runtime WebAssembly, zero network requests while a text is anonymized (opening a PDF or an image loads the app's own PDF or OCR files; documents are never sent)</li>
           <li>14 entity types: persons, emails, phones, SSNs, credit cards, dates, currencies, IP addresses, IBANs, addresses, companies, custom labels</li>
-          <li>Supports .doc, .docx and .pdf documents with formatting preserved (the redacted PDF keeps its text layer; pages that cannot be edited safely are rasterized)</li>
+          <li>Supports .doc, .docx and .pdf documents with formatting preserved (the redacted PDF keeps its text layer; pages that cannot be edited safely are rasterized; scanned pages are read with OCR and redacted in the picture)</li>
           <li>OCR for images and screenshots (.png, .jpg) - text is extracted locally with Tesseract WebAssembly, with redacted image export</li>
           <li>Regex pattern detection for 19 regions: the US, China, Japan and 16 European countries</li>
           <li>8 UI languages: English, Polish, German, French, Spanish, Portuguese, Swedish, Norwegian</li>

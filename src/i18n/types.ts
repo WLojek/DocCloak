@@ -164,6 +164,8 @@ export interface Translations {
   ocr: {
     processingTitle: string;
     processingDescription: string;
+    /** T239: reading the pages of a PDF: how far ("page 3 of 16"). */
+    pdfPages: (done: number, total: number) => string;
   };
   landing: {
     hero: {
@@ -251,6 +253,8 @@ export interface Translations {
     'empty-document': string;
     // T236 (PDF): no text at all because the PDF is a scan without OCR; the remedy names OCR and image upload
     'pdf-scan-no-text': string;
+    /** T239: every page is a picture and DocCloak's own OCR found no text on any of them. */
+    'pdf-scan-ocr-nothing': string;
     // T216 (PDF): post-write verification found a trace of an original value; nothing is shipped
     'verify-failed': string;
     // T216 (PDF): the bytes no longer produce the analysed text (re-upload)
@@ -298,6 +302,36 @@ export interface Translations {
     // T236: scan pages with an OCR text layer, on load (what will happen) and after export (what happened)
     scanPagesFound: (pages: string, count: number) => string;
     scanPages: (pages: string, count: number) => string;
+    // T238: scan pages whose picture holds text the OCR layer does not have (cannot be redacted)
+    ocrMissing: (pages: string, count: number) => string;
+    // T238: such text read by DocCloak's own OCR (its values are covered like the rest)
+    ocrRead: (pages: string, count: number) => string;
+    // T239: pages without any text layer, read whole by DocCloak's own OCR
+    ocrWholePage: (pages: string, count: number) => string;
+    // T239: text pages with an image showing text, read by DocCloak's own OCR
+    ocrInImages: (pages: string, count: number) => string;
+    // T239: text pages with an image showing text DocCloak could not read
+    imagesTextUnread: (pages: string, count: number) => string;
+  };
+  /**
+   * Notes Core writes as English sentences, in the interface language (coreNotes.ts). `pages` is
+   * the 1-based list ("3, 7"), `count` its length; placeholders and part paths are shown as they are.
+   */
+  coreNotes: {
+    /** A page reference on the card's list of parts ("page 2", "pages 2-17"). */
+    page: (pages: string, count: number) => string;
+    imagesNotScanned: (pages: string, count: number) => string;
+    pageMetadataRemoved: (pages: string, count: number) => string;
+    placeholderUnshowable: (placeholder: string) => string;
+    placeholderTooWide: (placeholder: string, page: string) => string;
+    placeholderFallbackFont: (count: number) => string;
+    fontMapRemoved: (font: string) => string;
+    /** A DOCX part that is not well-formed XML, kept as it is without the value check. */
+    partNotXml: (part: string) => string;
+    /** A DOCX header or footer that is not well-formed XML, whose text was not read. */
+    partSkipped: (part: string) => string;
+    /** Notes with no translation, counted here and logged in full to the console. */
+    other: (count: number) => string;
   };
 }
 

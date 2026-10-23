@@ -3,7 +3,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
-import { readFileSync, realpathSync } from 'fs'
+import { readFileSync, readdirSync, realpathSync } from 'fs'
 import { createRequire } from 'module'
 
 // Versions baked in at build time so the footer can never drift from what
@@ -28,12 +28,23 @@ const pdfjsVersion = JSON.parse(
 // structured data can never drift from package.json either.
 process.env.VITE_APP_VERSION = appVersion
 
+/** Root paths of the ONNX Runtime files in public/ (copied there by postinstall), for the service worker warm-up. */
+function ortRuntimeFiles(): string[] {
+  try {
+    return readdirSync(path.resolve(__dirname, 'public')).filter((f) => /^ort-wasm-.*\.(wasm|mjs)$/.test(f)).map((f) => `/${f}`)
+  } catch {
+    return []
+  }
+}
+
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   define: {
     __APP_VERSION__: JSON.stringify(appVersion),
     __CORE_VERSION__: JSON.stringify(coreVersion),
     __PDFJS_VERSION__: JSON.stringify(pdfjsVersion),
+    // ONNX Runtime files scripts/copy-assets.mjs put at the site root (the build ships one variant).
+    __ORT_RUNTIME_FILES__: JSON.stringify(ortRuntimeFiles()),
   },
   resolve: {
     alias: {

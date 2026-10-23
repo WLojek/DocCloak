@@ -129,8 +129,14 @@ export function grantModelConsent(): void {
 
 // ── Watchdog (R1) ──────────────────────────────────────────
 
-/** No progress event for this long during a detect call = hung worker. */
-export const DETECTION_STALL_MS = 20_000;
+/**
+ * No progress event for this long during a detect call = hung worker. Progress
+ * arrives after each inference chunk (up to 510 tokens), and one chunk runs on
+ * a single WASM thread: about a second in Chromium, 20 to 30 s in Firefox on a
+ * fast machine, several times that on a slow one. At 20 s the watchdog killed
+ * healthy Firefox workers mid-chunk and a longer document never finished.
+ */
+export const DETECTION_STALL_MS = 120_000;
 
 /**
  * T222: after a cancel, how long the worker gets to acknowledge (finish the

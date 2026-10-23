@@ -141,7 +141,7 @@ describe('UnredactableNotice', () => {
 
 describe('useAnonymizer informed-consent export', () => {
   it('a .docx with unredactable parts blocks export until Continue, which passes allowUnredactable to the writer', async () => {
-    mocks.readDocx.mockResolvedValue(extraction({ unredactable: ITEMS.slice(0, 2), warnings: ['w1'] }));
+    mocks.readDocx.mockResolvedValue(extraction({ unredactable: ITEMS.slice(0, 2), warnings: ['word/footer1.xml: not well-formed XML, skipped by the text extractor'] }));
     mocks.writeAnonymizedDocxWithReport.mockResolvedValue({ blob: new Blob(['ok']), warnings: [] });
     const { result } = renderHook(() => useAnonymizer(), { wrapper: Providers });
 
@@ -149,7 +149,7 @@ describe('useAnonymizer informed-consent export', () => {
     await act(async () => { loaded = await result.current.loadFile(new File(['x'], 'report.docx')); });
     expect(loaded?.success).toBe(true);
     expect(result.current.unredactableItems).toEqual(ITEMS.slice(0, 2));
-    expect(result.current.fileWarnings).toEqual(['w1']);
+    expect(result.current.fileWarnings).toEqual([en.coreNotes.partSkipped('word/footer1.xml')]);
     expect(result.current.unredactablePending).toBe(true);
     expect(result.current.allowUnredactable).toBe(false);
 

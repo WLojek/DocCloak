@@ -23,6 +23,7 @@ import { Hero, TrustBand, Audience, HowItWorks, FAQ } from './ui/components/Land
 import { REGEX_REGIONS } from '@doccloak/core';
 import { PROVIDERS, getRecommendedProviderId } from './engine.ts';
 import { formatEta } from './lib/detection-eta.ts';
+import { warmRuntimeCache } from './sw-register.ts';
 import type { RegexRegionId } from '@doccloak/core';
 
 function formatBytes(bytes: number): string {
@@ -83,6 +84,7 @@ export default function App() {
     pdfRemoved,
     hasImage,
     ocrProgress,
+    ocrPages,
     loadFile,
     exportDocx,
     exportPdf,
@@ -101,6 +103,11 @@ export default function App() {
   const { showToast } = useToast();
 
   // T222: Escape cancels the running detection (the overlay is modal).
+  // Offline start (T238): once the model has loaded, the service worker must hold the ONNX Runtime files.
+  useEffect(() => {
+    if (modelLoaded) warmRuntimeCache(__ORT_RUNTIME_FILES__);
+  }, [modelLoaded]);
+
   useEffect(() => {
     if (!anonymizing) return;
     const onKey = (e: KeyboardEvent) => {
@@ -277,7 +284,7 @@ export default function App() {
               <p className="font-serif text-lg font-medium tracking-tight mb-1">{t.ocr.processingTitle}</p>
               <div className="w-48 mx-auto mt-3 mb-2">
                 <Progress value={Math.round(ocrProgress * 100)} className="h-1.5" />
-                <p className="text-[10px] text-muted-foreground mt-1">{Math.round(ocrProgress * 100)}%</p>
+                <p className="text-[10px] text-muted-foreground mt-1">{ocrPages && ocrPages.total > 0 ? `${t.ocr.pdfPages(ocrPages.done, ocrPages.total)} · ` : ''}{Math.round(ocrProgress * 100)}%</p>
               </div>
               <p className="text-sm text-[#525252]">{t.ocr.processingDescription}</p>
             </CardContent>

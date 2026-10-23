@@ -14,8 +14,10 @@
 import {
   loadImageToCanvas as coreLoadImageToCanvas,
   recognizeCanvas as coreRecognizeCanvas,
+  recognizeCanvasLines,
+  releaseOcrWorker,
 } from '@doccloak/core/dom';
-import type { OcrExtraction, TesseractAssetPaths } from '@doccloak/core/dom';
+import type { OcrExtraction, OcrLine, TesseractAssetPaths } from '@doccloak/core/dom';
 
 /**
  * Worker, core and language data are all self-hosted (copied by
@@ -43,4 +45,36 @@ export function recognizeCanvas(
   onProgress?: (progress: number) => void,
 ): Promise<OcrExtraction> {
   return coreRecognizeCanvas(canvas, uiLanguage, tesseractAssets(), onProgress);
+}
+
+/**
+ * PDF pages (T238, T239): read `region` of a rendered page (pixels of `page`) with Tesseract: text
+ * a scan's OCR layer does not have, text inside an image on a text page, or (the region is the
+ * whole page) a page without any text layer. Lines come back relative to the region, as core
+ * expects. The worker is kept between calls; release it with releasePdfOcr when the file is read.
+ */
+export async function recognizePdfRegion(
+  page: unknown,
+  region: { x0: number; y0: number; x1: number; y1: number },
+  dpi: number,
+  uiLanguage: string,
+): Promise<OcrLine[]> {
+  const w = Math.max(1, Math.round(region.x1 - region.x0));
+  const h = Math.max(1, Math.round(region.y1 - region.y0));
+  const crop = document.createElement('canvas');
+  crop.width = w;
+  crop.height = h;
+  const ctx = crop.getContext('2d');
+  if (!ctx) throw new Error('Canvas 2D context unavailable');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, w, h);
+  ctx.drawImage(page as CanvasImageSource, region.x0, region.y0, w, h, 0, 0, w, h);
+  const source = page as { width?: number; height?: number };
+  const wholePage = region.x0 <= 0 && region.y0 <= 0 && w >= (source.width ?? Infinity) - 1 && h >= (source.height ?? Infinity) - 1;
+  return recognizeCanvasLines(crop, uiLanguage, tesseractAssets(), dpi, { wholePage });
+}
+
+/** Free the OCR worker recognizePdfRegion keeps between the pages of a file. */
+export function releasePdfOcr(): Promise<void> {
+  return releaseOcrWorker();
 }

@@ -48,6 +48,13 @@ importScripts('/sw-logic.js');
     precached: PRECACHED,
   });
 
+  // A shell file that fails to download is tried again after these delays (ms).
+  var PRECACHE_RETRY_DELAYS = [500, 1500, 3000];
+
+  function wait(ms) {
+    return new Promise(function (resolve) { setTimeout(resolve, ms); });
+  }
+
   function precacheShell() {
     return self.caches.open(SHELL_CACHE).then(function (cache) {
       return Promise.all(PRECACHE.map(function (path) {
@@ -55,13 +62,14 @@ importScripts('/sw-logic.js');
         // Everything else (index.html, fonts, icons) is fetched fresh so the
         // shell cache matches the build that shipped this worker.
         var mode = path.indexOf('/assets/') === 0 ? 'default' : 'reload';
-        var request = new Request(path, { cache: mode, credentials: 'same-origin' });
-        return fetch(request).then(function (response) {
-          if (!response || response.status !== 200) {
-            throw new Error('[sw] precache failed for ' + path + ': ' + (response && response.status));
-          }
-          return cache.put(path, Logic.cleanResponse(response));
-        });
+        var makeRequest = function () { return new Request(path, { cache: mode, credentials: 'same-origin' }); };
+        return Logic.fetchWithRetry(self.fetch.bind(self), makeRequest, PRECACHE_RETRY_DELAYS, wait)
+          .catch(function (err) {
+            throw new Error('[sw] precache failed for ' + path + ': ' + (err && err.message));
+          })
+          .then(function (response) {
+            return cache.put(path, Logic.cleanResponse(response));
+          });
       }));
     });
   }

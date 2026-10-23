@@ -11,6 +11,7 @@ import type { UnredactablePart } from '@doccloak/core/dom';
 import { Button } from '@/components/ui/button';
 import { useTranslation } from '../../i18n/LanguageContext.tsx';
 import type { Translations } from '../../i18n/types.ts';
+import { localizePart } from '../coreNotes.ts';
 
 export type UnredactableKind = UnredactablePart['kind'];
 
@@ -23,8 +24,8 @@ export interface UnredactableItem {
 
 /** Plain-language label for an item in the current UI language. */
 function unredactableLabel(t: Translations, item: UnredactableItem): string {
-  if (item.kind === 'unknown') return t.unredactable.kinds.unknown(item.part);
-  return t.unredactable.kinds[item.kind] ?? t.unredactable.kinds.unknown(item.part);
+  if (item.kind === 'unknown') return t.unredactable.kinds.unknown(localizePart(t, item.part));
+  return t.unredactable.kinds[item.kind] ?? t.unredactable.kinds.unknown(localizePart(t, item.part));
 }
 
 interface UnredactableNoticeProps {
@@ -57,7 +58,7 @@ export function UnredactableNotice({ items, warnings = [], decided, onContinue, 
                 {items.map((item) => (
                   <li key={item.part} className="flex flex-wrap items-baseline gap-x-2">
                     <span className="font-medium">{unredactableLabel(t, item)}</span>
-                    <span className="font-mono text-[10px] text-muted-foreground break-all">{item.part}</span>
+                    <span className="font-mono text-[10px] text-muted-foreground break-all">{localizePart(t, item.part)}</span>
                   </li>
                 ))}
               </ul>

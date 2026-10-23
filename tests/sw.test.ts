@@ -39,6 +39,12 @@ interface SwLogic {
   isRuntimeAsset(pathname: string): boolean;
   isStaleCache(name: string, buildId: string): boolean;
   cleanResponse(response: Response): Response;
+  fetchWithRetry(
+    fetch: (request: RequestLike) => Promise<Response>,
+    makeRequest: () => RequestLike,
+    delays: number[],
+    wait: (ms: number) => Promise<void>,
+  ): Promise<Response>;
   createFetchHandler(deps: {
     buildId: string;
     caches: FakeCacheStorage;
@@ -329,5 +335,40 @@ describe('fetch handler', () => {
     const res = await handle(get('/assets/chunk-h.js'))!;
     expect(res.headers.get('Cross-Origin-Embedder-Policy')).toBe('require-corp');
     expect(res.headers.get('Cross-Origin-Resource-Policy')).toBe('same-origin');
+  });
+});
+
+describe('fetchWithRetry (precache)', () => {
+  const waits: number[] = [];
+  const wait = async (ms: number) => { waits.push(ms); };
+  beforeEach(() => { waits.length = 0; });
+
+  it('a dropped request is tried again with a fresh request, and the file is stored', async () => {
+    let calls = 0;
+    const made: RequestLike[] = [];
+    const fetchFn = async () => {
+      calls++;
+      if (calls < 3) throw new TypeError('Failed to fetch');
+      return new Response('font', { status: 200 });
+    };
+    const response = await logic.fetchWithRetry(fetchFn, () => { const r = get('/fonts/inter-latin.woff2'); made.push(r); return r; }, [500, 2000, 5000], wait);
+    expect(await response.text()).toBe('font');
+    expect(calls).toBe(3);
+    expect(new Set(made).size).toBe(3);
+    expect(waits).toEqual([500, 2000]);
+  });
+
+  it('a non-200 status counts as a failure', async () => {
+    const statuses = [503, 200];
+    const response = await logic.fetchWithRetry(async () => new Response('x', { status: statuses.shift() }), () => get('/index.html'), [500], wait);
+    expect(response.status).toBe(200);
+    expect(waits).toEqual([500]);
+  });
+
+  it('rejects after the last retry', async () => {
+    let calls = 0;
+    await expect(logic.fetchWithRetry(async () => { calls++; throw new TypeError('Failed to fetch'); }, () => get('/index.html'), [500, 2000, 5000], wait)).rejects.toThrow('Failed to fetch');
+    expect(calls).toBe(4);
+    expect(waits).toEqual([500, 2000, 5000]);
   });
 });

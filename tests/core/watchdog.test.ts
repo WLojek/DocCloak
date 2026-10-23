@@ -75,7 +75,7 @@ afterEach(() => {
 });
 
 describe('detection watchdog (progress-based)', () => {
-  it('a detect that never reports progress is cut off after 20 s: DetectionTimeoutError, worker terminated, new client created', async () => {
+  it('a detect that never reports progress is cut off after DETECTION_STALL_MS: DetectionTimeoutError, worker terminated, new client created', async () => {
     const progress = vi.fn();
     const outcome = detectEntities('some text', progress).then(
       () => ({ kind: 'resolved' as const }),
@@ -130,19 +130,32 @@ describe('detection watchdog (progress-based)', () => {
     expect(created[0].close).not.toHaveBeenCalled();
   });
 
-  it('a stall after progress stopped still trips the watchdog (no progress for 20 s, whatever came before)', async () => {
+  it('a stall after progress stopped still trips the watchdog (no progress for DETECTION_STALL_MS, whatever came before)', async () => {
     nextDetect = (_text, onProgress) => new Promise(() => {
       setTimeout(() => onProgress?.(0.5), 15_000);
       // then silence forever (e.g. a hung regex after the ML pass)
     });
     const outcome = detectEntities('text').then(() => 'resolved', (err: unknown) => err);
     await vi.advanceTimersByTimeAsync(0);
-    // 15 s: progress arrives, timer re-armed. 15 s + 19.999 s: still alive.
+    // 15 s: progress arrives, timer re-armed. 15 s + the limit less 1 ms: still alive.
     await vi.advanceTimersByTimeAsync(15_000 + DETECTION_STALL_MS - 1);
     expect(created[0].terminate).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(1);
     expect(await outcome).toBeInstanceOf(DetectionTimeoutError);
     expect(created[0].terminate).toHaveBeenCalledTimes(1);
+  });
+
+  it('one slow inference chunk (Firefox: 20 to 30 s, a slow machine more) is not cut off', async () => {
+    expect(DETECTION_STALL_MS).toBeGreaterThanOrEqual(120_000);
+    nextDetect = (_text, onProgress) => new Promise((resolve) => {
+      setTimeout(() => onProgress?.(0.1), 50); // tokenization
+      setTimeout(() => { onProgress?.(1); resolve([ENTITY]); }, 50 + 90_000); // one chunk of 90 s
+    });
+    const promise = detectEntities('a page of a scanned judgment');
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(90_100);
+    await expect(promise).resolves.toEqual([ENTITY]);
+    expect(created[0].terminate).not.toHaveBeenCalled();
   });
 
   it('a detect that finishes disarms the watchdog: nothing is terminated later', async () => {
