@@ -114,3 +114,44 @@ export function ocrWorkerCount(device: OcrDevice | undefined = typeof navigator 
   const cap = handheld || (memory !== undefined && memory <= 4) ? OCR_MAX_WORKERS_SMALL : memory !== undefined && memory >= 8 ? OCR_MAX_WORKERS : OCR_MAX_WORKERS_UNKNOWN;
   return Math.max(1, Math.min(cores - 1, cap));
 }
+
+/** localStorage key of the pages-at-a-time choice (T253, Core issue #4): absent or 'auto', or a number. */
+export const OCR_WORKERS_STORAGE_KEY = 'doccloak-ocr-workers';
+/** The most the setting offers, whatever the device: each page costs about 0.25 GB at peak. */
+export const OCR_WORKERS_CHOICE_LIMIT = 16;
+
+/** The numbers the setting offers: 1 up to one per core (at least 2, at most OCR_WORKERS_CHOICE_LIMIT). */
+export function ocrWorkerChoices(device: OcrDevice | undefined = typeof navigator === 'undefined' ? undefined : navigator): number[] {
+  const cores = device?.hardwareConcurrency && device.hardwareConcurrency > 0 ? device.hardwareConcurrency : 4;
+  const most = Math.max(2, Math.min(cores, OCR_WORKERS_CHOICE_LIMIT));
+  return Array.from({ length: most }, (_, i) => i + 1);
+}
+
+/** The stored choice: 'auto' (also for a missing or unreadable value) or a whole number of at least 1. */
+export function getOcrWorkerSetting(): number | 'auto' {
+  let raw: string | null = null;
+  try {
+    raw = localStorage.getItem(OCR_WORKERS_STORAGE_KEY);
+  } catch {
+    return 'auto';
+  }
+  const n = raw === null || raw === 'auto' ? NaN : Number(raw);
+  return Number.isInteger(n) && n >= 1 ? n : 'auto';
+}
+
+export function setOcrWorkerSetting(value: number | 'auto'): void {
+  try {
+    if (value === 'auto') localStorage.removeItem(OCR_WORKERS_STORAGE_KEY);
+    else localStorage.setItem(OCR_WORKERS_STORAGE_KEY, String(Math.max(1, Math.floor(value))));
+  } catch {
+    /* storage blocked: the choice lasts for this page only */
+  }
+}
+
+/** How many pages the next PDF reads at a time: the user's number (within the choices) or ocrWorkerCount. */
+export function ocrWorkersInEffect(device: OcrDevice | undefined = typeof navigator === 'undefined' ? undefined : navigator): number {
+  const setting = getOcrWorkerSetting();
+  if (setting === 'auto') return ocrWorkerCount(device);
+  const choices = ocrWorkerChoices(device);
+  return Math.min(setting, choices[choices.length - 1]);
+}

@@ -27,6 +27,10 @@ describe('model descriptions in the settings picker', () => {
         expect(s.length).toBeGreaterThan(1);
       }
       expect(t.settings.modelsTestingNote.length).toBeGreaterThan(80);
+      // T253: pages read at a time.
+      expect(t.settings.ocrWorkersAuto(5)).toContain('5');
+      expect(t.settings.ocrWorkersTitle.length).toBeGreaterThan(5);
+      expect(t.settings.ocrWorkersHint).toMatch(/0[.,]25/);
       expect(t.settings.modelsTestingNote).not.toContain('\u2014');
       for (const s of [t.settings.modelMore, t.settings.modelLess, t.settings.modelStrengths, t.settings.modelWeaknesses, t.settings.modelBestFor, t.settings.modelTestNote]) {
         expect(s.length).toBeGreaterThan(1);

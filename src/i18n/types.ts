@@ -85,6 +85,11 @@ export interface Translations {
     offlineDataCancel: string;
     /** Shown while the browser is offline, when the button is disabled. */
     offlineDataNeedsNetwork: string;
+    /** Settings: pages of a scanned PDF read with OCR at a time (T253, Core issue #4). */
+    ocrWorkersTitle: string;
+    /** The default choice, with the number it means on this device. */
+    ocrWorkersAuto: (workers: number) => string;
+    ocrWorkersHint: string;
     regexRules: string;
     regexRulesDescription: string;
     regexRegion: string;

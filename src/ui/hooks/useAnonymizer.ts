@@ -38,7 +38,7 @@ import {
 import type { DocxExtraction, DocxWriteOptions, UnsupportedDocumentCode } from '@doccloak/core/dom';
 import { readDocText, writeAnonymizedDoc, inspectDoc } from '@doccloak/core';
 import { isImageFile, renderRedactedImage } from '@doccloak/core/dom';
-import { loadImageToCanvas, ocrWorkerCount, recognizeCanvas, recognizePdfRegion, releasePdfOcr } from '../../ocr.web.ts';
+import { loadImageToCanvas, ocrWorkersInEffect, recognizeCanvas, recognizePdfRegion, releasePdfOcr } from '../../ocr.web.ts';
 // Type-only: '@doccloak/core/pdf' (pdf.js, pdf-lib, fontkit) is loaded with a
 // dynamic import where it is needed so it stays out of the main chunk.
 import type { PdfExtraction, RemovedPart } from '@doccloak/core/pdf';
@@ -691,8 +691,9 @@ export function useAnonymizer() {
       const { readPdf } = await import('@doccloak/core/pdf');
       // Each page by what it holds (T238, T239): DocCloak's own OCR reads the pages without any text
       // layer, the text a scan's OCR layer missed and the text inside images on text pages; several
-      // pages at a time, each with its own Tesseract worker (T248).
-      const workers = ocrWorkerCount();
+      // pages at a time, each with its own Tesseract worker (T248): the number set in the settings,
+      // or by default the one for this device (T253).
+      const workers = ocrWorkersInEffect();
       let extraction: Awaited<ReturnType<typeof readPdf>>;
       try {
         extraction = await readPdf(file, {

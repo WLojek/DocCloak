@@ -124,6 +124,18 @@ describe('pdf.web adapter', () => {
 });
 
 describe('useAnonymizer with a PDF', () => {
+  it('reads with the number of pages at a time set in the settings (T253)', async () => {
+    mocks.readPdf.mockResolvedValue(extraction({}));
+    localStorage.setItem('doccloak-ocr-workers', '2');
+    try {
+      const { result } = renderHook(() => useAnonymizer(), { wrapper: Providers });
+      await act(async () => { await result.current.loadFile(new File(['%PDF'], 'scan.pdf', { type: 'application/pdf' })); });
+      expect(mocks.readPdf.mock.calls[0][1].ocrConcurrency).toBe(2);
+    } finally {
+      localStorage.removeItem('doccloak-ocr-workers');
+    }
+  });
+
   it('loads a .pdf through readPdf with the self-hosted assets and reports its parts', async () => {
     mocks.readPdf.mockResolvedValue(extraction({ unredactable: [SCANNED], removed: REMOVED, warnings: ['page 3: contains images; text inside images is not scanned'] }));
     const { result } = renderHook(() => useAnonymizer(), { wrapper: Providers });

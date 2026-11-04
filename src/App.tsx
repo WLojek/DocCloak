@@ -25,6 +25,7 @@ import { PROVIDERS, getRecommendedProviderId, hasWebGpu } from './engine.ts';
 import { formatEta } from './lib/detection-eta.ts';
 import { clearOfflineData, warmRuntimeCache } from './sw-register.ts';
 import { OfflineDataReset } from './ui/components/OfflineDataReset.tsx';
+import { OcrWorkersSetting } from './ui/components/OcrWorkersSetting.tsx';
 import type { ProviderId, RegexRegionId } from '@doccloak/core';
 import { useModelStorage } from './ui/hooks/useModelStorage.ts';
 import { modelFeedbackUrl } from './feedback.ts';
@@ -536,6 +537,7 @@ export default function App() {
                       <p className="text-[10px] text-muted-foreground mt-2 leading-snug">{t.settings.regexRegionHint}</p>
                     )}
                   </div>
+                  <OcrWorkersSetting />
                   {/* Heavier rule: detection settings above, output settings below */}
                   <div className="border-t-2 border-[#111111] pt-3">
                     <span className="label-meta text-muted-foreground">{t.settings.replacementStyle}</span>
