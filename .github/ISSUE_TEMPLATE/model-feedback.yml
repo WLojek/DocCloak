@@ -1,0 +1,69 @@
+name: Detection model feedback
+description: Tell us how a detection model worked on your documents (what it missed, what it covered needlessly, speed).
+title: "Model feedback: "
+labels: ["model-feedback"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you. We keep every model in the app while accuracy testing continues, and your experience helps decide which ones stay and which becomes the default.
+
+        **Please do not paste real personal data or text from real documents.** This issue is public. Describe what happened instead, or use made-up examples (for example "a company name with SAS after it was left visible", "the court name was covered").
+  - type: input
+    id: model
+    attributes:
+      label: Model
+      description: As shown in Settings, for example "BardS.ai EU PII v3" or "GLiNER2 Privacy Filter (yethdev)".
+    validations:
+      required: true
+  - type: dropdown
+    id: language
+    attributes:
+      label: Language of the documents
+      multiple: true
+      options:
+        - Polish
+        - English
+        - French
+        - German
+        - Spanish
+        - Italian
+        - Portuguese
+        - Dutch
+        - Swedish
+        - Norwegian
+        - Other
+  - type: dropdown
+    id: document
+    attributes:
+      label: Kind of document
+      multiple: true
+      options:
+        - Court decision or legal filing
+        - Contract
+        - Invoice or bank statement
+        - Letter or email
+        - Medical document
+        - Form or official certificate
+        - Scan or photo (OCR)
+        - Other
+  - type: textarea
+    id: missed
+    attributes:
+      label: What it missed
+      description: Personal data that stayed visible. The kind of data and where, not the data itself.
+  - type: textarea
+    id: overcovered
+    attributes:
+      label: What it covered that should have stayed
+      description: For example court names, laws, dates of hearings.
+  - type: textarea
+    id: other
+    attributes:
+      label: Anything else
+      description: Speed, download, browser, device, how it compares with another model you tried.
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      description: Filled in when you come from the app (Settings, model feedback link).

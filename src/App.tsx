@@ -12,7 +12,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { LanguageSwitcher } from './ui/components/LanguageSwitcher.tsx';
 import { DictionaryBar } from './ui/components/DictionaryBar.tsx';
-import { Lock, Settings, ArrowRight, Plus, X, ChevronDown, Info, FileText, Image as ImageIcon, Download, Github, RotateCw } from 'lucide-react';
+import { Lock, Settings, ArrowRight, Plus, X, ChevronDown, Check, Info, FileText, Image as ImageIcon, Download, Github, RotateCw } from 'lucide-react';
 import { isImageFile } from '@doccloak/core/dom';
 import { UnredactableNotice } from './ui/components/UnredactableNotice.tsx';
 import { fileErrorCode, fileErrorMessage, pdfDownloadName } from './ui/hooks/useAnonymizer.ts';
@@ -21,10 +21,16 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useToast } from './ui/components/Toast.tsx';
 import { Hero, TrustBand, Audience, HowItWorks, FAQ } from './ui/components/Landing.tsx';
 import { REGEX_REGIONS } from '@doccloak/core';
-import { PROVIDERS, getRecommendedProviderId } from './engine.ts';
+import { PROVIDERS, getRecommendedProviderId, hasWebGpu } from './engine.ts';
 import { formatEta } from './lib/detection-eta.ts';
-import { warmRuntimeCache } from './sw-register.ts';
-import type { RegexRegionId } from '@doccloak/core';
+import { clearOfflineData, warmRuntimeCache } from './sw-register.ts';
+import { OfflineDataReset } from './ui/components/OfflineDataReset.tsx';
+import type { ProviderId, RegexRegionId } from '@doccloak/core';
+import { useModelStorage } from './ui/hooks/useModelStorage.ts';
+import { modelFeedbackUrl } from './feedback.ts';
+
+/** Filled into the GitHub feedback form (T250). */
+const APP_VERSION_LINE = `DocCloak ${__APP_VERSION__}, core ${__CORE_VERSION__}`;
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
@@ -49,6 +55,7 @@ export default function App() {
     detectionError,
     detectionErrorKind,
     modelError,
+    modelNeedsWebGpu,
     downloadProgress,
     handleInputChange,
     anonymize,
@@ -117,6 +124,13 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [anonymizing, cancelAnonymize]);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [modelInfoOpen, setModelInfoOpen] = useState<string | null>(null);
+  // T250: which models are on this device; read again when the settings open and when a model has loaded.
+  const { saved: savedModels, removing: removingModel, remove: removeModel } = useModelStorage(`${settingsOpen}:${modelLoaded}:${selectedProvider}`);
+  const handleRemoveModel = useCallback(async (id: ProviderId, label: string, sizeMB: number) => {
+    const removed = await removeModel(id);
+    showToast(removed ? t.settings.modelRemoved(label, t.settings.modelSize(sizeMB)) : t.settings.modelRemoveFailed);
+  }, [removeModel, showToast, t]);
   const [newLabelInput, setNewLabelInput] = useState('');
   const [labelsExpanded, setLabelsExpanded] = useState(false);
   const [footerTooltipOpen, setFooterTooltipOpen] = useState(false);
@@ -358,29 +372,123 @@ export default function App() {
                     <div className="mt-2 space-y-2">
                       {PROVIDERS.map((p) => {
                         const modelT = t.settings.models[p.id as keyof typeof t.settings.models];
+                        const noGpu = p.requiresWebGpu === true && !hasWebGpu();
+                        const label = modelT?.label ?? p.label;
+                        // T249: the full description opens under the card without selecting the model, also when it cannot run here.
+                        const infoOpen = modelInfoOpen === p.id;
+                        const infoId = `model-info-${p.id}`;
                         return (
-                          <button
+                          <div
                             key={p.id}
-                            onClick={() => {
-                              setSettingsOpen(false);
-                              void handleSwitchProvider(p.id);
-                              // Before consent this is a preselection: take the user to the card that starts the download.
-                              if (!modelConsented) scrollToConsent();
-                            }}
-                            disabled={modelLoading}
-                            aria-pressed={selectedProvider === p.id}
-                            className={`w-full text-left px-3 py-2 border transition-colors cursor-pointer ${
-                              selectedProvider === p.id
-                                ? 'border-[#111111] bg-[#111111]/5 text-[#111111]'
-                                : 'border-[#E5E5E0] text-[#525252] hover:border-[#111111]'
-                            } disabled:opacity-50 disabled:cursor-not-allowed`}
+                            className={`border transition-colors ${
+                              selectedProvider === p.id ? 'border-[#111111] bg-[#111111]/5' : 'border-[#E5E5E0] hover:border-[#111111]'
+                            }`}
                           >
-                            <p className="text-xs font-medium">{modelT?.label ?? p.label}</p>
-                            <p className="text-[10px] text-muted-foreground mt-0.5">{modelT?.description ?? p.description}</p>
-                          </button>
+                            <button
+                              onClick={() => {
+                                setSettingsOpen(false);
+                                void handleSwitchProvider(p.id);
+                                // Before consent this is a preselection: take the user to the card that starts the download.
+                                if (!modelConsented) scrollToConsent();
+                              }}
+                              disabled={modelLoading || noGpu}
+                              aria-pressed={selectedProvider === p.id}
+                              className={`w-full text-left px-3 pt-2 pb-1 cursor-pointer ${
+                                selectedProvider === p.id ? 'text-[#111111]' : 'text-[#525252]'
+                              } disabled:opacity-50 disabled:cursor-not-allowed`}
+                            >
+                              <span className="flex items-baseline justify-between gap-2">
+                                <span className="text-xs font-medium">{label}</span>
+                                <span className="text-[10px] text-muted-foreground shrink-0">{t.settings.modelSize(p.sizeMB)}</span>
+                              </span>
+                              <span className="block text-[10px] text-muted-foreground mt-0.5">{modelT?.description ?? p.description}</span>
+                              {noGpu && <span className="block text-[10px] text-[#CC0000] mt-0.5">{t.settings.modelNeedsWebGpu}</span>}
+                            </button>
+                            <div className="flex items-center justify-between gap-2 px-3 pb-2 text-[10px]">
+                              {modelT && (
+                                <button
+                                  type="button"
+                                  onClick={() => setModelInfoOpen(infoOpen ? null : p.id)}
+                                  aria-expanded={infoOpen}
+                                  aria-controls={infoId}
+                                  aria-label={`${infoOpen ? t.settings.modelLess : t.settings.modelMore}: ${label}`}
+                                  className="flex items-center gap-0.5 text-[#111111] underline underline-offset-2 cursor-pointer"
+                                >
+                                  {infoOpen ? t.settings.modelLess : t.settings.modelMore}
+                                  <ChevronDown className={`w-3 h-3 transition-transform duration-150 ${infoOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
+                                </button>
+                              )}
+                              {savedModels && (
+                                <span className="flex items-center gap-2 text-muted-foreground">
+                                  <span className="flex items-center gap-0.5">
+                                    {savedModels.has(p.id)
+                                      ? <Check className="w-3 h-3" aria-hidden="true" />
+                                      : <Download className="w-3 h-3" aria-hidden="true" />}
+                                    {savedModels.has(p.id) ? t.settings.modelSaved : t.settings.modelNotSaved}
+                                  </span>
+                                  {/* The selected model stays: removing it would start its download again on the next visit. */}
+                                  {savedModels.has(p.id) && selectedProvider !== p.id && (
+                                    <button
+                                      type="button"
+                                      onClick={() => void handleRemoveModel(p.id, label, p.sizeMB)}
+                                      disabled={modelLoading || removingModel !== null}
+                                      aria-label={t.settings.modelRemoveLabel(label)}
+                                      className="text-[#111111] underline underline-offset-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                      {t.settings.modelRemove}
+                                    </button>
+                                  )}
+                                </span>
+                              )}
+                            </div>
+                            {modelT && (
+                              <>
+                                {infoOpen && (
+                                  <div id={infoId} className="px-3 pb-2.5 space-y-2 text-[10px] leading-snug text-[#525252]">
+                                    <div>
+                                      <p className="font-medium text-[#111111]">{t.settings.modelStrengths}</p>
+                                      <ul className="mt-0.5 space-y-0.5 list-disc pl-3.5">
+                                        {modelT.strengths.map((s) => <li key={s}>{s}</li>)}
+                                      </ul>
+                                    </div>
+                                    <div>
+                                      <p className="font-medium text-[#111111]">{t.settings.modelWeaknesses}</p>
+                                      <ul className="mt-0.5 space-y-0.5 list-disc pl-3.5">
+                                        {modelT.weaknesses.map((s) => <li key={s}>{s}</li>)}
+                                      </ul>
+                                    </div>
+                                    <div>
+                                      <p className="font-medium text-[#111111]">{t.settings.modelBestFor}</p>
+                                      <p className="mt-0.5">{modelT.bestFor}</p>
+                                    </div>
+                                    <p className="text-muted-foreground">{t.settings.modelTestNote}</p>
+                                    <a
+                                      href={modelFeedbackUrl(label, APP_VERSION_LINE)}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-block text-[#111111] underline underline-offset-2"
+                                    >
+                                      {t.settings.modelFeedback}
+                                    </a>
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </div>
                         );
                       })}
                     </div>
+                    <p className="mt-2 text-[10px] text-muted-foreground leading-snug">
+                      {t.settings.modelsTestingNote}{' '}
+                      <a
+                        href={modelFeedbackUrl(undefined, APP_VERSION_LINE)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[#111111] underline underline-offset-2"
+                      >
+                        {t.settings.modelsFeedback}
+                      </a>
+                    </p>
                   </div>
                   <div className="border-t border-[#E5E5E0] pt-3">
                     <div className="flex items-center justify-between mb-2">
@@ -456,6 +564,7 @@ export default function App() {
                       </button>
                     </div>
                   </div>
+                  <OfflineDataReset onClear={async () => { await clearOfflineData(__RUNTIME_SCRIPTS__); window.location.reload(); }} />
                 </div>
               </PopoverContent>
             </Popover>
@@ -560,17 +669,17 @@ export default function App() {
         {modelError && !modelLoading && (
           <div className="animate-content-reveal-rise mb-4 border border-[#CC0000] bg-[#CC0000]/5 px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
             <div>
-              <p className="text-sm font-semibold text-[#CC0000]">{t.loading.failedTitle}</p>
-              <p className="text-xs text-[#525252] mt-0.5 leading-relaxed">{t.loading.failedBody}</p>
+              <p className="text-sm font-semibold text-[#CC0000]">{modelNeedsWebGpu ? t.loading.webGpuTitle : t.loading.failedTitle}</p>
+              <p className="text-xs text-[#525252] mt-0.5 leading-relaxed">{modelNeedsWebGpu ? t.loading.webGpuBody : t.loading.failedBody}</p>
             </div>
-            <Button
+            {!modelNeedsWebGpu && <Button
               onClick={retryModelLoad}
               variant="solid"
               className="gap-2 shrink-0 text-xs font-semibold"
             >
               <RotateCw className="w-3.5 h-3.5" />
               {t.loading.retry}
-            </Button>
+            </Button>}
           </div>
         )}
 
@@ -744,8 +853,8 @@ export default function App() {
           />
         )}
 
-        {/* Custom detection labels - only supported by GLiNER (zero-shot). BardS.ai has a fixed label set. */}
-        {activeProvider !== 'bardsai' && (
+        {/* Custom detection labels - only zero-shot models (GLiNER, GLiNER2) take them; the others have a fixed label set. */}
+        {PROVIDERS.find((p) => p.id === activeProvider)?.customLabels && (
         <div className="mt-6">
           <button
             onClick={() => setLabelsExpanded(!labelsExpanded)}

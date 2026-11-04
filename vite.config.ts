@@ -37,6 +37,26 @@ function ortRuntimeFiles(): string[] {
   }
 }
 
+// Scripts under public/ the browser runs as workers or modules (the AI, OCR and PDF runtimes).
+// Settings > Clear offline data fetches them again past the HTTP cache (WLojek/DocCloak#2).
+function runtimeScripts(): string[] {
+  const root = path.resolve(__dirname, 'public')
+  const out: string[] = []
+  const walk = (dir: string): void => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name)
+      if (entry.isDirectory()) walk(full)
+      else if (/\.m?js$/.test(entry.name) && !/^sw(-logic)?\.js$/.test(entry.name)) out.push(`/${path.relative(root, full).split(path.sep).join('/')}`)
+    }
+  }
+  try {
+    walk(root)
+  } catch {
+    return []
+  }
+  return out.sort()
+}
+
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   define: {
@@ -45,6 +65,7 @@ export default defineConfig({
     __PDFJS_VERSION__: JSON.stringify(pdfjsVersion),
     // ONNX Runtime files scripts/copy-assets.mjs put at the site root (the build ships one variant).
     __ORT_RUNTIME_FILES__: JSON.stringify(ortRuntimeFiles()),
+    __RUNTIME_SCRIPTS__: JSON.stringify(runtimeScripts()),
   },
   resolve: {
     alias: {

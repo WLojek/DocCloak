@@ -41,8 +41,8 @@
           },
           {
             "type": "ADDRESS",
-            "value": "adresse Karl Johans gate 22",
-            "start": 41,
+            "value": "Karl Johans gate 22",
+            "start": 49,
             "end": 68,
             "confidence": 0.9,
             "detector": "regex:no:street"
@@ -80,7 +80,7 @@
             "detector": "regex:no:currency_words"
           }
         ],
-        "anonymized": "[PERSON_1], fødselsnummer [SSN_1], [ADDRESS_2], [ADDRESS_1], telefon [PHONE_1]. Selskap: [COMPANY_1]. Beløp [CURRENCY_1].",
+        "anonymized": "[PERSON_1], fødselsnummer [SSN_1], adresse [ADDRESS_2], [ADDRESS_1], telefon [PHONE_1]. Selskap: [COMPANY_1]. Beløp [CURRENCY_1].",
         "anonymizedAfterRename": null,
         "restored": "Ola Nordmann, fødselsnummer 01019912368, adresse Karl Johans gate 22, 0001 Oslo, telefon +47 12 34 56 78. Selskap: Fjellvann ASA. Beløp med bokstaver: åtte tusen fem hundre kroner.",
         "replacements": [
@@ -110,7 +110,7 @@
             "entityType": "ADDRESS"
           },
           {
-            "original": "adresse Karl Johans gate 22",
+            "original": "Karl Johans gate 22",
             "replacement": "[ADDRESS_2]",
             "entityType": "ADDRESS"
           },

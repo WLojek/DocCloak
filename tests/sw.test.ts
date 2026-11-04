@@ -14,11 +14,13 @@ interface RequestLike {
   method?: string;
   headers?: Headers;
   mode?: string;
+  cache?: string;
 }
 
 interface FakeCache {
   match(key: RequestLike | string): Promise<Response | undefined>;
   put(key: RequestLike | string, response: Response): Promise<void>;
+  delete(key: RequestLike | string): Promise<boolean>;
   store: Map<string, Response>;
 }
 
@@ -38,6 +40,7 @@ interface SwLogic {
   classify(url: string, precached?: Set<string>, origin?: string): string;
   isRuntimeAsset(pathname: string): boolean;
   isStaleCache(name: string, buildId: string): boolean;
+  hasUsableType(pathname: string, response: Response): boolean;
   cleanResponse(response: Response): Response;
   fetchWithRetry(
     fetch: (request: RequestLike) => Promise<Response>,
@@ -85,6 +88,9 @@ function makeCacheStorage(): FakeCacheStorage {
           async put(key, response) {
             store.set(keyOf(key), response);
           },
+          async delete(key) {
+            return store.delete(keyOf(key));
+          },
         };
         caches.set(name, cache);
       }
@@ -99,13 +105,19 @@ function makeCacheStorage(): FakeCacheStorage {
   };
 }
 
-function get(path: string, init: { mode?: string; headers?: HeadersInit; method?: string } = {}): RequestLike {
+function get(path: string, init: { mode?: string; headers?: HeadersInit; method?: string; cache?: string } = {}): RequestLike {
   return {
     url: new URL(path, ORIGIN).href,
     method: init.method ?? 'GET',
     headers: new Headers(init.headers),
     mode: init.mode ?? 'cors',
+    cache: init.cache ?? 'default',
   };
+}
+
+/** A script response as a correctly configured server sends it. */
+function js(body: string, init: { headers?: Record<string, string> } = {}): Response {
+  return new Response(body, { status: 200, headers: { 'Content-Type': 'text/javascript', ...init.headers } });
 }
 
 const PRECACHED = new Set([
@@ -274,7 +286,7 @@ describe('fetch handler', () => {
   });
 
   it('assets: cache miss goes to the network and is stored in the runtime cache', async () => {
-    fetchMock.mockResolvedValue(new Response('new chunk', { status: 200 }));
+    fetchMock.mockResolvedValue(js('new chunk'));
     const res = await handle(get('/assets/chunk-new.js'))!;
     expect(await res.text()).toBe('new chunk');
     const runtime = await storage.open(logic.runtimeCacheName(BUILD));
@@ -323,8 +335,7 @@ describe('fetch handler', () => {
   });
 
   it('cached responses keep their headers (COOP/COEP survive the Cache API)', async () => {
-    fetchMock.mockResolvedValue(new Response('js', {
-      status: 200,
+    fetchMock.mockResolvedValue(js('js', {
       headers: {
         'Cross-Origin-Embedder-Policy': 'require-corp',
         'Cross-Origin-Resource-Policy': 'same-origin',
@@ -335,6 +346,119 @@ describe('fetch handler', () => {
     const res = await handle(get('/assets/chunk-h.js'))!;
     expect(res.headers.get('Cross-Origin-Embedder-Policy')).toBe('require-corp');
     expect(res.headers.get('Cross-Origin-Resource-Policy')).toBe('same-origin');
+  });
+});
+
+describe('script types (WLojek/DocCloak#2)', () => {
+  let storage: FakeCacheStorage;
+  let fetchMock: ReturnType<typeof vi.fn<(request: RequestLike) => Promise<Response>>>;
+  let handle: (request: RequestLike) => Promise<Response> | null;
+  const MJS = '/ort-wasm-simd-threaded.asyncify.mjs';
+  const typed = (type: string | null) => new Response('export default 1', { status: 200, headers: type ? { 'Content-Type': type } : {} });
+
+  beforeEach(() => {
+    storage = makeCacheStorage();
+    fetchMock = vi.fn<(request: RequestLike) => Promise<Response>>();
+    handle = logic.createFetchHandler({ buildId: BUILD, caches: storage, fetch: fetchMock, origin: ORIGIN, precached: PRECACHED });
+  });
+
+  it('every JavaScript MIME type of the HTML standard counts, parameters and case ignored', () => {
+    for (const type of ['text/javascript', 'application/javascript; charset=utf-8', 'Application/X-JavaScript', 'text/ecmascript',
+      'application/x-ecmascript', 'text/javascript1.5', 'text/jscript', 'text/livescript']) {
+      expect(logic.hasUsableType(MJS, typed(type)), type).toBe(true);
+    }
+    for (const type of ['application/octet-stream', 'text/html', 'text/plain', 'application/json', 'text/javascript2', null]) {
+      expect(logic.hasUsableType(MJS, typed(type)), String(type)).toBe(false);
+      expect(logic.hasUsableType('/tesseract/worker.min.js', typed(type)), String(type)).toBe(false);
+    }
+  });
+
+  it('only scripts are checked: wasm, language data and fonts are stored under any type', () => {
+    for (const path of ['/ort-wasm-simd-threaded.asyncify.wasm', '/tesseract/lang/pol.traineddata.gz', '/pdf/cmaps/UniJIS-UTF16-H.bcmap', '/pdf/fonts/LiberationSans-Regular.ttf']) {
+      expect(logic.hasUsableType(path, typed('application/octet-stream')), path).toBe(true);
+      expect(logic.hasUsableType(path, typed(null)), path).toBe(true);
+    }
+  });
+
+  it('a script served under a wrong type is passed on but not stored; once the server is fixed it is stored', async () => {
+    // The server is wrong: both the normal request and the one past the HTTP cache get the wrong type.
+    fetchMock.mockResolvedValueOnce(typed('application/octet-stream')).mockResolvedValueOnce(typed('application/octet-stream'));
+    const bad = await handle(get(MJS))!;
+    expect(bad.headers.get('Content-Type')).toBe('application/octet-stream');
+    const runtime = await storage.open(logic.runtimeCacheName(BUILD));
+    expect(runtime.store.size).toBe(0);
+    // The server is fixed: the next load goes to the network again and keeps the good copy.
+    fetchMock.mockResolvedValueOnce(typed('text/javascript'));
+    const good = await handle(get(MJS))!;
+    expect(good.headers.get('Content-Type')).toBe('text/javascript');
+    expect(runtime.store.has(`${ORIGIN}${MJS}`)).toBe(true);
+    fetchMock.mockClear();
+    await handle(get(MJS))!;
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('a script already stored under a wrong type is dropped and fetched again', async () => {
+    const runtime = await storage.open(logic.runtimeCacheName(BUILD));
+    await runtime.put(`${ORIGIN}${MJS}`, typed('application/octet-stream'));
+    fetchMock.mockResolvedValueOnce(typed('application/javascript'));
+    const res = await handle(get(MJS))!;
+    expect(res.headers.get('Content-Type')).toBe('application/javascript');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect((await runtime.match(`${ORIGIN}${MJS}`))!.headers.get('Content-Type')).toBe('application/javascript');
+  });
+
+  it('offline with a bad stored script: the bad copy is gone and the request fails (it could never run)', async () => {
+    const runtime = await storage.open(logic.runtimeCacheName(BUILD));
+    await runtime.put(`${ORIGIN}${MJS}`, typed('text/html'));
+    fetchMock.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+    await expect(handle(get(MJS))!).rejects.toThrow('Failed to fetch');
+    expect(runtime.store.size).toBe(0);
+  });
+
+  it('a wrong type from the network is asked for once more past the HTTP cache (a 304 keeps the old type)', async () => {
+    fetchMock.mockResolvedValueOnce(typed('application/octet-stream')).mockResolvedValueOnce(typed('text/javascript'));
+    const res = await handle(get(MJS))!;
+    expect(res.headers.get('Content-Type')).toBe('text/javascript');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1][0].cache).toBe('reload');
+    expect(fetchMock.mock.calls[1][0].url).toBe(`${ORIGIN}${MJS}`);
+    const runtime = await storage.open(logic.runtimeCacheName(BUILD));
+    expect((await runtime.match(`${ORIGIN}${MJS}`))!.headers.get('Content-Type')).toBe('text/javascript');
+  });
+
+  it('a server still wrong after the second try: served as it is, nothing stored, no third request', async () => {
+    fetchMock.mockResolvedValue(typed('application/octet-stream'));
+    const res = await handle(get(MJS))!;
+    expect(res.headers.get('Content-Type')).toBe('application/octet-stream');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect((await storage.open(logic.runtimeCacheName(BUILD))).store.size).toBe(0);
+  });
+
+  it('files that are not scripts are fetched once whatever their type', async () => {
+    fetchMock.mockResolvedValue(typed('application/octet-stream'));
+    await handle(get('/ort-wasm-simd-threaded.asyncify.wasm'))!;
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('a request for a fresh copy (cache: reload) skips the stored copy and replaces it', async () => {
+    const runtime = await storage.open(logic.runtimeCacheName(BUILD));
+    await runtime.put(`${ORIGIN}${MJS}`, new Response('old', { status: 200, headers: { 'Content-Type': 'text/javascript' } }));
+    fetchMock.mockResolvedValueOnce(new Response('new', { status: 200, headers: { 'Content-Type': 'text/javascript' } }));
+    const res = await handle(get(MJS, { cache: 'reload' }))!;
+    expect(await res.text()).toBe('new');
+    expect(await (await runtime.match(`${ORIGIN}${MJS}`))!.text()).toBe('new');
+    // An ordinary request is served from the cache again.
+    fetchMock.mockClear();
+    expect(await (await handle(get(MJS))!).text()).toBe('new');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('a good stored script is served from the cache, without the network', async () => {
+    const runtime = await storage.open(logic.runtimeCacheName(BUILD));
+    await runtime.put(`${ORIGIN}${MJS}`, typed('text/javascript; charset=utf-8'));
+    const res = await handle(get(MJS))!;
+    expect(await res.text()).toBe('export default 1');
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 

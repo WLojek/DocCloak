@@ -38,13 +38,13 @@ The AI never sees the real data. You get the full power of AI assistance without
 - **14 entity types** - persons, emails, phones, SSNs, credit cards, dates, currencies, IP addresses, IBANs, addresses, companies, secrets, API keys, and custom labels
 - **Secrets and credential detection** - API keys (AWS, GitHub, Slack, OpenAI, Anthropic, Google), private key blocks, JWTs, connection strings, and high-entropy tokens are caught before they reach the AI
 - **Document support** - upload `.doc` and `.docx` files, redact PII, and download the protected file with formatting preserved. The exported file also has its metadata scrubbed; see [What DocCloak changes in your file](#what-doccloak-changes-in-your-file) and [Known limits](#known-limits)
-- **PDF support** - upload a PDF, redact, download a PDF whose text layer is kept: placeholders are written in the document's own font when it can show them, else in a metrics-compatible Liberation face fitted to the original span; pages that cannot be edited safely are rasterized and listed. Annotations, forms, bookmarks, attachments and metadata are dropped from the export and listed before you download; see [What DocCloak changes in your file](#what-doccloak-changes-in-your-file) and [Known limits](#known-limits)
+- **PDF support** - upload a PDF, redact, download a PDF whose text layer is kept: placeholders are written in the document's own font when it can show them, else in a metrics-compatible Liberation face fitted to the original span; pages that cannot be edited safely are rasterized and listed. Annotations, forms, bookmarks, attachments and metadata are dropped from the export and listed before you download; see [What DocCloak changes in your file](#what-doccloak-changes-in-your-file) and [Known limits](#known-limits) Pages that are only a picture are read with OCR several at a time (one per processor core but one, up to 6; the 17-page judgment of DocCloak.Core#1 in about 11 s in Chrome on an Apple M4 Pro).
 - **Image support (OCR)** - upload or paste an image or screenshot (`.png`, `.jpg`, `.webp`, `.bmp`, `.gif`); text is extracted locally with Tesseract WebAssembly, run through the same PII detection, and you can download a redacted copy of the image with the sensitive words blacked out
-- **Multiple detection models** - choose between GLiNER PII Small (~83 MB, multi-language, custom labels), GLiNER PII Base (~197 MB, often better for English and dates, custom labels) and BardS.ai EU PII (~279 MB, best multilingual accuracy, 24+ EU languages, 35 entity types). Switch models from settings without reloading. Phones and other low-memory devices default to the lightweight GLiNER model
+- **Multiple detection models** - eight to choose from in settings, each with a short line and a full description (strengths, weaknesses, when to choose it) measured on our test kit of 69 documents in 10 languages. In short: BardS.ai EU PII v1 (~279 MB, the default on computers) and GLiNER2 Privacy Filter (~462 MB yethdev export, ~551 MB okasi export, custom labels) let the least through; GLiNER2 is best on French and on company names but about twice as slow; BardS.ai v3 (~343 MB) is close to v1 and covers fewer words needlessly; GLiNER PII Small (~83 MB, custom labels) is the lightest but covers much text that should stay; BardS.ai v2 (~343 MB), GLiNER PII Base (~197 MB) and OpenAI Privacy Filter (~837 MB, fastest, no company category, needs WebGPU) let more through. Each model shows whether it is saved on this device or needs a download, and a saved model that is not in use can be removed to free its space. All models stay while accuracy testing continues; a feedback link per model opens a GitHub form. Switch models from settings without reloading. Phones and other low-memory devices default to the lightweight GLiNER model
 - **Consent-first setup** - nothing downloads until you accept the one-time setup. The model recommended for your device is preselected; if you pick a different model before accepting, the prompt names that model and its size, and still nothing is downloaded until you press Accept. Later visits load straight from the browser cache
 - **Resilient model downloads** - interrupted downloads resume where they left off (HTTP Range), transient network errors are retried with backoff, and a Try again button appears if the download ultimately fails
 - **Verified model downloads** - the model file and both tokenizer files of every model are fetched from a pinned upstream commit and checked against pinned SHA-256 hashes and byte sizes, so a tampered or corrupted download is rejected instead of loaded
-- **Works offline after first load** - a Service Worker keeps the app shell (about 4.1 MB, the lazily loaded PDF module included) in the browser; the ONNX runtime, the OCR files and the PDF assets (pdf.js worker, CMaps, fonts) are cached the first time they are used and the model lives in the `doccloak-models` cache, so a fresh visit without a network connection still opens the app and loads the model. See [Storage and offline use](#storage-and-offline-use)
+- **Works offline after first load** - a Service Worker keeps the app shell (about 4.1 MB, the lazily loaded PDF module included) in the browser; the ONNX runtime, the OCR files and the PDF assets (pdf.js worker, CMaps, fonts) are cached the first time they are used and the model lives in the `doccloak-models` cache, so a fresh visit without a network connection still opens the app and loads the model. See [Storage and offline use](#storage-and-offline-use) The worker keeps a script only when the server sent it with a JavaScript type, and **Settings → Clear offline data** removes its files (models stay) if the app ever does not load.
 - **Hybrid detection** - ML model + 178 regex rules for structured patterns: the universal ones plus those of the text language you pick, from 19 regions (AT, BE, CH, CN, DE, DK, ES, FI, FR, GB, IE, IT, JP, NL, NO, PL, PT, SE, US)
 - **Entity propagation** - when a name or company is detected once, DocCloak automatically finds all other occurrences throughout the document, and different mentions of the same person ("John Smith", "John", "Smith") share one placeholder
 - **Round-trip de-anonymization** - paste the AI's response back in and DocCloak restores the original names automatically
@@ -84,6 +84,42 @@ npm run preview
 
 The output in `dist/` is a static SPA that can be deployed to any static hosting provider (Vercel, Cloudflare Pages, Netlify, etc.) or served locally.
 
+### Self-hosting
+
+`dist/` needs no server code, but the server must send the right types and headers, or the AI runtime does not start (multi-threaded WebAssembly needs a cross-origin isolated page) and the service worker refuses to keep a script it cannot run.
+
+- **Types:** `.js` and `.mjs` as `text/javascript` (or `application/javascript`), `.wasm` as `application/wasm`. nginx's own `mime.types` has no `.mjs` and sends it as `application/octet-stream`; the browser then refuses `ort-wasm-simd-threaded.asyncify.mjs` and `pdf/pdf.worker.mjs`.
+- **Headers on every response** (what doccloak.com sends, from DocCloak.Hosting's `_headers`): `Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Embedder-Policy: require-corp`, `Cross-Origin-Resource-Policy: same-origin`, `X-Content-Type-Options: nosniff` and the `Content-Security-Policy` below. Serve it over HTTPS (or on localhost): the page is cross-origin isolated only in a secure context. Over HTTPS, also add `Strict-Transport-Security` and `upgrade-insecure-requests` to the policy, as doccloak.com does.
+- **Caching:** `/sw.js` with `Cache-Control: no-cache` (a new build is picked up on the next visit); `/assets/*` may be cached for a year (hashed names).
+- **Routing:** unknown paths fall back to `/index.html`.
+
+An nginx example (tested with the `nginx:1.27-alpine` image): `dist/` in `/usr/share/nginx/html`, the headers in a file every `location` includes, because nginx drops the server's `add_header` lines in a `location` that has its own.
+
+```nginx
+# /etc/nginx/doccloak-headers.conf
+add_header Cross-Origin-Opener-Policy same-origin always;
+add_header Cross-Origin-Embedder-Policy require-corp always;
+add_header Cross-Origin-Resource-Policy same-origin always;
+add_header X-Content-Type-Options nosniff always;
+add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' blob: https://huggingface.co https://*.huggingface.co https://cdn-lfs.huggingface.co https://cdn-lfs.hf.co https://*.hf.co https://*.xethub.hf.co; worker-src 'self' blob:; child-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'" always;
+```
+
+```nginx
+# /etc/nginx/conf.d/default.conf
+server {
+    listen 80;
+    root /usr/share/nginx/html;
+    include /etc/nginx/doccloak-headers.conf;
+
+    # mime.types has no .mjs: without this it goes out as application/octet-stream.
+    location ~ \.mjs$ { default_type text/javascript; include /etc/nginx/doccloak-headers.conf; }
+    location = /sw.js { add_header Cache-Control "no-cache" always; include /etc/nginx/doccloak-headers.conf; }
+    location / { try_files $uri /index.html; }
+}
+```
+
+After fixing the types on a server that sent them wrong, reload DocCloak. Since web 0.16.0 the service worker no longer keeps a script served under a wrong type, and drops one an older version kept, so a reload is enough ([#2](https://github.com/WLojek/DocCloak/issues/2)). If the app still does not load, **Settings → Clear offline data** removes the files the service worker kept (downloaded models stay) and reloads the page.
+
 ## Tech Stack
 
 | Layer | Choice |
@@ -95,7 +131,7 @@ The output in `dist/` is a static SPA that can be deployed to any static hosting
 | PII Engine | [@doccloak/core](https://www.npmjs.com/package/@doccloak/core) (Apache-2.0, [source](https://github.com/WLojek/DocCloak.Core)) |
 | ML Runtime | ONNX Runtime WebAssembly |
 | PDF | [pdf.js](https://mozilla.github.io/pdf.js/) (text cross-check and rasterization, self-hosted worker) + [pdf-lib](https://pdf-lib.js.org/) + fontkit inside `@doccloak/core/pdf`, loaded on first PDF upload; Liberation fonts as fallback faces |
-| NER Models | [GLiNER PII Small v1.0](https://huggingface.co/knowledgator/gliner-pii-small-v1.0) (~83 MB) / [GLiNER PII Base v1.0](https://huggingface.co/knowledgator/gliner-pii-base-v1.0) (~197 MB) / [BardS.ai EU PII](https://huggingface.co/bardsai/eu-pii-anonimization-multilang) (~279 MB) |
+| NER Models | [GLiNER PII Small v1.0](https://huggingface.co/knowledgator/gliner-pii-small-v1.0) (~83 MB) / [GLiNER PII Base v1.0](https://huggingface.co/knowledgator/gliner-pii-base-v1.0) (~197 MB) / [BardS.ai EU PII](https://huggingface.co/bardsai/eu-pii-anonimization-multilang) (~279 MB) / [v2](https://huggingface.co/bardsai/eu-pii-anonimization-multilang-v2) and [v3](https://huggingface.co/bardsai/eu-pii-anonimization-multilang-v3) (~343 MB) / [GLiNER2 Privacy Filter](https://huggingface.co/fastino/gliner2-privacy-filter-PII-multi) (community ONNX exports, ~462-551 MB) / [OpenAI Privacy Filter](https://huggingface.co/openai/privacy-filter) (~837 MB, WebGPU) |
 | Tokenizers | [@huggingface/transformers](https://huggingface.co/docs/transformers.js) v4 tokenizer classes; the tokenizer files themselves are downloaded and verified by `@doccloak/core` from the same pinned commit as the model |
 | Testing | Vitest |
 
@@ -135,15 +171,15 @@ Everything DocCloak keeps on your device, and how to remove it:
 |-------|------|---------------|--------------|
 | localStorage | `doccloak-model-consented`, `doccloak-active-provider`, `doccloak-regex-enabled`, `doccloak-regex-region`, `doccloak-lang` | Download consent, chosen model, regex options (the text language is picked next to the Redact button and, until picked, follows the interface language), interface language | Settings, or browser site data |
 | localStorage | `doccloak-custom-labels`, `doccloak-dictionary`, `doccloak-ignore-list` | Custom detection labels, dictionary words, ignore-list words: text you typed yourself, often names or company names | Remove entries in Settings, or clear the site data in your browser |
-| Cache Storage | `doccloak-models` | The model file, `tokenizer.json` and `tokenizer_config.json` of every model you have loaded, plus one small verification marker per file (`sha256:size`) | DevTools → Application → Cache Storage → delete the cache; the next visit re-downloads and re-verifies |
-| Cache Storage | `doccloak-shell-<build>`, `doccloak-runtime-<build>` | Service Worker caches: the app shell (`index.html` and the hashed `/assets/*` files, about 4.1 MB, stored on first visit) and the runtime files stored on first use (ONNX Runtime WASM, Tesseract worker, core and language data, and the `/pdf/*` assets: pdf.js worker, CMaps, standard fonts, image decoders and Liberation fonts, about 10 MB, cached on the first PDF upload) | Replaced automatically when a new build activates; browser site data removes them |
+| Cache Storage | `doccloak-models` | The model file, `tokenizer.json` and `tokenizer_config.json` of every model you have loaded, plus one small verification marker per file (`sha256:size`) | **Settings → Remove** next to a saved model that is not in use (keeps the files another saved model shares), or DevTools → Application → Cache Storage → delete the cache; the next use re-downloads and re-verifies |
+| Cache Storage | `doccloak-shell-<build>`, `doccloak-runtime-<build>` | Service Worker caches: the app shell (`index.html` and the hashed `/assets/*` files, about 4.1 MB, stored on first visit) and the runtime files stored on first use (ONNX Runtime WASM, Tesseract worker, core and language data, and the `/pdf/*` assets: pdf.js worker, CMaps, standard fonts, image decoders and Liberation fonts, about 10 MB, cached on the first PDF upload) | Replaced automatically when a new build activates; **Settings → Clear offline data** removes them (models stay); browser site data too |
 | IndexedDB | `keyval-store` | Tesseract.js language data (`*.traineddata`) after your first OCR | Browser site data |
 
 There is no `transformers-cache`: since web 0.13.0 the tokenizer files go through the same verified download path as the model and land in `doccloak-models`; the old unverified bucket left by earlier versions is deleted once on first start. Document content, detected entities and placeholder mappings are never written to any of these stores.
 
 **Offline.** The Service Worker is registered in production builds only. It precaches only the app shell (about 4.1 MB) and never downloads the 26 MB ONNX runtime, the 28 MB OCR files or the 10 MB PDF assets up front: those are cached the first time you use detection, OCR or a PDF. Model and tokenizer requests to `huggingface.co`, Range requests and anything that is not a plain GET bypass the worker entirely, so the `doccloak-models` cache and resumable downloads are untouched. Navigation is network-first: when you are online, a new build is picked up on the next visit and a toast asks you to refresh; when you are offline, the cached shell is served. After one online visit with the model downloaded (and one OCR run or PDF upload, if you use images or PDFs), a fresh visit without a network connection opens the app and loads the model.
 
-**Caching is best-effort.** If your browser refuses to cache the model - for example because the per-origin storage quota is exceeded, you're using an Incognito/Private window with restricted quota, or the model file is larger than the browser allows for a single Cache entry - DocCloak still loads the model into memory and works normally for the current session. The next visit will simply re-download it instead of using the cache. The BardS.ai EU PII model (~279 MB) is most likely to hit quota limits, especially in Incognito mode. GLiNER PII Small (~83 MB) caches reliably almost everywhere.
+**Caching is best-effort.** If your browser refuses to cache the model - for example because the per-origin storage quota is exceeded, you're using an Incognito/Private window with restricted quota, or the model file is larger than the browser allows for a single Cache entry - DocCloak still loads the model into memory and works normally for the current session. The next visit will simply re-download it instead of using the cache. The larger models (BardS.ai, GLiNER2 and above all OpenAI Privacy Filter at ~837 MB) are most likely to hit quota limits, especially in Incognito mode. GLiNER PII Small (~83 MB) caches reliably almost everywhere.
 
 The regex rule packs that power structured-pattern detection also live in DocCloak.Core (`rules/*.json`) and are shared unchanged with the DocCloak command-line tool.
 

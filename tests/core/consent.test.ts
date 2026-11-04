@@ -16,6 +16,7 @@ import {
   switchProvider,
   getActiveProviderId,
   _setClientFactoryForTests,
+  hasWebGpu,
 } from '../../src/engine.ts';
 import { useAnonymizer } from '../../src/ui/hooks/useAnonymizer.ts';
 import { LanguageProvider } from '../../src/i18n/LanguageContext.tsx';
@@ -109,9 +110,25 @@ describe('engine consent gate (S2)', () => {
     expect(created[0].preload).toHaveBeenCalledTimes(1);
   });
 
+  it('hasWebGpu follows navigator.gpu; only OpenAI Privacy Filter requires it (T242)', () => {
+    expect(PROVIDERS.filter((p) => p.requiresWebGpu).map((p) => p.id)).toEqual(['openai-pf']);
+    const nav = navigator as Navigator & { gpu?: unknown };
+    const had = 'gpu' in nav;
+    const before = nav.gpu;
+    Object.defineProperty(nav, 'gpu', { value: undefined, configurable: true });
+    expect(hasWebGpu()).toBe(false);
+    Object.defineProperty(nav, 'gpu', { value: {}, configurable: true });
+    expect(hasWebGpu()).toBe(true);
+    if (had) Object.defineProperty(nav, 'gpu', { value: before, configurable: true });
+    else delete (nav as { gpu?: unknown }).gpu;
+  });
+
   it('PROVIDERS carries the download size next to the label', () => {
     const sizes = Object.fromEntries(PROVIDERS.map((p) => [p.id, p.sizeMB]));
-    expect(sizes).toEqual({ gliner: 83, 'gliner-base': 197, bardsai: 279 });
+    expect(sizes).toEqual({
+      gliner: 83, 'gliner-base': 197, bardsai: 279,
+      'bardsai-v2': 343, 'bardsai-v3': 343, 'gliner2-pii': 551, 'gliner2-pii-yethdev': 462, 'openai-pf': 837,
+    });
     for (const p of PROVIDERS) expect(typeof p.label).toBe('string');
   });
 });
@@ -133,7 +150,7 @@ describe('useAnonymizer consent flow', () => {
 
     // The card copy the App renders for this preselection names the model and its size.
     const copy = en.consent.forModel(en.settings.models.bardsai.label, PROVIDERS.find((p) => p.id === 'bardsai')!.sizeMB);
-    expect(copy).toBe('Download BardS.ai EU PII (279 MB)?');
+    expect(copy).toBe('Download BardS.ai EU PII v1 (279 MB)?');
   });
 
   it('Accept stores the flag and triggers exactly one switchProvider on the client', async () => {

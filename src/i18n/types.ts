@@ -1,5 +1,18 @@
 import type { EntityType } from '@doccloak/core';
 
+/**
+ * A detection model in the settings picker (T249): the short line under its name, and the full
+ * description behind "More". Strengths and weaknesses come from the model test kit (69 documents,
+ * 10 languages, regex rules on).
+ */
+export interface ModelCopy {
+  label: string;
+  description: string;
+  strengths: string[];
+  weaknesses: string[];
+  bestFor: string;
+}
+
 export interface Translations {
   header: {
     ready: string;
@@ -26,10 +39,52 @@ export interface Translations {
     addLabel: string;
     detectionModel: string;
     models: {
-      gliner: { label: string; description: string };
-      'gliner-base': { label: string; description: string };
-      bardsai: { label: string; description: string };
+      gliner: ModelCopy;
+      'gliner-base': ModelCopy;
+      bardsai: ModelCopy;
+      'bardsai-v2': ModelCopy;
+      'bardsai-v3': ModelCopy;
+      'gliner2-pii': ModelCopy;
+      'gliner2-pii-yethdev': ModelCopy;
+      'openai-pf': ModelCopy;
     };
+    /** Under a model that runs only on WebGPU, where the browser lacks it. */
+    modelNeedsWebGpu: string;
+    /** Download size next to a model's name ("279 MB"). */
+    modelSize: (sizeMB: number) => string;
+    /** The toggle that opens and closes a model's full description (T249). */
+    modelMore: string;
+    modelLess: string;
+    /** Headings of the full description. */
+    modelStrengths: string;
+    modelWeaknesses: string;
+    modelBestFor: string;
+    /** Under the full description: what the strengths and weaknesses were measured on. */
+    modelTestNote: string;
+    /** Whether the model's files are already in this browser's model cache (T250). */
+    modelSaved: string;
+    modelNotSaved: string;
+    /** Removes a saved model that is not the selected one; the label names the model for screen readers. */
+    modelRemove: string;
+    modelRemoveLabel: (model: string) => string;
+    /** Toasts after a removal; `size` is modelSize of the model. */
+    modelRemoved: (model: string, size: string) => string;
+    modelRemoveFailed: string;
+    /** Under the model list: all models stay while accuracy testing continues; feedback is welcome. */
+    modelsTestingNote: string;
+    /** Link to the GitHub feedback form, under the list and (prefilled) under each model's full description. */
+    modelsFeedback: string;
+    modelFeedback: string;
+    /** Settings: clear the service worker's files and reload, models kept (T251, WLojek/DocCloak#2). */
+    offlineDataTitle: string;
+    offlineDataDescription: string;
+    offlineDataClear: string;
+    /** Asked before clearing: the reload drops what is on the page. */
+    offlineDataConfirm: string;
+    offlineDataConfirmYes: string;
+    offlineDataCancel: string;
+    /** Shown while the browser is offline, when the button is disabled. */
+    offlineDataNeedsNetwork: string;
     regexRules: string;
     regexRulesDescription: string;
     regexRegion: string;
@@ -148,6 +203,9 @@ export interface Translations {
     largeModelWarning: string;
     progress: (downloaded: string, total: string, percent: number) => string;
     failedTitle: string;
+    /** The chosen model runs only on WebGPU and the browser has none (T242). */
+    webGpuTitle: string;
+    webGpuBody: string;
     failedBody: string;
     retry: string;
   };

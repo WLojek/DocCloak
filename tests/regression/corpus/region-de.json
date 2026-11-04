@@ -41,8 +41,8 @@
           },
           {
             "type": "ADDRESS",
-            "value": "wohnhaft Friedrichstraße 43",
-            "start": 49,
+            "value": "Friedrichstraße 43",
+            "start": 58,
             "end": 76,
             "confidence": 0.9,
             "detector": "regex:de:street"
@@ -80,7 +80,7 @@
             "detector": "regex:de:currency_words"
           }
         ],
-        "anonymized": "Frau [PERSON_1], Steuer-ID [SSN_1], [ADDRESS_2], [ADDRESS_1], Telefon [PHONE_1]. Arbeitgeber: [COMPANY_1]. Rechnungsbetrag [CURRENCY_1].",
+        "anonymized": "Frau [PERSON_1], Steuer-ID [SSN_1], wohnhaft [ADDRESS_2], [ADDRESS_1], Telefon [PHONE_1]. Arbeitgeber: [COMPANY_1]. Rechnungsbetrag [CURRENCY_1].",
         "anonymizedAfterRename": null,
         "restored": "Frau Erika Musterfrau, Steuer-ID 12 345 678 903, wohnhaft Friedrichstraße 43, 10115 Berlin, Telefon +49 30 12345678. Arbeitgeber: Musterbau GmbH. Rechnungsbetrag in Höhe von achttausendfünfhundert Euro.",
         "replacements": [
@@ -110,7 +110,7 @@
             "entityType": "ADDRESS"
           },
           {
-            "original": "wohnhaft Friedrichstraße 43",
+            "original": "Friedrichstraße 43",
             "replacement": "[ADDRESS_2]",
             "entityType": "ADDRESS"
           },

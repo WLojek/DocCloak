@@ -27,6 +27,7 @@
  */
 
 import type { BlobCache, CoreEnv, HardwareHints, KVStore } from '@doccloak/core';
+import { MODEL_CACHE_NAME } from './model-cache.ts';
 import {
   DebertaV2Tokenizer,
   PreTrainedTokenizer,
@@ -34,8 +35,6 @@ import {
   env as hfEnv,
 } from '@huggingface/transformers';
 
-/** The web cache bucket name stays host-side; core never knows it. */
-const MODEL_CACHE_NAME = 'doccloak-models';
 
 /**
  * Cache Storage bucket @huggingface/transformers filled for
@@ -71,11 +70,14 @@ type TokenizerConstructor = new (tokenizerJson: TokenizerJson, tokenizerConfig: 
  * - PreTrainedTokenizerFast -> PreTrainedTokenizer (GLiNER PII Small)
  * - DebertaV2Tokenizer (GLiNER PII Base)
  * - XLMRobertaTokenizer (BardS.ai EU PII)
+ * - TokenizersBackend -> PreTrainedTokenizer (BardS.ai v2/v3, OpenAI Privacy
+ *   Filter; transformers.js exports PreTrainedTokenizer under this name too)
  */
 const TOKENIZER_CLASSES: ReadonlyMap<string, TokenizerConstructor> = new Map<string, TokenizerConstructor>([
   ['PreTrainedTokenizer', PreTrainedTokenizer],
   ['DebertaV2Tokenizer', DebertaV2Tokenizer],
   ['XLMRobertaTokenizer', XLMRobertaTokenizer],
+  ['TokenizersBackend', PreTrainedTokenizer],
 ]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -229,5 +231,7 @@ export function createWebCoreEnv(): CoreEnv {
     buildTokenizer: buildWebTokenizer,
     hardware: webHardwareHints(),
     persistStorage: persistWebStorage,
+    // DocCloak-built model graphs (public/models/) next to the app, not next to the worker script.
+    assetBaseUrl: typeof location === 'undefined' ? undefined : new URL(import.meta.env.BASE_URL, location.origin).href,
   };
 }

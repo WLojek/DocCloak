@@ -41,8 +41,8 @@
           },
           {
             "type": "ADDRESS",
-            "value": "adress Drottninggatan 42",
-            "start": 43,
+            "value": "Drottninggatan 42",
+            "start": 50,
             "end": 67,
             "confidence": 0.9,
             "detector": "regex:se:street"
@@ -80,7 +80,7 @@
             "detector": "regex:se:currency_words"
           }
         ],
-        "anonymized": "[PERSON_1], personnummer [SSN_1], [ADDRESS_2], [ADDRESS_1], telefon [PHONE_1]. Bolag: [COMPANY_1]. Belopp [CURRENCY_1].",
+        "anonymized": "[PERSON_1], personnummer [SSN_1], adress [ADDRESS_2], [ADDRESS_1], telefon [PHONE_1]. Bolag: [COMPANY_1]. Belopp [CURRENCY_1].",
         "anonymizedAfterRename": null,
         "restored": "Sven Svensson, personnummer 19850523-1478, adress Drottninggatan 42, 111 22 Stockholm, telefon 070-123 45 67. Bolag: Fjällbyggen AB. Belopp med bokstäver: åttatusen femhundra kronor.",
         "replacements": [
@@ -110,7 +110,7 @@
             "entityType": "ADDRESS"
           },
           {
-            "original": "adress Drottninggatan 42",
+            "original": "Drottninggatan 42",
             "replacement": "[ADDRESS_2]",
             "entityType": "ADDRESS"
           },

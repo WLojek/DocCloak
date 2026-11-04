@@ -105,6 +105,34 @@
     return !!response && response.status === 200;
   }
 
+  // The JavaScript MIME type essences of the HTML standard. A script the browser
+  // runs as a module or worker is refused under any other type, so storing one
+  // would break the app until the next build (WLojek/DocCloak#2: a server sent
+  // ort-wasm-*.mjs as application/octet-stream). Other files are not checked:
+  // ONNX Runtime and Tesseract load their .wasm under any type.
+  var JS_TYPE = /^(?:(?:text|application)\/(?:x-)?(?:java|ecma)script|text\/(?:javascript1\.[0-5]|jscript|livescript))$/;
+
+  function isScriptPath(pathname) {
+    return /\.m?js$/.test(pathname);
+  }
+
+  /** The Content-Type without parameters, lowercase ('' when absent). */
+  function typeOf(response) {
+    var value = response && response.headers && typeof response.headers.get === 'function'
+      ? response.headers.get('content-type')
+      : null;
+    return value ? String(value).split(';')[0].trim().toLowerCase() : '';
+  }
+
+  /**
+   * False for a script (.js, .mjs) served without a JavaScript MIME type: it is
+   * served as it came but never stored, and a stored one is dropped and fetched
+   * again. True for every other file.
+   */
+  function hasUsableType(pathname, response) {
+    return !isScriptPath(pathname) || JS_TYPE.test(typeOf(response));
+  }
+
   /**
    * Build the fetch handler. `deps`:
    *   buildId    string
@@ -176,18 +204,42 @@
         });
     }
 
+    /**
+     * The network copy of a request. A script that comes under a wrong type is asked for once
+     * more past the browser's HTTP cache: a server that once sent the wrong type answers the
+     * revalidation with a 304 that carries no Content-Type, so the browser keeps the old type
+     * even after the server was fixed (WLojek/DocCloak#2).
+     */
+    function fromNetwork(request, pathname) {
+      return Promise.resolve()
+        .then(function () { return fetchFn(request); })
+        .then(function (response) {
+          if (!isCacheable(response) || hasUsableType(pathname, response) || typeof Request !== 'function') return response;
+          return Promise.resolve()
+            .then(function () { return fetchFn(new Request(request.url, { cache: 'reload', credentials: 'same-origin' })); })
+            .catch(function () { return response; });
+        });
+    }
+
     function cacheFirst(request) {
+      var pathname = pathnameOf(request.url, deps.origin);
+      // A request that asks for a fresh copy (cache: 'reload') skips the stored ones.
+      var fresh = request.cache === 'reload';
       return openCache(shellName)
-        .then(function (shell) { return matchIn(shell, request); })
+        .then(function (shell) { return fresh ? undefined : matchIn(shell, request); })
         .then(function (hit) {
           if (hit) return hit;
           return openCache(runtimeName).then(function (runtime) {
-            return matchIn(runtime, request).then(function (runtimeHit) {
-              if (runtimeHit) return runtimeHit;
-              return Promise.resolve()
-                .then(function () { return fetchFn(request); })
+            return (fresh ? Promise.resolve(undefined) : matchIn(runtime, request)).then(function (runtimeHit) {
+              if (runtimeHit && hasUsableType(pathname, runtimeHit)) return runtimeHit;
+              // A script stored without a JavaScript type can never run: drop it and fetch it again.
+              var dropped = runtimeHit && runtime
+                ? Promise.resolve().then(function () { return runtime.delete(request); }).catch(function () { /* ignore */ })
+                : Promise.resolve();
+              return dropped
+                .then(function () { return fromNetwork(request, pathname); })
                 .then(function (response) {
-                  if (!runtime || !isCacheable(response)) return response;
+                  if (!runtime || !isCacheable(response) || !hasUsableType(pathname, response)) return response;
                   var toStore = cleanResponse(response.clone());
                   return Promise.resolve()
                     .then(function () { return runtime.put(request, toStore); })
@@ -219,6 +271,7 @@
     classify: classify,
     isRuntimeAsset: isRuntimeAsset,
     isStaleCache: isStaleCache,
+    hasUsableType: hasUsableType,
     cleanResponse: cleanResponse,
     fetchWithRetry: fetchWithRetry,
     createFetchHandler: createFetchHandler,

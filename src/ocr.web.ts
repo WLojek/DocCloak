@@ -51,13 +51,15 @@ export function recognizeCanvas(
  * PDF pages (T238, T239): read `region` of a rendered page (pixels of `page`) with Tesseract: text
  * a scan's OCR layer does not have, text inside an image on a text page, or (the region is the
  * whole page) a page without any text layer. Lines come back relative to the region, as core
- * expects. The worker is kept between calls; release it with releasePdfOcr when the file is read.
+ * expects. Up to `workers` regions are read at the same time (ocrWorkerCount); the workers are kept
+ * between calls, release them with releasePdfOcr when the file is read.
  */
 export async function recognizePdfRegion(
   page: unknown,
   region: { x0: number; y0: number; x1: number; y1: number },
   dpi: number,
   uiLanguage: string,
+  workers = 1,
 ): Promise<OcrLine[]> {
   const w = Math.max(1, Math.round(region.x1 - region.x0));
   const h = Math.max(1, Math.round(region.y1 - region.y0));
@@ -71,10 +73,44 @@ export async function recognizePdfRegion(
   ctx.drawImage(page as CanvasImageSource, region.x0, region.y0, w, h, 0, 0, w, h);
   const source = page as { width?: number; height?: number };
   const wholePage = region.x0 <= 0 && region.y0 <= 0 && w >= (source.width ?? Infinity) - 1 && h >= (source.height ?? Infinity) - 1;
-  return recognizeCanvasLines(crop, uiLanguage, tesseractAssets(), dpi, { wholePage });
+  return recognizeCanvasLines(crop, uiLanguage, tesseractAssets(), dpi, { wholePage, workers });
 }
 
-/** Free the OCR worker recognizePdfRegion keeps between the pages of a file. */
+/** Free the OCR workers recognizePdfRegion keeps between the pages of a file. */
 export function releasePdfOcr(): Promise<void> {
   return releaseOcrWorker();
+}
+
+/** The parts of `navigator` ocrWorkerCount reads (deviceMemory and userAgentData are Chromium only). */
+export interface OcrDevice {
+  hardwareConcurrency?: number;
+  deviceMemory?: number;
+  maxTouchPoints?: number;
+  userAgent?: string;
+  userAgentData?: { mobile?: boolean };
+}
+
+/** Most pages read at the same time on a computer that reports 8 GB of memory or more (Chromium). */
+export const OCR_MAX_WORKERS = 6;
+/** Most pages read at the same time on other computers (Firefox and Safari do not report memory). */
+const OCR_MAX_WORKERS_UNKNOWN = 4;
+/** Most pages read at the same time on a phone, a tablet or a device with 4 GB of memory or less. */
+const OCR_MAX_WORKERS_SMALL = 2;
+
+/**
+ * How many pages of a PDF DocCloak's OCR reads at the same time (T248, Core issue #4). Each page
+ * needs a Tesseract worker of its own and keeps a core busy; measured in Chrome on a 17-page scan,
+ * 1/2/4/6/8 pages at a time took 51/27/14/12/9 s, and each worker added about 0.25 GB at peak. So
+ * one core is left for the page itself, six at most with 8 GB of memory or more, four when the
+ * memory is not known, and two on phones, tablets and devices with 4 GB or less.
+ */
+export function ocrWorkerCount(device: OcrDevice | undefined = typeof navigator === 'undefined' ? undefined : navigator): number {
+  if (!device) return 1;
+  const cores = device.hardwareConcurrency && device.hardwareConcurrency > 0 ? device.hardwareConcurrency : 2;
+  const ua = device.userAgent ?? '';
+  // iPadOS reports a Mac; a Mac has no touch screen.
+  const handheld = device.userAgentData?.mobile === true || /Android|iPhone|iPad|Mobile/i.test(ua) || (/Macintosh/.test(ua) && (device.maxTouchPoints ?? 0) > 1);
+  const memory = device.deviceMemory;
+  const cap = handheld || (memory !== undefined && memory <= 4) ? OCR_MAX_WORKERS_SMALL : memory !== undefined && memory >= 8 ? OCR_MAX_WORKERS : OCR_MAX_WORKERS_UNKNOWN;
+  return Math.max(1, Math.min(cores - 1, cap));
 }

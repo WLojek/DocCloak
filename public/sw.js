@@ -6,6 +6,8 @@
  *     and icons index.html references), a few MB in total;
  *   - ORT WASM (/ort-wasm-*) and Tesseract (/tesseract/*) are runtime
  *     cache-first: stored on first successful GET, served from cache after;
+ *     a script (.js, .mjs) is stored only with a JavaScript MIME type, and a
+ *     stored one without it is dropped and fetched again (WLojek/DocCloak#2);
  *   - navigations are network-first with the cached /index.html as fallback;
  *   - everything cross-origin, every Range request and every non-GET is
  *     passed through untouched (model downloads from huggingface.co and the
@@ -68,6 +70,11 @@ importScripts('/sw-logic.js');
             throw new Error('[sw] precache failed for ' + path + ': ' + (err && err.message));
           })
           .then(function (response) {
+            // A shell script under a wrong type would break every later visit: no worker is
+            // better than a broken one (the page then loads straight from the network).
+            if (!Logic.hasUsableType(path, response)) {
+              throw new Error('[sw] precache refused ' + path + ': served as ' + (response.headers.get('content-type') || 'no type'));
+            }
             return cache.put(path, Logic.cleanResponse(response));
           });
       }));

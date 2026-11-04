@@ -74,6 +74,11 @@ export const PROVIDER_SIZE_MB: Record<ProviderId, number> = {
   gliner: 83,
   'gliner-base': 197,
   bardsai: 279,
+  'bardsai-v2': 343,
+  'bardsai-v3': 343,
+  'gliner2-pii': 551,
+  'gliner2-pii-yethdev': 462,
+  'openai-pf': 837,
 };
 
 /** Core's provider entry plus the download size the consent card quotes. */
@@ -87,6 +92,15 @@ export const PROVIDERS: readonly WebProviderEntry[] = CORE_PROVIDERS.map((p) => 
   ...p,
   sizeMB: PROVIDER_SIZE_MB[p.id],
 }));
+
+/** True when the browser offers WebGPU (models flagged requiresWebGpu run only there). */
+export function hasWebGpu(): boolean {
+  try {
+    return typeof navigator !== 'undefined' && 'gpu' in navigator && !!(navigator as Navigator & { gpu?: unknown }).gpu;
+  } catch {
+    return false;
+  }
+}
 
 /** Approximate download size per provider, formatted for copy ("83 MB"). */
 export const PROVIDER_SIZES: Record<ProviderId, string> = Object.fromEntries(
@@ -300,6 +314,14 @@ function discardWorker(reason: Error): void {
   inflightLoad = null;
   c?.close(reason);
   h?.terminate();
+}
+
+/**
+ * Start the next model load in a fresh detection worker (T251): a worker whose runtime script
+ * failed to import keeps that failure in its module map, so a retry needs a new one.
+ */
+export function restartDetectionWorker(): void {
+  if (client || handle) discardWorker(new Error('Detection worker restarted'));
 }
 
 /**

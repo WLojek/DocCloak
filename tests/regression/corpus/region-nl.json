@@ -41,8 +41,8 @@
           },
           {
             "type": "ADDRESS",
-            "value": "adres Keizersgracht 123",
-            "start": 34,
+            "value": "Keizersgracht 123",
+            "start": 40,
             "end": 57,
             "confidence": 0.85,
             "detector": "regex:nl:street"
@@ -72,7 +72,7 @@
             "detector": "regex:nl:company"
           }
         ],
-        "anonymized": "Dhr. [PERSON_1], BSN [SSN_1], [ADDRESS_2], [ADDRESS_1] Amsterdam, mobiel [PHONE_1]. Bedrijf: [COMPANY_1].",
+        "anonymized": "Dhr. [PERSON_1], BSN [SSN_1], adres [ADDRESS_2], [ADDRESS_1] Amsterdam, mobiel [PHONE_1]. Bedrijf: [COMPANY_1].",
         "anonymizedAfterRename": null,
         "restored": "Dhr. Jan de Vries, BSN 123456782, adres Keizersgracht 123, 1012 AB Amsterdam, mobiel 06 12345678. Bedrijf: Tulpenhandel B.V.",
         "replacements": [
@@ -97,7 +97,7 @@
             "entityType": "ADDRESS"
           },
           {
-            "original": "adres Keizersgracht 123",
+            "original": "Keizersgracht 123",
             "replacement": "[ADDRESS_2]",
             "entityType": "ADDRESS"
           },

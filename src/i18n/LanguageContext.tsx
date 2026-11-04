@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import type { Translations } from './types.ts';
 import { getLanguage, languages } from './translations/index.ts';
 import { LANGUAGE_STORAGE_KEY, detectUiLanguage } from './storage.ts';
@@ -24,6 +24,12 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     setLanguageState(code);
     localStorage.setItem(LANGUAGE_STORAGE_KEY, code);
   };
+
+  // The page's language follows the interface, so screen readers and the browser's spelling and
+  // hyphenation use it (index.html ships lang="en").
+  useEffect(() => {
+    document.documentElement.lang = language;
+  }, [language]);
 
   const t = getLanguage(language).translations;
 

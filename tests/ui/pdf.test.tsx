@@ -134,7 +134,7 @@ describe('useAnonymizer with a PDF', () => {
     expect(loaded?.success).toBe(true);
     expect(mocks.readPdf).toHaveBeenCalledTimes(1);
     expect(mocks.readPdf.mock.calls[0][0]).toBe(file);
-    expect(mocks.readPdf.mock.calls[0][1]).toEqual({ assets: ASSETS, recognizeText: expect.any(Function), onOcrProgress: expect.any(Function) });
+    expect(mocks.readPdf.mock.calls[0][1]).toEqual({ assets: ASSETS, recognizeText: expect.any(Function), ocrConcurrency: expect.any(Number), onOcrProgress: expect.any(Function) });
     expect(mocks.readDocx).not.toHaveBeenCalled();
 
     expect(result.current.inputText).toBe('Hello Jan Kowalski, welcome.');

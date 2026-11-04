@@ -24,12 +24,12 @@
       "expected": {
         "entities": [
           {
-            "type": "ADDRESS",
-            "value": "r. João Pereira",
-            "start": 1,
+            "type": "PERSON",
+            "value": "João Pereira",
+            "start": 4,
             "end": 16,
-            "confidence": 0.85,
-            "detector": "regex:pt:street"
+            "confidence": 0.9,
+            "detector": "gliner:person name"
           },
           {
             "type": "SSN",
@@ -80,10 +80,15 @@
             "detector": "regex:pt:currency_words"
           }
         ],
-        "anonymized": "S[ADDRESS_3], cartão de cidadão [SSN_1], morada [ADDRESS_2], [ADDRESS_1], telefone [PHONE_1]. Empresa: [COMPANY_1]. Valor [CURRENCY_1].",
+        "anonymized": "Sr. [PERSON_1], cartão de cidadão [SSN_1], morada [ADDRESS_2], [ADDRESS_1], telefone [PHONE_1]. Empresa: [COMPANY_1]. Valor [CURRENCY_1].",
         "anonymizedAfterRename": null,
         "restored": "Sr. João Pereira, cartão de cidadão 123456789 ZZ1, morada Rua Augusta 42, 1000-001 Lisboa, telefone +351 912 345 678. Empresa: Construções Silva Lda. Valor por extenso: oito mil e quinhentos euros.",
         "replacements": [
+          {
+            "original": "João Pereira",
+            "replacement": "[PERSON_1]",
+            "entityType": "PERSON"
+          },
           {
             "original": "por extenso: oito mil e quinhentos euros",
             "replacement": "[CURRENCY_1]",
@@ -113,11 +118,6 @@
             "original": "123456789 ZZ1",
             "replacement": "[SSN_1]",
             "entityType": "SSN"
-          },
-          {
-            "original": "r. João Pereira",
-            "replacement": "[ADDRESS_3]",
-            "entityType": "ADDRESS"
           }
         ]
       }

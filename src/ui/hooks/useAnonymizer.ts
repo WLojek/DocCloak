@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import type { DetectedEntity, EntityType, ReplacementEntry } from '@doccloak/core';
 import {
+  restartDetectionWorker,
   detectEntities,
   preloadModel,
   onDownloadProgress,
@@ -21,6 +22,7 @@ import {
   DetectionTimeoutError,
   DetectionAbortedError,
 } from '../../engine.ts';
+import { refreshRuntimeScripts } from '../../sw-register.ts';
 import { appendEtaSample, etaSeconds, type EtaSample } from '../../lib/detection-eta.ts';
 import type { RegexRegionId } from '@doccloak/core';
 import type { ProviderId } from '@doccloak/core';
@@ -36,7 +38,7 @@ import {
 import type { DocxExtraction, DocxWriteOptions, UnsupportedDocumentCode } from '@doccloak/core/dom';
 import { readDocText, writeAnonymizedDoc, inspectDoc } from '@doccloak/core';
 import { isImageFile, renderRedactedImage } from '@doccloak/core/dom';
-import { loadImageToCanvas, recognizeCanvas, recognizePdfRegion, releasePdfOcr } from '../../ocr.web.ts';
+import { loadImageToCanvas, ocrWorkerCount, recognizeCanvas, recognizePdfRegion, releasePdfOcr } from '../../ocr.web.ts';
 // Type-only: '@doccloak/core/pdf' (pdf.js, pdf-lib, fontkit) is loaded with a
 // dynamic import where it is needed so it stays out of the main chunk.
 import type { PdfExtraction, RemovedPart } from '@doccloak/core/pdf';
@@ -141,6 +143,17 @@ export interface LoadFileResult {
 
 export type DetectionErrorKind = 'failed' | 'timeout';
 
+/** Core's WebGpuUnavailableError, which reaches the page as its message through the worker. */
+function needsWebGpu(err: unknown): boolean {
+  return /needs WebGPU/.test(err instanceof Error ? err.message : String(err));
+}
+
+/** A model load that failed because the browser refused a runtime script (ONNX Runtime's .mjs). */
+export function isRuntimeImportError(err: unknown): boolean {
+  const message = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+  return /import(ing)? a module script failed|dynamically imported module|module script|MIME type|no available backend/i.test(message);
+}
+
 export function useAnonymizer() {
   const { language, t } = useTranslation();
   const { showToast } = useToast();
@@ -160,6 +173,8 @@ export function useAnonymizer() {
   // Accept switches to it instead of loading the saved default.
   const [pendingProvider, setPendingProvider] = useState<ProviderId | null>(null);
   const [modelError, setModelError] = useState(false);
+  // The active model runs only on WebGPU and this browser has no usable adapter (T242).
+  const [modelNeedsWebGpu, setModelNeedsWebGpu] = useState(false);
   const [anonymizing, setAnonymizing] = useState(false);
   const [detectionProgress, setDetectionProgress] = useState<number | null>(null);
   /** T222: seconds left in the running detection, once the rate is measurable. */
@@ -202,6 +217,10 @@ export function useAnonymizer() {
 
   const unredactablePending = unredactableItems.length > 0 && !allowUnredactable;
 
+  // Set once the runtime scripts were fetched again after a failed load (at most once a session).
+  const runtimeRecoveryRef = useRef(false);
+  const startModelLoadRef = useRef<(() => void) | null>(null);
+
   // Load (or retry loading) the detection model with progress tracking.
   // Goes through the engine's consent gate: without the stored flag the
   // engine refuses, and the UI falls back to the consent card.
@@ -228,10 +247,26 @@ export function useAnonymizer() {
           setPendingProvider(err.providerId);
           return;
         }
+        // T251 (WLojek/DocCloak#2): a runtime script the browser refused (kept in its HTTP cache
+        // under a wrong type, a 304 does not bring the type back) is fetched again once per
+        // session, past that cache, and the model loaded again in a fresh worker. Nothing is
+        // deleted, so offline this only costs a failed fetch.
+        if (!runtimeRecoveryRef.current && isRuntimeImportError(err) && (typeof navigator === 'undefined' || navigator.onLine !== false)) {
+          runtimeRecoveryRef.current = true;
+          console.warn('[DocCloak] The model runtime failed to load; fetching it again:', err);
+          void refreshRuntimeScripts().then(() => {
+            restartDetectionWorker();
+            startModelLoadRef.current?.();
+          });
+          setModelLoading(true);
+          return;
+        }
         console.error('Model loading failed:', err);
+        setModelNeedsWebGpu(needsWebGpu(err));
         setModelError(true);
       });
   }, []);
+  startModelLoadRef.current = startModelLoad;
 
   // Preload the detection model on mount, but only when the user has already
   // accepted the one-time download on an earlier visit.
@@ -266,6 +301,7 @@ export function useAnonymizer() {
         return;
       }
       console.error('Model switch failed:', err);
+      setModelNeedsWebGpu(needsWebGpu(err));
       setModelError(true);
     }
   }, []);
@@ -654,12 +690,15 @@ export function useAnonymizer() {
     try {
       const { readPdf } = await import('@doccloak/core/pdf');
       // Each page by what it holds (T238, T239): DocCloak's own OCR reads the pages without any text
-      // layer, the text a scan's OCR layer missed and the text inside images on text pages.
+      // layer, the text a scan's OCR layer missed and the text inside images on text pages; several
+      // pages at a time, each with its own Tesseract worker (T248).
+      const workers = ocrWorkerCount();
       let extraction: Awaited<ReturnType<typeof readPdf>>;
       try {
         extraction = await readPdf(file, {
           assets: pdfAssets(),
-          recognizeText: (page, region, dpi) => recognizePdfRegion(page, region, dpi, language),
+          recognizeText: (page, region, dpi) => recognizePdfRegion(page, region, dpi, language, workers),
+          ocrConcurrency: workers,
           onOcrProgress: (done, total) => {
             setOcrProgress(total > 0 ? done / total : 0);
             setOcrPages({ done, total });
@@ -902,6 +941,7 @@ export function useAnonymizer() {
     modelLoaded,
     modelLoading,
     modelError,
+    modelNeedsWebGpu,
     anonymizing,
     detectionProgress,
     detectionEta,

@@ -73,8 +73,8 @@
           },
           {
             "type": "COMPANY",
-            "value": "Faktura od Bursztynek S.A.",
-            "start": 125,
+            "value": "Bursztynek S.A.",
+            "start": 136,
             "end": 151,
             "confidence": 0.9,
             "detector": "regex:pl:company"
@@ -96,7 +96,7 @@
             "detector": "regex:pl:court_case"
           }
         ],
-        "anonymized": "Pani [PERSON_1], PESEL [SSN_2], NIP [SSN_1], zamieszkała [ADDRESS_2], [ADDRESS_1], tel. [PHONE_1]. [COMPANY_1] na kwotę [CURRENCY_1]. Sygnatura akt [OTHER_1].",
+        "anonymized": "Pani [PERSON_1], PESEL [SSN_2], NIP [SSN_1], zamieszkała [ADDRESS_2], [ADDRESS_1], tel. [PHONE_1]. Faktura od [COMPANY_1] na kwotę [CURRENCY_1]. Sygnatura akt [OTHER_1].",
         "anonymizedAfterRename": null,
         "restored": "Pani Anna Nowak, PESEL 89052310002, NIP 123-456-78-19, zamieszkała ul. Floriańska 27/3, 31-501 Kraków, tel. +48 600 123 456. Faktura od Bursztynek S.A. na kwotę słownie: osiem tysięcy pięćset złotych. Sygnatura akt III K 123/24.",
         "replacements": [
@@ -116,7 +116,7 @@
             "entityType": "CURRENCY"
           },
           {
-            "original": "Faktura od Bursztynek S.A.",
+            "original": "Bursztynek S.A.",
             "replacement": "[COMPANY_1]",
             "entityType": "COMPANY"
           },

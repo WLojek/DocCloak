@@ -151,6 +151,33 @@ export function warmRuntimeCache(paths: string[]): void {
 }
 
 /**
+ * Settings > Clear offline data (T251, WLojek/DocCloak#2): fetch every runtime script again past
+ * the HTTP cache, then unregister the worker and drop its caches; models stay. A server that once
+ * sent a script under a wrong type answers a revalidation with a 304 that carries no Content-Type,
+ * so without the full reload the browser would go on using the old type after the server was
+ * fixed. The caller reloads the page.
+ */
+export async function clearOfflineData(scripts: string[] = RUNTIME_SCRIPTS): Promise<void> {
+  await refreshRuntimeScripts(scripts);
+  await unregisterServiceWorker();
+}
+
+/** Worker and module scripts under public/ (the AI, OCR and PDF runtimes), from the build. */
+export const RUNTIME_SCRIPTS: string[] = typeof __RUNTIME_SCRIPTS__ !== 'undefined' ? __RUNTIME_SCRIPTS__ : [];
+
+/**
+ * Fetch each runtime script again past the browser's HTTP cache (cache: 'reload'), so a copy kept
+ * with a wrong Content-Type is replaced by the server's current one. Deletes nothing: offline,
+ * every fetch just fails and the stored copies stay. Used by Clear offline data and, once per
+ * session, after the model failed to load its runtime (WLojek/DocCloak#2).
+ */
+export async function refreshRuntimeScripts(scripts: string[] = RUNTIME_SCRIPTS): Promise<void> {
+  await Promise.all(scripts.map((path) => fetch(path, { cache: 'reload', credentials: 'same-origin' })
+    .then((response) => response.body?.cancel())
+    .catch(() => { /* offline or gone: nothing to refresh */ })));
+}
+
+/**
  * Kill switch from the page: unregister every worker for this origin and
  * drop the caches the worker owns. 'doccloak-models' (the app's own model
  * cache) and every other cache are left alone. Resolves true when at least
