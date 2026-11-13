@@ -7,6 +7,7 @@
 // - Ignore-list words are never anonymized: any detected entity that falls
 //   inside an ignore match is dropped before the user sees it.
 // Both lists share the same whole-word matcher and persistence shape.
+import { addHandMarks } from './handMarks.ts';
 import type { DetectedEntity } from '@doccloak/core';
 
 export interface DictionaryEntry {
@@ -146,24 +147,34 @@ export function filterIgnoredEntities(
 }
 
 /**
- * Merge dictionary matches into detected entities. Detected entities win any
- * overlap; among dictionary matches, longer matches win over shorter ones so
- * a phrase entry beats a single-word entry contained in it.
+ * Merge dictionary matches into detected entities. A dictionary term is "always redacted,
+ * everywhere in the text", so it takes the place of what it touches, like a value marked by hand
+ * (handMarks.ts): it grows to the whole of a redacted find it overlaps, it replaces a find that is
+ * not redacted, and inside a find that is redacted it is covered already. Detected entities used
+ * to win any overlap: the term "5 Deansgate Square, Manchester M15 4UP" over a found street and a
+ * found postcode was dropped, and "Manchester" stayed readable under "everything found is
+ * replaced" (found by the independent review of 0.17.1).
+ *
+ * Among dictionary matches, longer matches win over shorter ones so a phrase entry beats a
+ * single-word entry contained in it.
+ *
+ * @param isKept which of the detected entities will not be redacted (kept by the user in an
+ *   earlier run, or of a type set to never be redacted)
  */
 export function mergeDictionaryEntities(
   text: string,
   detected: DetectedEntity[],
   entries: DictionaryEntry[],
+  isKept: (entity: DetectedEntity) => boolean = () => false,
 ): DetectedEntity[] {
   if (entries.length === 0) return detected;
   const dictMatches = findDictionaryMatches(text, entries)
     .sort((a, b) => (b.end - b.start) - (a.end - a.start) || a.start - b.start);
-  const taken: Array<[number, number]> = detected.map((e) => [e.start, e.end]);
-  const merged = [...detected];
+  const chosen: DetectedEntity[] = [];
   for (const m of dictMatches) {
-    if (taken.some(([s, e]) => m.start < e && m.end > s)) continue;
-    taken.push([m.start, m.end]);
-    merged.push(m);
+    if (chosen.some((c) => m.start < c.end && m.end > c.start)) continue;
+    chosen.push(m);
   }
-  return merged.sort((a, b) => a.start - b.start);
+  const merged = addHandMarks(text, detected, isKept, chosen).entities;
+  return [...merged].sort((a, b) => a.start - b.start);
 }

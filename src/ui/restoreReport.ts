@@ -84,27 +84,55 @@ function bracketedIn(piece: string): string[] {
 /** Regex source of a literal. */
 const literal = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+// Dashes an editor or an assistant puts where a hyphen stood.
+const DASHES = '\\-\\u2010-\\u2015\\u2212';
+// Characters that take no room: soft hyphen, zero-width space and joiners, word joiner, BOM.
+const INVISIBLE = '[\\u00AD\\u200B-\\u200D\\u2060\\uFEFF]';
+// Inside one word: invisible characters, or the word cut at a line end ("PER-" / "SON").
+const INSIDE_WORD = `(?:${INVISIBLE}|[${DASHES}]?\\r?\\n[ \\t]*)*`;
+// Between the words of a label: space, underscore, dot, dash, a markdown or escape sign, the same
+// as an HTML entity or URL-encoded, "#", "No.".
+const BETWEEN = `(?:[\\s_.\\\\*#${DASHES}]|${INVISIBLE}|&nbsp;|&#95;|&#x5f;|&lowbar;|%5f|%20|no\\.?|nr\\.?)`;
+// Around a label: brackets (escaped or not), markdown emphasis or code marks.
+const OPEN = '(?:\\\\?[\\[<{]{1,2}[\\s*_~`]{0,3}|[*_~`]{1,3})?';
+const CLOSE = '(?:[\\s*_~`]{0,3}\\\\?[\\]>}]{1,2}|[*_~`]{1,3})?';
+
+const isNumber = (word: string) => /^\p{N}+$/u.test(word);
+
+/** One word of a label, letter by letter: a digit also in its full-width form. */
+function looseWord(word: string): string {
+  return [...word]
+    .map((char) => (/[0-9]/.test(char) ? `[${char}${String.fromCharCode(0xff10 + Number(char))}]` : literal(char)))
+    .join(INSIDE_WORD);
+}
+
 /**
  * A known label in any spelling: its words in any case, with other separators between them (a
- * space, a hyphen, a dot, an escaped underscore, a line break), with or without brackets. Restore
- * reads only some of these ("[person 2]", "PERSON_2") and leaves the rest in the text on purpose:
- * "Person 2" can be prose. The report must still not say that no label is left over them (it did:
- * found by the independent review of 0.17.0).
+ * space, any dash, a dot, an escaped or encoded underscore, a line break, "#", "No."), cut at a
+ * line end, with invisible characters or a full-width digit inside, in the plural, with or without
+ * brackets or markdown marks around it, also as the start of a longer name ("PERSON_5_file.pdf").
+ * Restore reads only some of these ("[person 2]", "PERSON_2") and leaves the rest in the text on
+ * purpose: "Person 2" can be prose. The report must still not say that no label is left over them
+ * (it did: found by the independent reviews of 0.17.0 and 0.17.1).
  *
- * Without brackets only a numbered label is looked for: "client" for a label renamed to [CLIENT]
- * is an ordinary word.
+ * Without brackets a label with no number in it is looked for only in capitals ("THE_SELLER"):
+ * "the seller" for a label renamed to [THE SELLER] is ordinary text.
  */
 function looseLabel(form: string): { pattern: RegExp; numbered: boolean } | null {
   const words = form.split('_').filter((word) => word.length > 0);
   if (words.length === 0) return null;
-  const numbered = words.some((word) => /^\p{N}+$/u.test(word));
-  // Between two words at least one separator; a number may follow its word directly ("PERSON2").
-  const between = (left: string, right: string) => (/^\p{N}+$/u.test(right) || /^\p{N}+$/u.test(left) ? '[\\s_\\-.\\\\*]{0,4}' : '[\\s_\\-.\\\\*]{1,4}');
-  let body = literal(words[0]);
-  for (let i = 1; i < words.length; i++) body += between(words[i - 1], words[i]) + literal(words[i]);
-  const open = '(?:\\\\?[\\[<{]{1,2}[\\s*]{0,3})?';
-  const close = '(?:[\\s*]{0,3}\\\\?[\\]>}]{1,2})?';
-  return { pattern: new RegExp(`(?<![\\p{L}\\p{N}_])${open}${body}${close}(?![\\p{L}\\p{N}_])`, 'giu'), numbered };
+  const numbered = words.some(isNumber);
+  let body = '';
+  words.forEach((word, i) => {
+    if (i > 0) {
+      // Between two words at least one separator; a number may follow its word directly ("PERSON2").
+      const close = isNumber(word) || isNumber(words[i - 1]);
+      body += `${BETWEEN}${close ? '{0,6}' : '{1,6}'}`;
+    }
+    // "Persons 2", "PERSON_2s".
+    body += `${looseWord(word)}s?`;
+  });
+  return { pattern: new RegExp(`(?<![\\p{L}\\p{N}])${OPEN}${body}${CLOSE}(?![\\p{L}\\p{N}])`, 'giu'), numbered };
 }
 
 /**
@@ -178,33 +206,46 @@ export function leftoversIn(pieces: string[], unresolved: string[], context: Res
     }
   }
   // Known labels in a spelling nothing above reads: without brackets ("Person 2", "PERSON-3"),
-  // broken over two lines, with an escaped underscore. Each is a label that stayed.
+  // cut at a line end, with an escaped underscore, inside a file name. Each is a label that stayed.
+  // The pieces are searched as one text; the separator is a character no pattern takes.
+  const joined = pieces.join('\u0000');
+  // What is listed already keeps its place: "[PERSON_1_FIRST]" is not also reported as "[PERSON_1".
+  const claimed: Array<{ from: number; to: number; token: string }> = [];
+  for (const token of seen) {
+    if (token.length === 0) continue;
+    for (let at = joined.indexOf(token); at !== -1; at = joined.indexOf(token, at + token.length)) {
+      claimed.push({ from: at, to: at + token.length, token });
+    }
+  }
   // The longest label first: "Person 2 last" is the label of the surname, not "Person 2" and a word.
   const forms = [...new Set<string>([...tableByForm.keys(), ...tableForms, ...ever.keys()])].sort((a, b) => b.length - a.length);
-  const claimed = pieces.map(() => [] as Array<[number, number]>);
   for (const form of forms) {
     const loose = looseLabel(form);
     if (loose === null) continue;
-    for (const [at, piece] of pieces.entries()) {
-      for (const match of piece.matchAll(loose.pattern)) {
-        const token = match[0];
-        const bracketed = /^\\?[[<{]/.test(token) && /[\]>}]$/.test(token);
-        if (!loose.numbered && !bracketed) continue;
-        const from = match.index;
-        const to = from + token.length;
-        if (claimed[at].some(([start, end]) => from < end && to > start)) continue;
-        claimed[at].push([from, to]);
-        // Listed already, unless only as "other text in brackets": it is known to be a label now.
-        if (seen.has(token) && !others.includes(token)) continue;
-        // The document's own words ("Person 2" in a form it holds itself) are not the assistant's.
-        if (!bracketed && context.documentText && context.documentText.includes(token)) continue;
-        if (!noteStale(token, form)) continue;
-        seen.add(token);
-        if (!listed.includes(token)) listed.push(token);
-        // The same text may have been listed as "other text in brackets" a moment ago.
-        const listedAt = others.indexOf(token);
-        if (listedAt !== -1) others.splice(listedAt, 1);
+    for (const match of joined.matchAll(loose.pattern)) {
+      const token = match[0];
+      const from = match.index;
+      const to = from + token.length;
+      const bracketed = /^\\?[[<{]/.test(token) && /[\]>}]$/.test(token);
+      // No number and no brackets: only in capitals, and not a short word.
+      if (!loose.numbered && !bracketed && (/\p{Ll}/u.test(token) || [...token].filter((char) => /\p{L}/u.test(char)).length < 4)) continue;
+      const over = claimed.filter((range) => from < range.to && to > range.from);
+      // Inside or across something listed as a label: left to that entry. Text listed only as
+      // "other text in brackets" gives way: it is known to be a label now.
+      if (over.some((range) => !others.includes(range.token))) continue;
+      for (const range of over) {
+        const at = others.indexOf(range.token);
+        if (at !== -1) others.splice(at, 1);
       }
+      claimed.push({ from, to, token });
+      if (seen.has(token) && listed.includes(token)) continue;
+      // The document's own words ("Person 2" in a form it holds itself) are not the assistant's.
+      if (!bracketed && context.documentText && context.documentText.includes(token)) continue;
+      if (!noteStale(token, form)) continue;
+      seen.add(token);
+      if (!listed.includes(token)) listed.push(token);
+      const listedAt = others.indexOf(token);
+      if (listedAt !== -1) others.splice(listedAt, 1);
     }
   }
   return { unresolved: listed, stale, others };

@@ -71,11 +71,40 @@ describe('mergeDictionaryEntities', () => {
     ]);
   });
 
-  it('lets detected entities win overlaps', () => {
+  it('a term inside a found value that is redacted is covered already: nothing is added', () => {
     const text = 'Jan Kowalski joined Acme today';
     const merged = mergeDictionaryEntities(text, detected, [{ word: 'Kowalski', caseSensitive: false }]);
     expect(merged).toHaveLength(1);
     expect(merged[0].detector).toBe('ml');
+  });
+
+  // "Always redacted, everywhere in the text": a term used to lose every overlap with a find, and
+  // the part only the term covered stayed readable (the review of 0.17.1).
+  it('a term that reaches beyond a found value takes its place: one place covering both', () => {
+    const text = 'Meet Mr Jan Kowalski (born 1980) at 5 Deansgate Square, Manchester M15 4UP.';
+    const found: DetectedEntity[] = [
+      { type: 'PERSON', value: 'Jan Kowalski', start: text.indexOf('Jan'), end: text.indexOf('Jan') + 12, confidence: 0.9, detector: 'ml' },
+      { type: 'ADDRESS', value: '5 Deansgate Square', start: text.indexOf('5 D'), end: text.indexOf('5 D') + 18, confidence: 0.9, detector: 'ml' },
+      { type: 'ADDRESS', value: 'M15 4UP', start: text.indexOf('M15'), end: text.indexOf('M15') + 7, confidence: 0.9, detector: 'ml' },
+    ];
+    const merged = mergeDictionaryEntities(text, found, [
+      { word: 'Mr Jan', caseSensitive: false },
+      { word: 'Kowalski (born', caseSensitive: false },
+      { word: '5 Deansgate Square, Manchester M15 4UP', caseSensitive: false },
+    ]);
+    expect(spans(merged).map((span) => span[2])).toEqual(['Mr Jan Kowalski (born', '5 Deansgate Square, Manchester M15 4UP']);
+    expect(merged.every((entity) => entity.detector === 'dictionary')).toBe(true);
+    // No two places overlap.
+    expect(merged.every((entity, i) => i === 0 || merged[i - 1].end <= entity.start)).toBe(true);
+  });
+
+  it('a term inside a found value that will not be redacted is redacted on its own', () => {
+    const text = 'Invoice of Acme Widgets Ltd for March';
+    const company: DetectedEntity[] = [{ type: 'COMPANY', value: 'Acme Widgets Ltd', start: 11, end: 27, confidence: 0.9, detector: 'ml' }];
+    const merged = mergeDictionaryEntities(text, company, [{ word: 'Acme', caseSensitive: false }], () => true);
+    expect(spans(merged)).toEqual([[11, 15, 'Acme']]);
+    // Redacted as a whole, the company covers the term.
+    expect(spans(mergeDictionaryEntities(text, company, [{ word: 'Acme', caseSensitive: false }]))).toEqual([[11, 27, 'Acme Widgets Ltd']]);
   });
 
   it('prefers the longer dictionary match when entries overlap', () => {

@@ -996,6 +996,47 @@ describe('the restore report finds a known label in any spelling', () => {
     expect(result.stale[0]).toMatchObject({ label: 'Person 2', original: 'Adam Mak', reason: 'unread' });
   });
 
+  // The review of 0.17.1 tried 88 odd spellings; 63 passed under "No labels are left".
+  it('finds a known label through other dashes, invisible characters, entities, a cut at a line end, marks around it, a plural, a file name', () => {
+    const none = { ever: new Map(), documentValues: new Set<string>(), tableForms: new Set<string>() };
+    const table = [{ label: '[PERSON_2]', original: 'Jan Kos' }, { label: '[COMPANY_3]', original: 'Acme Ltd' }];
+    const spellings = [
+      'PERSON‑2', 'PERSON–2', 'Person ２', 'PER​SON_2', 'PERSON­_2', '__PERSON_2__', '_PERSON_2_', '**PERSON 2**',
+      'PERSON&nbsp;2', 'PERSON&#95;2', 'PERSON%5F2', '[PER-\nSON_2]', '[COM-\nPANY_3]', 'Persons 2', 'PERSONS_2', 'PERSON_2s',
+      'Person #2', 'Person No. 2', 'PERSON 2', '`PERSON_2`', '\\[PERSON\\_2\\]',
+    ];
+    for (const spelling of spellings) {
+      const left = leftoversIn([`Signed by ${spelling} today.`], [], { ...none, tableLabels: table });
+      expect(left.unresolved, JSON.stringify(spelling)).toEqual([spelling]);
+      expect(left.stale[0], JSON.stringify(spelling)).toMatchObject({ reason: 'unread', original: spelling.toUpperCase().includes('COM') ? 'Acme Ltd' : 'Jan Kos' });
+    }
+    // As the start of a longer name: a file name, a label of a surname the table does not hold.
+    expect(leftoversIn(['see https://example.com/files/PERSON_2_file.pdf'], [], { ...none, tableLabels: table }).unresolved).toEqual(['PERSON_2']);
+    expect(leftoversIn(['the PERSON_2_LAST file'], [], { ...none, tableLabels: table }).unresolved).toEqual(['PERSON_2']);
+    // Not a label: another number, a word that only starts like one.
+    for (const text of ['PERSON_20 and Person 21', 'PERSONAL 2', 'UNPERSON_2', 'COMPANY 30']) {
+      expect(leftoversIn([text], [], { ...none, tableLabels: table }).unresolved, text).toEqual([]);
+    }
+  });
+
+  it('a renamed label without brackets is found in capitals only; cut at a line end inside brackets it is found', () => {
+    const none = { ever: new Map(), documentValues: new Set<string>(), tableForms: new Set<string>() };
+    const table = [{ label: '[THE SELLER]', original: 'Jan Kos' }];
+    expect(leftoversIn(['THE_SELLER signs. THE SELLER pays.'], [], { ...none, tableLabels: table }).unresolved).toEqual(['THE_SELLER', 'THE SELLER']);
+    expect(leftoversIn(['The Seller signs and the seller pays.'], [], { ...none, tableLabels: table }).unresolved).toEqual([]);
+    expect(leftoversIn(['[THE SEL-\nLER] signs.'], [], { ...none, tableLabels: table }).unresolved).toEqual(['[THE SEL-\nLER]']);
+    // A document that itself says "THE SELLER" in capitals: its own words.
+    expect(leftoversIn(['THE SELLER pays.'], [], { ...none, tableLabels: table, documentText: 'THE SELLER shall deliver.' }).unresolved).toEqual([]);
+  });
+
+  it('what is listed already is not reported a second time under a shorter name', () => {
+    const none = { ever: new Map(), documentValues: new Set<string>(), tableForms: new Set<string>() };
+    const table = [{ label: '[PERSON_1]', original: 'Jan Kos' }];
+    // The session lists the unknown variant; the label inside it is not listed again.
+    const left = leftoversIn(['Dear [PERSON_1_FIRST],'], ['[PERSON_1_FIRST]'], { ...none, tableLabels: table });
+    expect(left.unresolved).toEqual(['[PERSON_1_FIRST]']);
+  });
+
   it('ordinary words are left alone: a renamed label without brackets, and words the document itself holds', () => {
     const none = { ever: new Map(), documentValues: new Set<string>(), tableForms: new Set<string>() };
     const client = [{ label: '[CLIENT]', original: 'Jan Kos' }];

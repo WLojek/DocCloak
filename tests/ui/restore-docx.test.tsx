@@ -47,8 +47,12 @@ if (typeof Blob.prototype.text !== 'function') {
 const W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 const REL = 'http://schemas.openxmlformats.org/package/2006/relationships';
 
-async function docxFile(bodyXml: string, name = 'contract_redacted.docx'): Promise<File> {
+async function docxFile(bodyXml: string, name = 'contract_redacted.docx', title?: string): Promise<File> {
   const zip = new JSZip();
+  if (title !== undefined) {
+    zip.file('docProps/core.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>${title}</dc:title></cp:coreProperties>`);
+  }
   zip.file('[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -309,6 +313,32 @@ describe('replacement table as a file (WLojek/DocCloak#3)', () => {
     let imported: unknown = 'unset';
     await act(async () => { imported = await hook.result.current.importMapping(big); });
     expect(imported).toBeNull();
+  });
+
+  // The review of 0.17.1: the title of a redacted document holds the label of the name it had;
+  // the restored file kept it there and the report said that no label was left.
+  it('restores the labels in the properties of the document, and reports the ones that stay there', async () => {
+    const hook = await redacted();
+    const body = '<w:p><w:r><w:t>Nothing to restore in the text.</w:t></w:r></w:p>';
+    let outcome: RestoreDocxResult | undefined;
+    await act(async () => { outcome = await hook.result.current.restoreDocx(await docxFile(body, 'memo_redacted.docx', 'Memo for [PERSON_1] and Person 2, copy [PERSON_9]')); });
+    if (!outcome?.success) throw new Error('restore failed');
+    // One place put back, in the title; the text itself held nothing.
+    expect(outcome.restored).toBe(1);
+    expect(outcome.blob).not.toBeNull();
+    const zip = await JSZip.loadAsync(await outcome.blob!.arrayBuffer());
+    expect(await zip.file('docProps/core.xml')!.async('string')).toContain('<dc:title>Memo for Jan Kowalski and Person 2, copy [PERSON_9]</dc:title>');
+    // What stayed in the title is listed like a label left in the text: no all-clear, and the name says so.
+    expect(outcome.unresolved).toEqual(expect.arrayContaining(['[PERSON_9]', 'Person 2']));
+    expect(outcome.downloadName).toBe('memo_partly-restored.docx');
+  });
+
+  it('a document with no label anywhere, the properties included, has nothing to download', async () => {
+    const hook = await redacted();
+    let outcome: RestoreDocxResult | undefined;
+    await act(async () => { outcome = await hook.result.current.restoreDocx(await docxFile('<w:p><w:r><w:t>Plain.</w:t></w:r></w:p>', 'x.docx', 'A plain title')); });
+    if (!outcome?.success) throw new Error('restore failed');
+    expect(outcome).toMatchObject({ restored: 0, blob: null, unresolved: [] });
   });
 
   it('names the downloads after the file', () => {

@@ -32,7 +32,7 @@ import type { ReplacementMode } from '@doccloak/core';
 import {
   readDocx,
   writeAnonymizedDocxWithReport,
-  writeRestoredDocx,
+  writeRestoredDocxWithReport,
   readXlsx,
   writeAnonymizedXlsxWithReport,
   isExcelFile,
@@ -756,14 +756,6 @@ export function useAnonymizer() {
       .then((results) => {
         if (requestId === latestRequestRef.current) {
           abortRef.current = null;
-          // Dictionary words are always redacted; detected entities win overlaps.
-          // The ignore list is applied last so a listed term is never
-          // anonymized, whichever tier found it.
-          const detected = filterIgnoredEntities(
-            text,
-            mergeDictionaryEntities(text, results, dictionary),
-            ignoreList,
-          );
           // Not redacted: what the user kept in the previous run of this text; for anything new,
           // the types set to never be anonymized (T263). A dictionary word or a hand-marked value is
           // an explicit "redact this" and is never switched off by the type setting.
@@ -773,6 +765,15 @@ export function useAnonymizer() {
             if (previousPlaces?.has(key)) return previousKept?.has(key) ?? false;
             return neverTypes.has(entity.type) && entity.detector !== 'dictionary' && entity.detector !== 'manual';
           };
+          // Dictionary words are always redacted: a term takes the place of the finds it touches
+          // (it used to lose every overlap, and the part only the term covered stayed readable).
+          // The ignore list is applied last so a listed term is never
+          // anonymized, whichever tier found it.
+          const detected = filterIgnoredEntities(
+            text,
+            mergeDictionaryEntities(text, results, dictionary, keptNow),
+            ignoreList,
+          );
           // Values the user marked by hand come back. A mark that is redacted takes the place of
           // what this run found under it, as it did when it was made (it used to be dropped when a
           // find touched it, and the part only the mark covered became readable without a word).
@@ -1234,13 +1235,39 @@ export function useAnonymizer() {
         last = span.end;
       }
       pieces.push(extraction.plainText.slice(last));
-      const { unresolved, stale, others } = leftoversIn(pieces, session.unresolvedTokens(extraction.plainText), { ...knownLabelsForRestore(), refused });
+      // Labels also stand outside the text of the document: in its properties (the title of a
+      // redacted document holds the label of the name it had) and in link targets an assistant
+      // added. They are restored by the same rules, and what stays there is reported with the
+      // rest (it used to stay unrestored and unsaid: the review of 0.17.1).
+      const outside = { pieces: [] as string[], tokens: [] as string[], refused: [] as KnownLabel[], spans: [] as RestoreSpan[] };
+      const restoreOutside = (text: string): string => {
+        const guarded = guardSpans(text, session.restoreSpans(text));
+        outside.refused.push(...guarded.refused);
+        outside.tokens.push(...session.unresolvedTokens(text));
+        outside.spans.push(...guarded.spans);
+        let restoredText = '';
+        let at = 0;
+        for (const span of guarded.spans) {
+          const piece = text.slice(at, span.start);
+          outside.pieces.push(piece);
+          restoredText += piece + span.replacement;
+          at = span.end;
+        }
+        outside.pieces.push(text.slice(at));
+        return restoredText + text.slice(at);
+      };
+      const { blob } = await writeRestoredDocxWithReport(extraction, spans, { restoreText: restoreOutside });
+      const { unresolved, stale, others } = leftoversIn(
+        [...pieces, ...outside.pieces],
+        [...new Set([...session.unresolvedTokens(extraction.plainText), ...outside.tokens])],
+        { ...knownLabelsForRestore(), refused: [...refused, ...outside.refused] },
+      );
       const downloadName = restoredDownloadName(file.name, unresolved.length + stale.length > 0);
-      if (spans.length === 0) {
+      const restored = spans.length + outside.spans.length;
+      if (restored === 0) {
         return { success: true, restored: 0, unresolved, stale, others, blob: null, downloadName };
       }
-      const blob = await writeRestoredDocx(extraction, spans);
-      return { success: true, restored: spans.length, unresolved, stale, others, fileOverDocument: fileCrossesDocument(spans), blob, downloadName };
+      return { success: true, restored, unresolved, stale, others, fileOverDocument: fileCrossesDocument([...spans, ...outside.spans]), blob, downloadName };
     } catch (err) {
       console.error('[DocCloak] Failed to restore the document:', err);
       if (isUnsupportedDocumentError(err)) {
