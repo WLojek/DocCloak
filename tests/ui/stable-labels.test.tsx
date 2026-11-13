@@ -239,14 +239,69 @@ describe('a label stays with its value', () => {
     expect(table).toHaveLength(hook.result.current.entries.length);
   });
 
+  it('a place marked by hand takes the place of the finds it covers: one place is one row', async () => {
+    const hook = await redacted();
+    const all = hook.result.current.entities.length;
+    // The same words once more: nothing is added.
+    const byrne = REPORT.indexOf('Lauren Byrne');
+    act(() => hook.result.current.addManualEntity(byrne, byrne + 'Lauren Byrne'.length, 'PERSON'));
+    expect(hook.result.current.entities).toHaveLength(all);
+    expect(hook.result.current.entities.filter((entity) => entity.start === byrne)).toHaveLength(1);
+    expect(labels(hook)['Lauren Byrne']).toBe('[PERSON_3]');
+    // A wider mark over a found name: the found one gives way, and its "not redacted" goes with it.
+    act(() => hook.result.current.setEntitiesExcluded(indicesOf(hook, 'Dwayne Okafor'), true));
+    const witness = REPORT.indexOf('Witness: Dwayne Okafor');
+    act(() => hook.result.current.addManualEntity(witness, witness + 'Witness: Dwayne Okafor'.length, 'OTHER'));
+    const there = hook.result.current.entities.filter((entity) => entity.start >= witness && entity.end <= witness + 'Witness: Dwayne Okafor'.length);
+    expect(there.map((entity) => entity.value)).toEqual(['Witness: Dwayne Okafor']);
+    expect(hook.result.current.entities).toHaveLength(all);
+    expect(hook.result.current.anonymizedText).not.toContain('Witness: Dwayne Okafor');
+    // The label the found name had stays reserved for it: a reply from an earlier copy is not misread.
+    expect(Object.values(labels(hook))).not.toContain('[PERSON_2]');
+    expect(hook.result.current.restoreText('[PERSON_2] and [PERSON_3]').text).toBe('[PERSON_2] and Lauren Byrne');
+  });
+
+  it('Undo after Clear brings back the list, what is not redacted and the renamed labels, with the same labels', async () => {
+    const hook = await redacted();
+    act(() => hook.result.current.setEntitiesExcluded(indicesOf(hook, 'Lauren Byrne'), true));
+    act(() => { hook.result.current.renameLabel('Dwayne Okafor', '[WITNESS]'); });
+    const before = { labels: labels(hook), text: hook.result.current.anonymizedText, excluded: [...hook.result.current.excludedIndices] };
+    let snapshot: ReturnType<typeof hook.result.current.snapshotText> | undefined;
+    act(() => { snapshot = hook.result.current.snapshotText(); hook.result.current.clear(); });
+    expect(hook.result.current.inputText).toBe('');
+    expect(hook.result.current.entries).toHaveLength(0);
+    act(() => hook.result.current.restoreSnapshot(snapshot!));
+    expect(hook.result.current.inputText).toBe(REPORT);
+    expect(labels(hook)).toEqual(before.labels);
+    expect(hook.result.current.anonymizedText).toBe(before.text);
+    expect([...hook.result.current.excludedIndices]).toEqual(before.excluded);
+    expect(hook.result.current.renamedOriginals.has('Dwayne Okafor')).toBe(true);
+    // A reply written before the Clear restores as it would have.
+    expect(hook.result.current.restoreText('[WITNESS] met [PERSON_1].').text).toBe('Dwayne Okafor met Rosa Delgado-Whitfield.');
+    // A re-run on the text that came back still keeps the choices.
+    act(() => hook.result.current.anonymize());
+    await waitFor(() => expect(hook.result.current.anonymizing).toBe(false));
+    expect(labels(hook)).toEqual(before.labels);
+  });
+
+  it('Undo after Clear of a text that was never redacted brings back the text', async () => {
+    const hook = renderHook(() => useAnonymizer(), { wrapper: Providers });
+    act(() => hook.result.current.handleInputChange('Just a note.'));
+    let snapshot: ReturnType<typeof hook.result.current.snapshotText> | undefined;
+    act(() => { snapshot = hook.result.current.snapshotText(); hook.result.current.clear(); });
+    act(() => hook.result.current.restoreSnapshot(snapshot!));
+    expect(hook.result.current.inputText).toBe('Just a note.');
+    expect(hook.result.current.anonymizedText).toBe('');
+  });
+
   it('a label that belongs to another value is refused with a message, also while that value is not redacted', async () => {
-    const { screen } = await import('@testing-library/react');
     const { en } = await import('../../src/i18n/translations/en.ts');
     const hook = await redacted();
     // Taken by a value in the table.
     act(() => hook.result.current.renameLabel('Dwayne Okafor', '[PERSON_3]'));
     expect(labels(hook)['Dwayne Okafor']).toBe('[PERSON_2]');
-    expect(screen.getByText(en.entityTable.labelTaken('[PERSON_3]', 'Lauren Byrne'))).toBeInTheDocument();
+    // The reason comes back to the caller: the list shows it at the field, which stays open.
+    expect(hook.result.current.renameLabel('Dwayne Okafor', '[PERSON_3]')).toBe(en.entityTable.labelTaken('[PERSON_3]', 'Lauren Byrne'));
     // Reserved by a value that is not redacted now: a reply from an earlier copy still means that value.
     act(() => hook.result.current.setEntitiesExcluded(indicesOf(hook, 'Lauren Byrne'), true));
     expect(labels(hook)['Lauren Byrne']).toBeUndefined();
@@ -379,7 +434,6 @@ describe('a label stays with its value', () => {
   });
 
   it('a hand label in the shape of DocCloak\'s own numbered labels is refused, in every spelling', async () => {
-    const { screen } = await import('@testing-library/react');
     const { en } = await import('../../src/i18n/translations/en.ts');
     const hook = await redacted();
     const refused = [
@@ -390,7 +444,7 @@ describe('a label stays with its value', () => {
       act(() => hook.result.current.renameLabel('Victor Han', typed));
       expect(labels(hook)['Victor Han'], typed).toBe('[PERSON_4]');
     }
-    expect(screen.getByText(en.entityTable.labelOwnShape('[REDACTED_1]'))).toBeInTheDocument();
+    expect(hook.result.current.renameLabel('Victor Han', '[REDACTED_1]')).toBe(en.entityTable.labelOwnShape('[REDACTED_1]'));
     // Names of one's own stay free, numbered or not.
     for (const typed of ['[CLIENT]', '[CLIENT_2]', '[PERSONA]', '[PARTY A]']) {
       act(() => hook.result.current.renameLabel('Victor Han', typed));
@@ -402,7 +456,6 @@ describe('a label stays with its value', () => {
   });
 
   it('a label that would be derived for a surname is checked like a typed one', async () => {
-    const { screen } = await import('@testing-library/react');
     const { en } = await import('../../src/i18n/translations/en.ts');
     const hook = await redacted();
     // "[CLIENT_LAST]" typed for one person and copied, then taken back.
@@ -413,7 +466,7 @@ describe('a label stays with its value', () => {
     expect(labels(hook)['Dwayne Okafor']).toBe('[PERSON_2]');
     expect(labels(hook).Okafor).toBe('[PERSON_2_LAST]');
     // The message names the label that was typed and the one that would follow from it.
-    expect(screen.getByText(en.entityTable.labelDerivedTaken('[CLIENT]', '[CLIENT_LAST]', 'Victor Han'))).toBeInTheDocument();
+    expect(hook.result.current.renameLabel('Dwayne Okafor', '[CLIENT]')).toBe(en.entityTable.labelDerivedTaken('[CLIENT]', '[CLIENT_LAST]', 'Victor Han'));
     for (const typed of ['[klient last]', '[X_LAST]']) {
       act(() => hook.result.current.renameLabel('Victor Han', typed));
       act(() => hook.result.current.resetLabel('Victor Han'));
@@ -467,14 +520,13 @@ describe('a label stays with its value', () => {
   });
 
   it('a label that the document itself holds as bracketed text is refused: restore would replace that text', async () => {
-    const { screen } = await import('@testing-library/react');
     const { en } = await import('../../src/i18n/translations/en.ts');
     const hook = await redacted(`${REPORT} As set out in [Annex A], the [Client] pays the <<Fee>> (Deposit).`);
     for (const typed of ['[CLIENT]', '[client]', '[Annex A]', '[annex_a]', '[FEE]']) {
       act(() => hook.result.current.renameLabel('Victor Han', typed));
       expect(labels(hook)['Victor Han'], typed).toBe('[PERSON_4]');
     }
-    expect(screen.getByText(en.entityTable.labelInText('<<Fee>>'))).toBeInTheDocument();
+    expect(hook.result.current.renameLabel('Victor Han', '[FEE]')).toBe(en.entityTable.labelInText('<<Fee>>'));
     // Round brackets are not a form restore reads: "(Deposit)" in the text does not stand in the way.
     act(() => hook.result.current.renameLabel('Victor Han', '[DEPOSIT]'));
     expect(labels(hook)['Victor Han']).toBe('[DEPOSIT]');
@@ -535,15 +587,16 @@ describe('a label stays with its value', () => {
     expect(round.text).toBe(sheet);
     expect(round.restored).toBe(5);
     // A typed label that stands in the text as a bare code is given up, with a message.
-    const { screen } = await import('@testing-library/react');
     const { en } = await import('../../src/i18n/translations/en.ts');
     const coded = `Case code CLIENT_2 applies. ${sheet}`;
     act(() => hook.result.current.handleInputChange(coded));
     act(() => hook.result.current.anonymize());
     await waitFor(() => expect(hook.result.current.anonymizedText).toContain('Case code'));
-    act(() => hook.result.current.renameLabel('John Smith', '[CLIENT_2]'));
+    // Given up while the text is made again: still a refusal of this rename, returned to the field.
+    let refused: string | null = null;
+    act(() => { refused = hook.result.current.renameLabel('John Smith', '[CLIENT_2]'); });
     expect(labels(hook)['John Smith']).toBe('[PERSON_3]');
-    expect(screen.getByText(en.entityTable.labelInText('[CLIENT_2]'))).toBeInTheDocument();
+    expect(refused).toBe(en.entityTable.labelInText('[CLIENT_2]'));
     expect(hook.result.current.restoreText('Under case code CLIENT_2, [PERSON_3] signed.').text).toBe('Under case code CLIENT_2, John Smith signed.');
   });
 
@@ -632,14 +685,13 @@ describe('a label stays with its value', () => {
   });
 
   it('a label of signs only, or with brackets inside, is refused', async () => {
-    const { screen } = await import('@testing-library/react');
     const { en } = await import('../../src/i18n/translations/en.ts');
     const hook = await redacted();
     for (const typed of ['[???]', '[***]', '[---]', '[\u2026]', '[#]', '[CLIENT][BOSS]', '[A<B>]', '[{X}]']) {
       act(() => hook.result.current.renameLabel('Victor Han', typed));
       expect(labels(hook)['Victor Han'], typed).toBe('[PERSON_4]');
     }
-    expect(screen.getByText(en.entityTable.labelInvalid)).toBeInTheDocument();
+    expect(hook.result.current.renameLabel('Victor Han', '[{X}]')).toBe(en.entityTable.labelInvalid);
     // An ordinary name with a number, a space or a non-Latin letter is fine.
     for (const typed of ['[COMPANY_1X]', '[sp\u00F3\u0142ka B]', '[MANAGER 1]']) {
       act(() => hook.result.current.renameLabel('Victor Han', typed));
@@ -809,3 +861,149 @@ describe('what is left after a restore', () => {
   });
 });
 
+// Found by the independent review of 0.17.0 in production (T274).
+describe('the list never holds two places that overlap', () => {
+  const noOverlap = (list: DetectedEntity[]) => list.every((entity, index) => index === 0 || list[index - 1].end <= entity.start);
+  const roundTrip = (hook: Awaited<ReturnType<typeof redacted>>) => hook.result.current.restoreText(hook.result.current.anonymizedText).text;
+
+  it('a mark that reaches into a found value becomes one place with it: one label, restored once', async () => {
+    const hook = await redacted();
+    const all = hook.result.current.entities.length;
+    const at = REPORT.indexOf('Witness: Dwayne');
+    act(() => hook.result.current.addManualEntity(at, at + 'Witness: Dwayne'.length, 'PERSON'));
+    const list = hook.result.current.entities;
+    expect(noOverlap(list)).toBe(true);
+    expect(list).toHaveLength(all);
+    expect(list.filter((entity) => entity.start === at).map((entity) => entity.value)).toEqual(['Witness: Dwayne Okafor']);
+    // It used to read "[PERSON_n][PERSON_2]" and come back as "Witness: DwayneDwayne Okafor".
+    expect(hook.result.current.anonymizedText).toMatch(/\[PERSON_1\]\. \[[A-Z0-9_]+\]\. Officer/);
+    expect(roundTrip(hook)).toBe(REPORT);
+  });
+
+  it('a mark across two found values takes both; what is between them is redacted too', async () => {
+    const hook = await redacted();
+    const all = hook.result.current.entities.length;
+    const at = REPORT.indexOf('Okafor. Officer: Lauren');
+    act(() => hook.result.current.addManualEntity(at, at + 'Okafor. Officer: Lauren'.length, 'OTHER'));
+    const list = hook.result.current.entities;
+    expect(noOverlap(list)).toBe(true);
+    expect(list).toHaveLength(all - 1);
+    expect(list.some((entity) => entity.value === 'Dwayne Okafor. Officer: Lauren Byrne')).toBe(true);
+    expect(hook.result.current.anonymizedText).not.toContain('Officer');
+    expect(roundTrip(hook)).toBe(REPORT);
+  });
+
+  it('a mark inside a value that is redacted changes nothing and says so', async () => {
+    const { screen } = await import('@testing-library/react');
+    const { en } = await import('../../src/i18n/translations/en.ts');
+    const hook = await redacted();
+    const before = { list: hook.result.current.entities, text: hook.result.current.anonymizedText, table: hook.result.current.entries };
+    const at = REPORT.indexOf('Delgado');
+    act(() => hook.result.current.addManualEntity(at, at + 'Delgado'.length, 'COMPANY'));
+    expect(hook.result.current.entities).toBe(before.list);
+    expect(hook.result.current.anonymizedText).toBe(before.text);
+    expect(hook.result.current.entries).toEqual(before.table);
+    expect(screen.getByText(en.textInput.alreadyRedacted('Rosa Delgado-Whitfield'))).toBeInTheDocument();
+  });
+
+  it('a mark over part of a value that is not redacted takes its place: only what was marked is redacted', async () => {
+    const hook = await redacted();
+    const all = hook.result.current.entities.length;
+    act(() => hook.result.current.setEntitiesExcluded(indicesOf(hook, 'Harbor PD'), true));
+    const at = REPORT.indexOf('of Harbor');
+    act(() => hook.result.current.addManualEntity(at, at + 'of Harbor'.length, 'OTHER'));
+    const list = hook.result.current.entities;
+    expect(noOverlap(list)).toBe(true);
+    expect(list).toHaveLength(all);
+    expect(list.some((entity) => entity.value === 'Harbor PD')).toBe(false);
+    expect(hook.result.current.excludedIndices.size).toBe(0);
+    expect(hook.result.current.anonymizedText).toMatch(/\[[A-Z0-9_]+\] PD\./);
+    expect(roundTrip(hook)).toBe(REPORT);
+  });
+
+  it('the same words marked under another type change the type; the place stays one', async () => {
+    const hook = await redacted();
+    const all = hook.result.current.entities.length;
+    const at = REPORT.indexOf('Harbor PD');
+    act(() => hook.result.current.addManualEntity(at, at + 'Harbor PD'.length, 'PERSON'));
+    const there = hook.result.current.entities.filter((entity) => entity.start === at);
+    expect(there.map((entity) => entity.type)).toEqual(['PERSON']);
+    expect(hook.result.current.entities).toHaveLength(all);
+    expect(roundTrip(hook)).toBe(REPORT);
+  });
+
+  it('a re-run on the same text keeps the wider mark: what only the mark covered does not become readable', async () => {
+    const hook = await redacted();
+    const at = REPORT.indexOf('Witness: Dwayne');
+    act(() => hook.result.current.addManualEntity(at, at + 'Witness: Dwayne'.length, 'PERSON'));
+    const before = hook.result.current.anonymizedText;
+    act(() => hook.result.current.anonymize());
+    await waitFor(() => expect(hook.result.current.anonymizing).toBe(false));
+    expect(noOverlap(hook.result.current.entities)).toBe(true);
+    expect(hook.result.current.anonymizedText).toBe(before);
+    expect(hook.result.current.anonymizedText).not.toContain('Witness');
+    expect(roundTrip(hook)).toBe(REPORT);
+  });
+
+  it('"Keep them redacted" after a value was found shorter leaves one place there, counted once', async () => {
+    const hook = await redacted();
+    const all = hook.result.current.entities.length;
+    shorterPerson = true;
+    act(() => hook.result.current.anonymize());
+    await waitFor(() => expect(hook.result.current.anonymizedText).toContain('Officer: Lauren ['));
+    act(() => hook.result.current.keepDroppedRedacted());
+    const list = hook.result.current.entities;
+    expect(noOverlap(list)).toBe(true);
+    expect(list).toHaveLength(all);
+    expect(list.filter((entity) => entity.value === 'Lauren Byrne')).toHaveLength(1);
+    expect(hook.result.current.anonymizedText).not.toContain('Lauren');
+    expect(roundTrip(hook)).toBe(REPORT);
+  });
+});
+
+describe('the restore report finds a known label in any spelling', () => {
+  it('labels without brackets, in another case, with another separator or broken over two lines are listed: no all-clear', async () => {
+    const hook = await redacted();
+    const reply = '[PERSON_1] met Person 2 and PERSON 3, person_2, PERSON-3, [PERSON_\n2], [PERSON\\_3] and [COMPANY_1].';
+    const result = hook.result.current.restoreText(reply);
+    expect(result.restored).toBe(2);
+    for (const token of ['Person 2', 'PERSON 3', 'person_2', 'PERSON-3', '[PERSON_\n2]', '[PERSON\\_3]']) {
+      expect(result.unresolved, token).toContain(token);
+    }
+    expect(result.others).toEqual([]);
+    const said = Object.fromEntries(result.stale.map((item) => [item.label, item]));
+    expect(said['Person 2']).toMatchObject({ original: 'Dwayne Okafor', reason: 'unread' });
+    expect(said['PERSON-3']).toMatchObject({ original: 'Lauren Byrne', reason: 'unread' });
+    expect(said['[PERSON\\_3]']).toMatchObject({ original: 'Lauren Byrne', reason: 'unread' });
+    // Marked in the text where they stand.
+    expect(result.segments.filter((segment) => segment.kind === 'leftover').map((segment) => segment.text)).toContain('Person 2');
+  });
+
+  it('the label of a surname is taken whole, and a number that only starts like a label is not one', async () => {
+    const hook = await redacted();
+    const result = hook.result.current.restoreText('Dear Person 1 last, see person 20 and PERSON_1x.');
+    expect(result.unresolved).toEqual(['Person 1 last']);
+    expect(result.stale[0]).toMatchObject({ original: 'Delgado-Whitfield', reason: 'unread' });
+  });
+
+  it('a table loaded from a file names its own labels too', async () => {
+    const hook = await redacted();
+    const table = [{ original: 'Ewa Lis', replacement: '[PERSON_1]', entity_type: 'PERSON' }, { original: 'Adam Mak', replacement: '[PERSON_2]', entity_type: 'PERSON' }];
+    await act(async () => { await hook.result.current.importMapping(new File([JSON.stringify(table)], 'other_replacement-table.json')); });
+    const result = hook.result.current.restoreText('[PERSON_1] wrote to Person 2.');
+    expect(result.text).toBe('Ewa Lis wrote to Person 2.');
+    expect(result.unresolved).toEqual(['Person 2']);
+    expect(result.stale[0]).toMatchObject({ label: 'Person 2', original: 'Adam Mak', reason: 'unread' });
+  });
+
+  it('ordinary words are left alone: a renamed label without brackets, and words the document itself holds', () => {
+    const none = { ever: new Map(), documentValues: new Set<string>(), tableForms: new Set<string>() };
+    const client = [{ label: '[CLIENT]', original: 'Jan Kos' }];
+    expect(leftoversIn(['the client and The Client agreed'], [], { ...none, tableLabels: client }).unresolved).toEqual([]);
+    // In brackets it is the label, however it was broken.
+    expect(leftoversIn(['signed by [ client\n] today'], [], { ...none, tableLabels: client }).unresolved).toEqual(['[ client\n]']);
+    const person = [{ label: '[PERSON_2]', original: 'Jan Kos' }];
+    expect(leftoversIn(['Person 2 signs'], [], { ...none, tableLabels: person }).unresolved).toEqual(['Person 2']);
+    expect(leftoversIn(['Person 2 signs'], [], { ...none, tableLabels: person, documentText: 'Form: Person 2 signs here.' }).unresolved).toEqual([]);
+  });
+});

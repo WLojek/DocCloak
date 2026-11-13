@@ -137,6 +137,8 @@ export interface Translations {
     removeRedaction: string;
     /** After a value was marked by hand: the same text stands in `count` more places. */
     alsoElsewhere: (count: number) => string;
+    /** A hand mark that lies inside a value that is redacted already. */
+    alreadyRedacted: (value: string) => string;
     redactThemToo: string;
   };
   textOutput: {

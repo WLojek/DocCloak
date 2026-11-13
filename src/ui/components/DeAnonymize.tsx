@@ -140,6 +140,8 @@ export function DeAnonymize({
   const docxInputRef = useRef<HTMLInputElement>(null);
   const tableInputRef = useRef<HTMLInputElement>(null);
   const loadButtonRef = useRef<HTMLButtonElement>(null);
+  // The report of a text restore, brought into view when the button is pressed.
+  const statusRef = useRef<HTMLDivElement>(null);
   // The button that put a loaded table away is gone after the click: focus moves to "Load", not to nowhere.
   const focusLoad = useRef(false);
   useEffect(() => {
@@ -227,6 +229,9 @@ export function DeAnonymize({
   const handleRestoreText = () => {
     if (!aiResponse.trim()) return;
     setResult(onRestoreText(aiResponse));
+    // The report is brought into view when it is not (a phone, a long reply): it says whether
+    // every name came back.
+    requestAnimationFrame(() => statusRef.current?.scrollIntoView?.({ block: 'nearest' }));
   };
 
   // Which table did the restoring: said in the report itself when it is not the document's own
@@ -388,6 +393,24 @@ export function DeAnonymize({
               </Button>
             )}
           </div>
+          {/* The answer to "did every name come back" stands above the text: under a reply of
+              several pages it was a screen or more below what the button showed, and a label that
+              stayed went unseen. */}
+          <div ref={statusRef} className={result ? 'border-b border-[#E5E5E0] px-4 py-2.5 bg-[#F5F5F3] scroll-mt-24' : 'hidden'} aria-live="polite" data-testid="restore-text-status">
+            {result ? (
+              <>
+                {fileTableLine}
+                {result.fileOverDocument && crossNote}
+                <p className="text-xs text-[#111111] leading-relaxed">
+                  {t.deAnonymize.restoredCount(result.restored)}
+                  {result.restored > 0 && result.unresolved.length === 0 && (result.others ?? []).length === 0 && !result.fileOverDocument && (resultTakenOut || importedMapping !== null) && ` ${t.deAnonymize.allClear}`}
+                </p>
+                <LeftoverLabels labels={result.unresolved} stale={result.stale} others={result.others} testId="restore-text-unresolved" />
+              </>
+            ) : (
+              <p className="text-xs text-[#525252]">&nbsp;</p>
+            )}
+          </div>
           <div className="flex-1 min-h-[200px] p-4 text-foreground text-sm leading-relaxed whitespace-pre-wrap break-words min-w-0">
             {result ? (
               /* Keyed so every restore replays the rise: the round-trip's final frame */
@@ -414,22 +437,6 @@ export function DeAnonymize({
               <span className="text-muted-foreground">
                 {t.deAnonymize.outputPlaceholder}
               </span>
-            )}
-          </div>
-          {/* The answer to "did every name come back", where the eye lands after the text. */}
-          <div className="mt-auto border-t border-[#E5E5E0] px-4 py-2.5 bg-[#F5F5F3]" aria-live="polite" data-testid="restore-text-status">
-            {result ? (
-              <>
-                {fileTableLine}
-                {result.fileOverDocument && crossNote}
-                <p className="text-xs text-[#111111] leading-relaxed">
-                  {t.deAnonymize.restoredCount(result.restored)}
-                  {result.restored > 0 && result.unresolved.length === 0 && (result.others ?? []).length === 0 && !result.fileOverDocument && (resultTakenOut || importedMapping !== null) && ` ${t.deAnonymize.allClear}`}
-                </p>
-                <LeftoverLabels labels={result.unresolved} stale={result.stale} others={result.others} testId="restore-text-unresolved" />
-              </>
-            ) : (
-              <p className="text-xs text-[#525252]">&nbsp;</p>
             )}
           </div>
         </div>

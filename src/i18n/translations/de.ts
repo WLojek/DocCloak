@@ -240,6 +240,7 @@ export const de: Translations = {
     ocrExtracted: 'Text aus Bild gelesen',
     removeRedaction: 'Schwärzung entfernen',
     alsoElsewhere: (n) => `Derselbe Text steht an weiteren Stellen: ${n}.`,
+    alreadyRedacted: (value) => `Bereits geschwärzt, als Teil von „${value}“. Nichts wurde geändert.`,
     redactThemToo: "Auch dort schwärzen",
   },
   textOutput: {

@@ -132,7 +132,8 @@ describe('useAnonymizer.restoreDocx (WLojek/DocCloak#3)', () => {
     if (!outcome?.success) throw new Error('restore failed');
     expect(outcome.restored).toBe(3);
     expect(outcome.unresolved).toEqual(['[PERSON_9]']);
-    expect(outcome.downloadName).toBe('contract_restored.docx');
+    // A label stayed in the file, and the name of the download says so.
+    expect(outcome.downloadName).toBe('contract_partly-restored.docx');
     expect(outcome.blob).not.toBeNull();
 
     const written = await readDocx(new File([await (outcome.blob as Blob).arrayBuffer()], 'r.docx'));
@@ -198,7 +199,7 @@ describe('replacement table as a file (WLojek/DocCloak#3)', () => {
     const hook = await redacted();
     const table = hook.result.current.exportMapping();
     expect(table?.count).toBe(4);
-    expect(table?.downloadName).toMatch(/^doccloak_replacement-table_\d{4}-\d{2}-\d{2}_\d{4}\.json$/);
+    expect(table?.downloadName).toMatch(/^doccloak_replacement-table_\d{4}-\d{2}-\d{2}_\d{6}\.json$/);
     const saved = JSON.parse(await (table as { blob: Blob }).blob.text()) as unknown[];
     expect(saved).toHaveLength(4);
     expect(saved).toEqual(expect.arrayContaining([
@@ -314,11 +315,13 @@ describe('replacement table as a file (WLojek/DocCloak#3)', () => {
     expect(restoredDownloadName('contract_redacted.docx')).toBe('contract_restored.docx');
     expect(restoredDownloadName('Reply from AI.DOCX')).toBe('Reply from AI_restored.docx');
     expect(restoredDownloadName(null)).toBe('document_restored.docx');
+    // A file that still holds labels is not called restored.
+    expect(restoredDownloadName('contract_redacted.docx', true)).toBe('contract_partly-restored.docx');
     // Document and moment in the name: every table holds a [PERSON_1], the name tells them apart.
-    const at = new Date(2026, 10, 12, 9, 5);
-    expect(mappingDownloadName('contract.docx', at)).toBe('contract_replacement-table_2026-11-12_0905.json');
-    expect(mappingDownloadName('scan.final.pdf', at)).toBe('scan.final_replacement-table_2026-11-12_0905.json');
-    expect(mappingDownloadName(null, at)).toBe('doccloak_replacement-table_2026-11-12_0905.json');
+    const at = new Date(2026, 10, 12, 9, 5, 7);
+    expect(mappingDownloadName('contract.docx', at)).toBe('contract_replacement-table_2026-11-12_090507.json');
+    expect(mappingDownloadName('scan.final.pdf', at)).toBe('scan.final_replacement-table_2026-11-12_090507.json');
+    expect(mappingDownloadName(null, at)).toBe('doccloak_replacement-table_2026-11-12_090507.json');
   });
 });
 
@@ -351,7 +354,7 @@ describe('DeAnonymize panel', () => {
       mappingCount: 4,
       mappingSample: SAMPLE,
       onRestoreDocx: vi.fn(async () => DONE),
-      onExportMapping: vi.fn(() => ({ blob: new Blob(['[]']), count: 4, downloadName: 'contract_replacement-table_2026-11-12_0905.json' })),
+      onExportMapping: vi.fn(() => ({ blob: new Blob(['[]']), count: 4, downloadName: 'contract_replacement-table_2026-11-12_090507.json' })),
       onImportMapping: vi.fn(async () => ({ fileName: 'saved.json', count: 9, sample: { replacement: '[PERSON_1]', original: 'Maria Lis' } })),
       importedMapping: null,
       onClearImportedMapping: vi.fn(),
@@ -365,6 +368,36 @@ describe('DeAnonymize panel', () => {
   function choose(testId: string, file: File) {
     fireEvent.change(screen.getByTestId(testId), { target: { files: [file] } });
   }
+
+  it('goes from "no table yet" to the full panel in place (the first Redact), and the report stands above the restored text', () => {
+    // The panel is on the page before the first redaction, with only the way in for a saved table.
+    // A hook placed after that early return broke the whole page at the first Redact (caught on the
+    // preview by the acceptance run, not by these tests: nothing rendered the panel both ways).
+    const base = {
+      onRestoreText: vi.fn(() => ({ text: 'Jan Kowalski signs.', restored: 1, unresolved: ['Person 2'], segments: [{ text: 'Jan Kowalski', kind: 'restored' as const }, { text: ' signs.', kind: 'plain' as const }], stale: [{ label: 'Person 2', original: 'Anna Nowak', reason: 'unread' as const }] })),
+      mappingCount: 4,
+      mappingSample: SAMPLE,
+      onRestoreDocx: vi.fn(async () => DONE),
+      onExportMapping: vi.fn(() => null),
+      onImportMapping: vi.fn(async () => null),
+      importedMapping: null,
+      onClearImportedMapping: vi.fn(),
+      onDownload: vi.fn(),
+    };
+    const view = render(<Providers><DeAnonymize {...base} hasMapping={false} /></Providers>);
+    expect(screen.getByTestId('restore-load-table')).toBeInTheDocument();
+    view.rerender(<Providers><DeAnonymize {...base} hasMapping /></Providers>);
+    expect(screen.queryByTestId('restore-load-table')).toBeNull();
+    fireEvent.change(document.querySelector('textarea')!, { target: { value: '[PERSON_1] signs.' } });
+    fireEvent.click(screen.getByRole('button', { name: en.deAnonymize.restoreButton }));
+    const status = screen.getByTestId('restore-text-status');
+    const result = screen.getByTestId('restore-text-result');
+    expect(status.compareDocumentPosition(result) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(status).toHaveTextContent(en.deAnonymize.unreadLabel('Person 2', 'Anna Nowak'));
+    // And back: the table is gone (Clear), the panel is the small one again.
+    view.rerender(<Providers><DeAnonymize {...base} hasMapping={false} /></Providers>);
+    expect(screen.getByTestId('restore-load-table')).toBeInTheDocument();
+  });
 
   it('without a table only offers to load one saved earlier', async () => {
     const props = renderPanel({ hasMapping: false, mappingCount: 0, mappingSample: null, onImportMapping: vi.fn(async () => null) });
@@ -480,9 +513,9 @@ describe('DeAnonymize panel', () => {
     const props = renderPanel();
     fireEvent.click(screen.getByTestId('mapping-export'));
     expect(props.onExportMapping).toHaveBeenCalledTimes(1);
-    expect(props.onDownload).toHaveBeenCalledWith(expect.any(Blob), 'contract_replacement-table_2026-11-12_0905.json');
+    expect(props.onDownload).toHaveBeenCalledWith(expect.any(Blob), 'contract_replacement-table_2026-11-12_090507.json');
     // Confirmed next to the button, with the name of the file to look for later.
-    expect(screen.getByTestId('mapping-saved')).toHaveTextContent(en.deAnonymize.docxDownloaded('contract_replacement-table_2026-11-12_0905.json'));
+    expect(screen.getByTestId('mapping-saved')).toHaveTextContent(en.deAnonymize.docxDownloaded('contract_replacement-table_2026-11-12_090507.json'));
   });
 
   it('pasted text: the result, how many places, and an all-clear', () => {

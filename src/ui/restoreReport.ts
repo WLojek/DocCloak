@@ -42,6 +42,12 @@ export interface RestoreContext {
   refused?: KnownLabel[];
   /** The source text of the open document: a token that stands in it is the document's own text. */
   documentText?: string;
+  /**
+   * The labels of the table that did the restoring, with their values (the document's own table or
+   * one loaded from a file). A label of it that is still in the text in a spelling restore does not
+   * read ("Person 2", "PERSON-3", "[PERSON_" broken over two lines) is found by these.
+   */
+  tableLabels?: KnownLabel[];
 }
 
 export interface Leftovers {
@@ -75,6 +81,32 @@ function bracketedIn(piece: string): string[] {
   return found;
 }
 
+/** Regex source of a literal. */
+const literal = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * A known label in any spelling: its words in any case, with other separators between them (a
+ * space, a hyphen, a dot, an escaped underscore, a line break), with or without brackets. Restore
+ * reads only some of these ("[person 2]", "PERSON_2") and leaves the rest in the text on purpose:
+ * "Person 2" can be prose. The report must still not say that no label is left over them (it did:
+ * found by the independent review of 0.17.0).
+ *
+ * Without brackets only a numbered label is looked for: "client" for a label renamed to [CLIENT]
+ * is an ordinary word.
+ */
+function looseLabel(form: string): { pattern: RegExp; numbered: boolean } | null {
+  const words = form.split('_').filter((word) => word.length > 0);
+  if (words.length === 0) return null;
+  const numbered = words.some((word) => /^\p{N}+$/u.test(word));
+  // Between two words at least one separator; a number may follow its word directly ("PERSON2").
+  const between = (left: string, right: string) => (/^\p{N}+$/u.test(right) || /^\p{N}+$/u.test(left) ? '[\\s_\\-.\\\\*]{0,4}' : '[\\s_\\-.\\\\*]{1,4}');
+  let body = literal(words[0]);
+  for (let i = 1; i < words.length; i++) body += between(words[i - 1], words[i]) + literal(words[i]);
+  const open = '(?:\\\\?[\\[<{]{1,2}[\\s*]{0,3})?';
+  const close = '(?:[\\s*]{0,3}\\\\?[\\]>}]{1,2})?';
+  return { pattern: new RegExp(`(?<![\\p{L}\\p{N}_])${open}${body}${close}(?![\\p{L}\\p{N}_])`, 'giu'), numbered };
+}
+
 /**
  * @param pieces the parts of the text that the restore left as they were
  * @param unresolved the session's own list of label-like tokens it could not restore
@@ -98,14 +130,27 @@ export function leftoversIn(pieces: string[], unresolved: string[], context: Res
     stale.push(item);
     if (!seen.has(item.label)) { seen.add(item.label); listed.push(item.label); }
   }
-  const noteStale = (token: string): boolean => {
-    const form = canonicalPlaceholderForm(token);
+  // The table that restored, by comparison form: its own labels are known with their values also
+  // when the table came from a file (this tab then knows nothing else about them).
+  const tableByForm = new Map<string, KnownLabel>();
+  for (const item of context.tableLabels ?? []) {
+    const form = canonicalPlaceholderForm(item.label);
+    if (form !== null && !tableByForm.has(form)) tableByForm.set(form, item);
+  }
+  const noteStale = (token: string, asForm?: string): boolean => {
+    const form = asForm ?? canonicalPlaceholderForm(token);
     const known = form === null ? undefined : ever.get(form);
     if (staleSeen.has(token)) return true;
     const refusedAs = form === null ? undefined : refusedByForm.get(form);
     if (refusedAs) {
       staleSeen.add(token);
       stale.push({ ...refusedAs, label: token });
+      return true;
+    }
+    const inTable = form === null ? undefined : tableByForm.get(form);
+    if (!known && inTable) {
+      staleSeen.add(token);
+      stale.push({ label: token, original: inTable.original, reason: 'unread' });
       return true;
     }
     if (!known) return false;
@@ -130,6 +175,36 @@ export function leftoversIn(pieces: string[], unresolved: string[], context: Res
       seen.add(token);
       if (noteStale(token)) listed.push(token);
       else others.push(token);
+    }
+  }
+  // Known labels in a spelling nothing above reads: without brackets ("Person 2", "PERSON-3"),
+  // broken over two lines, with an escaped underscore. Each is a label that stayed.
+  // The longest label first: "Person 2 last" is the label of the surname, not "Person 2" and a word.
+  const forms = [...new Set<string>([...tableByForm.keys(), ...tableForms, ...ever.keys()])].sort((a, b) => b.length - a.length);
+  const claimed = pieces.map(() => [] as Array<[number, number]>);
+  for (const form of forms) {
+    const loose = looseLabel(form);
+    if (loose === null) continue;
+    for (const [at, piece] of pieces.entries()) {
+      for (const match of piece.matchAll(loose.pattern)) {
+        const token = match[0];
+        const bracketed = /^\\?[[<{]/.test(token) && /[\]>}]$/.test(token);
+        if (!loose.numbered && !bracketed) continue;
+        const from = match.index;
+        const to = from + token.length;
+        if (claimed[at].some(([start, end]) => from < end && to > start)) continue;
+        claimed[at].push([from, to]);
+        // Listed already, unless only as "other text in brackets": it is known to be a label now.
+        if (seen.has(token) && !others.includes(token)) continue;
+        // The document's own words ("Person 2" in a form it holds itself) are not the assistant's.
+        if (!bracketed && context.documentText && context.documentText.includes(token)) continue;
+        if (!noteStale(token, form)) continue;
+        seen.add(token);
+        if (!listed.includes(token)) listed.push(token);
+        // The same text may have been listed as "other text in brackets" a moment ago.
+        const listedAt = others.indexOf(token);
+        if (listedAt !== -1) others.splice(listedAt, 1);
+      }
     }
   }
   return { unresolved: listed, stale, others };

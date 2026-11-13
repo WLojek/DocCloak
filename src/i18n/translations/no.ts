@@ -240,6 +240,7 @@ export const no: Translations = {
     ocrExtracted: 'Tekst lest fra bilde',
     removeRedaction: 'Fjern maskering',
     alsoElsewhere: (n) => `Den samme teksten står flere steder: ${n}.`,
+    alreadyRedacted: (value) => `Allerede maskert, som en del av «${value}». Ingenting ble endret.`,
     redactThemToo: "Maskér dem også",
   },
   textOutput: {

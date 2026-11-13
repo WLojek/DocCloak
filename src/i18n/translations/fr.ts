@@ -240,6 +240,7 @@ export const fr: Translations = {
     ocrExtracted: 'Texte lu depuis l\'image',
     removeRedaction: 'Supprimer la censure',
     alsoElsewhere: (n) => `Le même texte apparaît à d'autres endroits : ${n}.`,
+    alreadyRedacted: (value) => `Déjà censuré, comme partie de « ${value} ». Rien n'a été modifié.`,
     redactThemToo: "Les censurer aussi",
   },
   textOutput: {

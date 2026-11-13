@@ -19,7 +19,7 @@ import { TableReminder } from './ui/components/TableReminder.tsx';
 import { SpreadsheetNotice } from './ui/components/SpreadsheetNotice.tsx';
 import { ALL_ENTITY_TYPES } from './ui/keepTypes.ts';
 import { ENTITY_COLORS } from '@doccloak/core';
-import { fileErrorCode, fileErrorMessage, pdfDownloadName, xlsxDownloadName } from './ui/hooks/useAnonymizer.ts';
+import { fileErrorCode, fileErrorMessage, pdfDownloadName, xlsxDownloadName, type TextSnapshot } from './ui/hooks/useAnonymizer.ts';
 import logoSrc from './ui/assets/doc-cloak-logo-light.png';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useToast } from './ui/components/Toast.tsx';
@@ -68,6 +68,8 @@ export default function App() {
     addManualEntity,
     removeEntity,
     renameLabel,
+    snapshotText,
+    restoreSnapshot,
     resetLabel,
     renamedOriginals,
     keptRanges,
@@ -186,7 +188,7 @@ export default function App() {
   const [newLabelInput, setNewLabelInput] = useState('');
   const [labelsExpanded, setLabelsExpanded] = useState(false);
   const [footerTooltipOpen, setFooterTooltipOpen] = useState(false);
-  const clearSnapshotRef = useRef<{ text: string; anonymized: string; entities: typeof entities; entries: typeof entries } | null>(null);
+  const clearSnapshotRef = useRef<TextSnapshot | null>(null);
   const [downloading, setDownloading] = useState(false);
   const toolRef = useRef<HTMLElement>(null);
   const scrollToTool = useCallback(() => {
@@ -338,19 +340,20 @@ export default function App() {
   const handleClear = useCallback(() => {
     if (!inputText) return;
     if (!mayLoseTable()) return;
-    clearSnapshotRef.current = { text: inputText, anonymized: anonymizedText, entities, entries };
+    // Undo brings back the list, the choices and the labels with the text, not the text alone.
+    clearSnapshotRef.current = snapshotText();
     clear();
     showToast(t.toast.cleared, {
       label: t.toast.undo,
       onClick: () => {
         const snap = clearSnapshotRef.current;
         if (snap) {
-          handleInputChange(snap.text);
+          restoreSnapshot(snap);
           clearSnapshotRef.current = null;
         }
       },
     });
-  }, [inputText, anonymizedText, entities, entries, clear, handleInputChange, showToast, t, mayLoseTable]);
+  }, [inputText, clear, snapshotText, restoreSnapshot, showToast, t, mayLoseTable]);
 
   const handleAddLabel = () => {
     const label = newLabelInput.trim().toLowerCase();
@@ -463,7 +466,7 @@ export default function App() {
                   <Settings className="w-4 h-4" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent align="end" className="w-80 max-h-[calc(100vh-5rem)] overflow-auto">
+              <PopoverContent align="end" aria-label={t.header.settings} className="w-80 max-h-[calc(100vh-5rem)] overflow-auto">
                 <div className="space-y-3">
                   {/* Model selector */}
                   <div>

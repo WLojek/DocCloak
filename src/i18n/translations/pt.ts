@@ -240,6 +240,7 @@ export const pt: Translations = {
     ocrExtracted: 'Texto lido da imagem',
     removeRedaction: 'Remover redação',
     alsoElsewhere: (n) => `O mesmo texto aparece noutros locais: ${n}.`,
+    alreadyRedacted: (value) => `Já está redigido, como parte de "${value}". Nada foi alterado.`,
     redactThemToo: "Redigi-los também",
   },
   textOutput: {

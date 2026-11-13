@@ -58,6 +58,7 @@ import { loadDictionary, saveDictionary, mergeDictionaryEntities, loadIgnoreList
 import type { DictionaryEntry } from '../dictionary.ts';
 import { loadKeepTypes, saveKeepTypes, isTableReminderOff, setTableReminderOff } from '../keepTypes.ts';
 import { keptRangesInOutput } from '../keptRanges.ts';
+import { addHandMarks, type HandMarkResult } from '../handMarks.ts';
 import { leftoversIn, type KnownLabel, type RestoreContext } from '../restoreReport.ts';
 
 /**
@@ -109,10 +110,14 @@ export function pdfDownloadName(fileName: string | null | undefined): string {
   return `${base}_redacted.pdf`;
 }
 
-/** Download name of a docx with the names restored: `<base>_restored.docx` (WLojek/DocCloak#3). */
-export function restoredDownloadName(fileName: string | null | undefined): string {
+/**
+ * Download name of a docx with the names restored: `<base>_restored.docx`, or
+ * `<base>_partly-restored.docx` when labels stayed in it (WLojek/DocCloak#3).
+ */
+export function restoredDownloadName(fileName: string | null | undefined, labelsLeft = false): string {
   const base = fileName?.replace(/\.docx$/i, '').replace(/[_-]redacted$/i, '').trim() || 'document';
-  return `${base}_restored.docx`;
+  // A file that still holds labels says so in its name: "_restored" on it reads as finished.
+  return `${base}_${labelsLeft ? 'partly-restored' : 'restored'}.docx`;
 }
 
 /**
@@ -124,8 +129,20 @@ export function restoredDownloadName(fileName: string | null | undefined): strin
 export function mappingDownloadName(fileName: string | null | undefined, now: Date = new Date()): string {
   const base = fileName?.replace(/\.[^.]+$/, '').trim() || 'doccloak';
   const two = (n: number) => String(n).padStart(2, '0');
-  const stamp = `${now.getFullYear()}-${two(now.getMonth() + 1)}-${two(now.getDate())}_${two(now.getHours())}${two(now.getMinutes())}`;
+  // To the second: two tables saved within a minute (before and after a rename) are two files.
+  const stamp = `${now.getFullYear()}-${two(now.getMonth() + 1)}-${two(now.getDate())}_${two(now.getHours())}${two(now.getMinutes())}${two(now.getSeconds())}`;
   return `${base}_replacement-table_${stamp}.json`;
+}
+
+/** The state of a pasted text that "Clear" takes away and its Undo brings back. */
+export interface TextSnapshot {
+  text: string;
+  entities: DetectedEntity[];
+  excluded: Set<number>;
+  renames: Map<string, string>;
+  lastRunText: string | null;
+  dropped: DetectedEntity[];
+  tableSaved: boolean;
 }
 
 /** One pair of a table, shown next to its name so the user can tell whose table it is. */
@@ -356,6 +373,8 @@ export function useAnonymizer() {
   // The list of detections as it is now, for callbacks that outlive a render (toast buttons).
   const entitiesLiveRef = useRef(entities);
   entitiesLiveRef.current = entities;
+  const excludedLiveRef = useRef(excludedIndices);
+  excludedLiveRef.current = excludedIndices;
   const inputTextLiveRef = useRef(inputText);
   inputTextLiveRef.current = inputText;
   const addEntitiesRef = useRef<(added: DetectedEntity[]) => void>(() => {});
@@ -745,21 +764,27 @@ export function useAnonymizer() {
             mergeDictionaryEntities(text, results, dictionary),
             ignoreList,
           );
-          // Values the user marked by hand come back where nothing detected now covers them.
-          const manual = previousManual.filter((m) => !detected.some((e) => e.start < m.end && e.end > m.start));
-          const withDictionary = manual.length > 0 ? [...detected, ...manual].sort((a, b) => a.start - b.start) : detected;
           // Not redacted: what the user kept in the previous run of this text; for anything new,
           // the types set to never be anonymized (T263). A dictionary word or a hand-marked value is
           // an explicit "redact this" and is never switched off by the type setting.
           const neverTypes = new Set(keepTypesRef.current);
+          const keptNow = (entity: DetectedEntity): boolean => {
+            const key = placeKey(entity);
+            if (previousPlaces?.has(key)) return previousKept?.has(key) ?? false;
+            return neverTypes.has(entity.type) && entity.detector !== 'dictionary' && entity.detector !== 'manual';
+          };
+          // Values the user marked by hand come back. A mark that is redacted takes the place of
+          // what this run found under it, as it did when it was made (it used to be dropped when a
+          // find touched it, and the part only the mark covered became readable without a word).
+          // A mark the user had set to not redact comes back only where nothing found covers it.
+          const marks = previousManual.filter((m) => !(previousKept?.has(placeKey(m)) ?? false));
+          const merged = addHandMarks(text, detected, keptNow, marks).entities;
+          const idle = previousManual.filter((m) => (previousKept?.has(placeKey(m)) ?? false)
+            && !merged.some((e) => e.start < m.end && e.end > m.start));
+          const withDictionary = idle.length > 0 ? [...merged, ...idle].sort((a, b) => a.start - b.start) : merged;
           const excluded = new Set<number>();
           withDictionary.forEach((entity, index) => {
-            const key = placeKey(entity);
-            if (previousPlaces?.has(key)) {
-              if (previousKept?.has(key)) excluded.add(index);
-            } else if (neverTypes.has(entity.type) && entity.detector !== 'dictionary' && entity.detector !== 'manual') {
-              excluded.add(index);
-            }
+            if (keptNow(entity)) excluded.add(index);
           });
           lastRunTextRef.current = text;
           setEntities(withDictionary);
@@ -867,26 +892,34 @@ export function useAnonymizer() {
     setResultTakenOut(false);
   }, []);
 
-  /** Add places to the list (marked by hand, or kept from an earlier run). */
+  /**
+   * Add places to the list (marked by hand, or kept from an earlier run). The list never holds two
+   * places that overlap: a mark takes the place of what it touches (see handMarks.ts). Returns the
+   * marks that changed nothing because they lie inside a place that is redacted already.
+   */
   const addEntities = useCallback(
-    (added: DetectedEntity[]) => {
-      setEntities((prev) => {
-        const next = [...prev, ...added].sort((a, b) => a.start - b.start);
-        // "Not redacted" is kept by position in the list: every place moves to where it stands
-        // in the new list. (They used to keep their old numbers, so after a value was marked by
-        // hand a different place than the one the user chose was left readable.)
-        const position = new Map(next.map((entity, index) => [entity, index]));
-        setExcludedIndices((excl) => {
-          const moved = new Set<number>();
-          for (const i of excl) {
-            const at = position.get(prev[i]);
-            if (at !== undefined) moved.add(at);
-          }
-          rebuildAnonymization(inputTextLiveRef.current, next, moved);
-          return moved;
-        });
-        return next;
-      });
+    (added: DetectedEntity[]): HandMarkResult['inside'] => {
+      const prev = entitiesLiveRef.current;
+      const excl = excludedLiveRef.current;
+      const keptPlaces = new Set([...excl].filter((i) => i < prev.length).map((i) => prev[i]));
+      const { entities: next, inside } = addHandMarks(inputTextLiveRef.current, prev, (entity) => keptPlaces.has(entity), added);
+      if (next === prev) return inside;
+      // "Not redacted" is kept by position in the list: every place moves to where it stands
+      // in the new list. (They used to keep their old numbers, so after a value was marked by
+      // hand a different place than the one the user chose was left readable.)
+      const position = new Map(next.map((entity, index) => [entity, index]));
+      const moved = new Set<number>();
+      for (const i of excl) {
+        const at = position.get(prev[i]);
+        if (at !== undefined) moved.add(at);
+      }
+      // A second call in the same turn (a mark, then "the same text elsewhere") builds on this one.
+      entitiesLiveRef.current = next;
+      excludedLiveRef.current = moved;
+      setEntities(next);
+      setExcludedIndices(moved);
+      rebuildAnonymization(inputTextLiveRef.current, next, moved);
+      return inside;
     },
     [rebuildAnonymization]
   );
@@ -895,7 +928,7 @@ export function useAnonymizer() {
   /** Mark ranges of the text by hand. */
   const addManualRanges = useCallback(
     (ranges: Array<[number, number]>, type: EntityType) => {
-      addEntities(ranges.map(([start, end]) => (
+      return addEntities(ranges.map(([start, end]) => (
         { type, value: inputText.slice(start, end), start, end, confidence: 1.0, detector: 'manual' }
       )));
     },
@@ -911,7 +944,10 @@ export function useAnonymizer() {
       while (start < end && SELECTION_EDGE.test(inputText[start])) start++;
       while (end > start && SELECTION_EDGE.test(inputText[end - 1])) end--;
       if (end <= start) return;
-      addManualRanges([[start, end]], type);
+      const inside = addManualRanges([[start, end]], type);
+      // Nothing changed: the selection lies in a value that is redacted as a whole. Said, because a
+      // mark that seems to do nothing reads as a failure.
+      if (inside.length > 0) showToast(t.textInput.alreadyRedacted(inside[0].holder.value));
       // The same text elsewhere: a name missed once is usually missed everywhere.
       const value = inputText.slice(start, end);
       if (value.length < 2) return;
@@ -1086,7 +1122,11 @@ export function useAnonymizer() {
 
   /** What this tab knows about labels it issued; nothing when a table from a file does the restoring. */
   const knownLabelsForRestore = useCallback((): RestoreContext => {
-    if (importedSessionRef.current) return { ever: new Map(), documentValues: new Set(), tableForms: new Set() };
+    // The table that restores, with its values: a label of it left in a spelling restore does not
+    // read is then named with what it stands for, also when the table came from a file.
+    const tableLabels = (importedSessionRef.current ?? sessionRef.current).getEntries()
+      .map((entry) => ({ label: entry.replacement, original: entry.original }));
+    if (importedSessionRef.current) return { ever: new Map(), documentValues: new Set(), tableForms: new Set(), tableLabels };
     const tableForms = new Set<string>();
     for (const entry of sessionRef.current.getEntries()) {
       const form = canonicalPlaceholderForm(entry.replacement);
@@ -1097,6 +1137,7 @@ export function useAnonymizer() {
       documentValues: new Set(entitiesLiveRef.current.map((entity) => entity.value)),
       tableForms,
       documentText: inputTextLiveRef.current,
+      tableLabels,
     };
   }, []);
 
@@ -1194,7 +1235,7 @@ export function useAnonymizer() {
       }
       pieces.push(extraction.plainText.slice(last));
       const { unresolved, stale, others } = leftoversIn(pieces, session.unresolvedTokens(extraction.plainText), { ...knownLabelsForRestore(), refused });
-      const downloadName = restoredDownloadName(file.name);
+      const downloadName = restoredDownloadName(file.name, unresolved.length + stale.length > 0);
       if (spans.length === 0) {
         return { success: true, restored: 0, unresolved, stale, others, blob: null, downloadName };
       }
@@ -1267,25 +1308,28 @@ export function useAnonymizer() {
     }
   }, []);
 
-  const renameLabel = useCallback((original: string, newLabel: string) => {
-    if (replacementModeRef.current !== 'labeled') return;
+  /**
+   * Gives a value another label. Returns null when the label was taken, or the reason it was
+   * refused: the list shows it at the field, which stays open with what was typed (it used to be
+   * a passing message over a field that had already closed).
+   */
+  const renameLabel = useCallback((original: string, newLabel: string): string | null => {
+    if (replacementModeRef.current !== 'labeled') return null;
     const current = sessionRef.current.getForward(original);
-    if (current === undefined || current === newLabel) return;
+    if (current === undefined || current === newLabel) return null;
     // What a label may be: a letter or a digit in it (a label of signs only has no form restore
     // could compare, so nothing could keep it from passing to another value), and no brackets
     // inside ("[CLIENT][BOSS]" would be read as two labels).
     const inner = newLabel.replace(/^\[|\]$/g, '');
     const form = canonicalPlaceholderForm(newLabel);
     if (form === null || !/[\p{L}\p{N}]/u.test(inner) || /[[\]<>{}]/.test(inner)) {
-      showToast(t.entityTable.labelInvalid);
-      return;
+      return t.entityTable.labelInvalid;
     }
     // Bracketed text the document itself holds ("[Client]" in a contract template, "[Fee]") would
     // be taken for the label when a reply is restored, and replaced by the value.
     for (const match of inputText.matchAll(BRACKETED_IN_TEXT)) {
       if (canonicalPlaceholderForm(match[0]) === form) {
-        showToast(t.entityTable.labelInText(match[0]));
-        return;
+        return t.entityTable.labelInText(match[0]);
       }
     }
     // A label issued to another value in this tab is taken, also while that value is not
@@ -1294,13 +1338,11 @@ export function useAnonymizer() {
     const holder = everLabelsRef.current.get(form);
     if (holder && holder.original !== original) {
       // Refused: say so, and for which value, instead of doing nothing.
-      showToast(t.entityTable.labelTaken(newLabel, holder.original));
-      return;
+      return t.entityTable.labelTaken(newLabel, holder.original);
     }
     // The numbered shape is DocCloak's own (unless it is this value's own label coming back).
     if (!holder && OWN_LABEL_SHAPE.test(labelSkeleton(newLabel))) {
-      showToast(t.entityTable.labelOwnShape(newLabel));
-      return;
+      return t.entityTable.labelOwnShape(newLabel);
     }
     // The labels that follow this one ("[PERSON_1_LAST]" becomes "[CLIENT_LAST]") are checked the
     // same way: a derived label must not be one that stood for another value.
@@ -1312,8 +1354,7 @@ export function useAnonymizer() {
         const derivedForm = canonicalPlaceholderForm(derived);
         const owner = derivedForm === null ? undefined : everLabelsRef.current.get(derivedForm);
         if (owner && owner.original !== entry.original) {
-          showToast(t.entityTable.labelDerivedTaken(newLabel, derived, owner.original));
-          return;
+          return t.entityTable.labelDerivedTaken(newLabel, derived, owner.original);
         }
       }
     }
@@ -1321,8 +1362,22 @@ export function useAnonymizer() {
     // takes): a later rename of the same value moves last.
     labelRenamesRef.current.delete(original);
     labelRenamesRef.current.set(original, newLabel);
-    rebuildAnonymization(inputText, entities, excludedIndices);
-  }, [showToast, t, inputText, entities, excludedIndices, rebuildAnonymization]);
+    // The rebuild can still give this label up (text of the document reads as it, or a label that
+    // follows from it is another value's). That is a refusal of this rename like the ones above,
+    // so it goes back to the field too; a rename of another value dropped on the way stays a message.
+    let dropped: string | null = null;
+    const say = sayRenameDroppedRef.current;
+    sayRenameDroppedRef.current = (label, holder) => {
+      if (label !== newLabel) { say(label, holder); return; }
+      dropped = holder === null ? t.entityTable.labelInText(label) : t.entityTable.labelTaken(label, holder);
+    };
+    try {
+      rebuildAnonymization(inputText, entities, excludedIndices);
+    } finally {
+      sayRenameDroppedRef.current = say;
+    }
+    return dropped;
+  }, [t, inputText, entities, excludedIndices, rebuildAnonymization]);
 
   /** Redact again the places an earlier run had found and the last one did not. */
   const keepDroppedRedacted = useCallback(() => {
@@ -1800,6 +1855,36 @@ export function useAnonymizer() {
     setAllowUnredactable(true);
   }, []);
 
+  /**
+   * What "Clear" takes away, kept for its Undo: the text with the list, what is not redacted and
+   * the renamed labels. (Undo used to bring back the text alone: the list, the choices and the
+   * table were gone, and the user had to redact and decide again.)
+   */
+  const snapshotText = useCallback((): TextSnapshot => ({
+    text: inputText,
+    entities,
+    excluded: new Set(excludedIndices),
+    renames: new Map(labelRenamesRef.current),
+    lastRunText: lastRunTextRef.current,
+    dropped: droppedPlaces,
+    tableSaved,
+  }), [inputText, entities, excludedIndices, droppedPlaces, tableSaved]);
+
+  const restoreSnapshot = useCallback((snapshot: TextSnapshot) => {
+    setInputText(snapshot.text);
+    setEntities(snapshot.entities);
+    setExcludedIndices(new Set(snapshot.excluded));
+    labelRenamesRef.current.clear();
+    for (const [original, label] of snapshot.renames) labelRenamesRef.current.set(original, label);
+    lastRunTextRef.current = snapshot.lastRunText;
+    setDroppedPlaces(snapshot.dropped);
+    if (snapshot.entities.length === 0) return;
+    // The labels are the ones the values had: they belong to their values for the life of the tab.
+    rebuildAnonymization(snapshot.text, snapshot.entities, snapshot.excluded);
+    setResultTakenOut(takenOutTextsRef.current.has(snapshot.text));
+    setTableSaved(snapshot.tableSaved);
+  }, [rebuildAnonymization]);
+
   const clear = useCallback(() => {
     setInputText('');
     resetTextState();
@@ -1869,6 +1954,8 @@ export function useAnonymizer() {
     addManualEntity,
     removeEntity,
     renameLabel,
+    snapshotText,
+    restoreSnapshot,
     droppedCount: droppedPlaces.length,
     keepDroppedRedacted,
     dismissDropped,

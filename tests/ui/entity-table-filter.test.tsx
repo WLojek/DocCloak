@@ -610,3 +610,56 @@ describe('useAnonymizer bulk exclusion and renamed labels', () => {
     expect(hook.result.current.tableReminder).toBe(false);
   });
 });
+
+// T274: a refused label used to be a passing message over a field that had already closed, with
+// the typed text gone. The reason now stands at the field, which stays open.
+describe('EntityTable: a refused label is said at the field', () => {
+  function openField(value: string): HTMLInputElement {
+    fireEvent.click(rowOf(value).querySelector<HTMLElement>('button[data-rename]')!);
+    return rowOf(value).querySelector<HTMLInputElement>('input[aria-invalid]')!;
+  }
+
+  it('keeps the field open with what was typed, names the reason and ties it to the field', () => {
+    const { onRenameLabel } = renderTable();
+    onRenameLabel.mockReturnValue(en.entityTable.labelTaken('[PERSON_2]', 'Anna Nowak'));
+    const field = openField('Jan Kowalski');
+    expect(field).toHaveAttribute('aria-invalid', 'false');
+    fireEvent.change(field, { target: { value: 'PERSON_2' } });
+    fireEvent.keyDown(field, { key: 'Enter' });
+    expect(onRenameLabel).toHaveBeenCalledWith('Jan Kowalski', '[PERSON_2]');
+    const still = rowOf('Jan Kowalski').querySelector<HTMLInputElement>('input[aria-invalid]')!;
+    expect(still).toHaveValue('PERSON_2');
+    expect(still).toHaveAttribute('aria-invalid', 'true');
+    const reason = within(rowOf('Jan Kowalski')).getByRole('alert');
+    expect(reason).toHaveTextContent(en.entityTable.labelTaken('[PERSON_2]', 'Anna Nowak'));
+    expect(still.getAttribute('aria-describedby')).toBe(reason.id);
+    // Typing again takes the reason away; a label that is accepted closes the field.
+    fireEvent.change(still, { target: { value: 'CLIENT' } });
+    expect(within(rowOf('Jan Kowalski')).queryByRole('alert')).toBeNull();
+    onRenameLabel.mockReturnValue(null);
+    fireEvent.keyDown(still, { key: 'Enter' });
+    expect(onRenameLabel).toHaveBeenLastCalledWith('Jan Kowalski', '[CLIENT]');
+    expect(rowOf('Jan Kowalski').querySelector('input[aria-invalid]')).toBeNull();
+  });
+
+  it('a refusal on leaving the field keeps it too, and there is a way out without a keyboard', () => {
+    const { onRenameLabel } = renderTable();
+    onRenameLabel.mockReturnValue(en.entityTable.labelInvalid);
+    const field = openField('Anna Nowak');
+    fireEvent.change(field, { target: { value: '???' } });
+    fireEvent.blur(field);
+    expect(within(rowOf('Anna Nowak')).getByRole('alert')).toHaveTextContent(en.entityTable.labelInvalid);
+    expect(rowOf('Anna Nowak').querySelector<HTMLInputElement>('input[aria-invalid]')).toHaveValue('???');
+    // The cross closes the field and leaves the label as it was.
+    fireEvent.click(within(rowOf('Anna Nowak')).getByTestId('entity-label-cancel'));
+    expect(rowOf('Anna Nowak').querySelector('input[aria-invalid]')).toBeNull();
+    expect(within(rowOf('Anna Nowak')).queryByRole('alert')).toBeNull();
+    expect(rowOf('Anna Nowak')).toHaveTextContent('[PERSON_2]');
+    // Escape does the same.
+    const again = openField('Anna Nowak');
+    fireEvent.change(again, { target: { value: '???' } });
+    fireEvent.keyDown(again, { key: 'Enter' });
+    fireEvent.keyDown(rowOf('Anna Nowak').querySelector<HTMLInputElement>('input[aria-invalid]')!, { key: 'Escape' });
+    expect(rowOf('Anna Nowak').querySelector('input[aria-invalid]')).toBeNull();
+  });
+});

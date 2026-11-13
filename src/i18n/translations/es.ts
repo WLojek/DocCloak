@@ -240,6 +240,7 @@ export const es: Translations = {
     ocrExtracted: 'Texto leído de la imagen',
     removeRedaction: 'Eliminar redacción',
     alsoElsewhere: (n) => `El mismo texto aparece en más lugares: ${n}.`,
+    alreadyRedacted: (value) => `Ya está redactado, como parte de "${value}". No se ha cambiado nada.`,
     redactThemToo: "Redactarlos también",
   },
   textOutput: {

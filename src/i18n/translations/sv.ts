@@ -240,6 +240,7 @@ export const sv: Translations = {
     ocrExtracted: 'Text läst från bild',
     removeRedaction: 'Ta bort maskering',
     alsoElsewhere: (n) => `Samma text står på fler ställen: ${n}.`,
+    alreadyRedacted: (value) => `Redan maskerat, som en del av "${value}". Inget ändrades.`,
     redactThemToo: "Maskera dem också",
   },
   textOutput: {

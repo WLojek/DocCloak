@@ -65,7 +65,8 @@ interface EntityTableProps {
   onToggle: (index: number) => void;
   /** Keep (excluded = true) or redact (false) every listed place in one step (WLojek/DocCloak#4). */
   onSetExcluded: (indices: number[], excluded: boolean) => void;
-  onRenameLabel: (original: string, newLabel: string) => void;
+  /** Returns the reason when the label is refused; the field then stays open and shows it. */
+  onRenameLabel: (original: string, newLabel: string) => string | null | void;
   /** Types that are never anonymized, also in the next documents (T263). */
   keepTypes: EntityType[];
   onKeepTypesChange: (types: EntityType[]) => void;
@@ -99,6 +100,9 @@ export function EntityTable({
   // input in each would take the focus from the other and close the edit at once.
   const [editing, setEditing] = useState<{ key: string; layout: 'table' | 'card' } | null>(null);
   const [editValue, setEditValue] = useState('');
+  // Why the label typed last was refused. Shown at the field, which stays open with the text.
+  const [editError, setEditError] = useState<string | null>(null);
+  const editErrorId = useId();
   const [expanded, setExpanded] = useState(false);
   const prevEntityCount = useRef(0);
   // WLojek/DocCloak#4: narrow the list to some types and/or to the values that
@@ -344,6 +348,7 @@ export function EntityTable({
         ? currentLabel.slice(2, -2)
         : currentLabel;
     setEditValue(inner);
+    setEditError(null);
   }, []);
 
   const commitEdit = useCallback(() => {
@@ -351,10 +356,21 @@ export function EntityTable({
     // The brackets are added here: typed ones ("[CLIENT]") would give "[[CLIENT]]".
     const name = editValue.trim().replace(/^[[<\s]+|[\]>\s]+$/g, '');
     if (original && name) {
-      onRenameLabel(original, `[${name}]`);
+      const refused = onRenameLabel(original, `[${name}]`);
+      if (typeof refused === 'string') {
+        // Refused: the field stays, with what was typed and the reason under it.
+        setEditError(refused);
+        return false;
+      }
     }
+    setEditError(null);
     setEditing(null);
+    return true;
   }, [editing, groups, editValue, onRenameLabel]);
+  const cancelEdit = useCallback(() => {
+    setEditError(null);
+    setEditing(null);
+  }, []);
 
   // Enter or Escape in the rename field gives the focus back to the label it belongs to.
   const refocusLabel = useRef<string | null>(null);
@@ -383,6 +399,7 @@ export function EntityTable({
     const label = entry.replacement;
     if (editing !== null && editing.key === group.key && editing.layout === layout) {
       return (
+        <span className="inline-block align-middle">
         <span className="inline-flex items-center gap-1">
           <span className="text-[#525252]">[</span>
           <input
@@ -390,8 +407,10 @@ export function EntityTable({
             value={editValue}
             maxLength={40}
             aria-label={`${t.entityTable.clickToRename}: ${label}`}
-            onChange={(e) => setEditValue(e.target.value)}
-            onBlur={commitEdit}
+            aria-invalid={editError !== null}
+            aria-describedby={editError !== null ? editErrorId : undefined}
+            onChange={(e) => { setEditValue(e.target.value); setEditError(null); }}
+            onBlur={() => { commitEdit(); }}
             onKeyDown={(e) => {
               if (e.key !== 'Enter' && e.key !== 'Escape') return;
               // The focus goes back to the label button while the key is still down: without this
@@ -399,13 +418,32 @@ export function EntityTable({
               e.preventDefault();
               refocusLabel.current = `${layout}:${group.key}`;
               if (e.key === 'Enter') commitEdit();
-              else setEditing(null);
+              else cancelEdit();
             }}
             className="bg-[#E5E5E0] border border-[#111111] px-1.5 h-11 md:h-auto md:py-0.5 text-base md:text-xs font-mono text-[#111111] focus:outline-none focus:ring-1 focus:ring-[#111111]"
             // The padding and the border are inside the width: without them the first letter was cut off.
             style={{ width: `calc(${Math.max(editValue.length + 1, 5)}ch + 1rem)` }}
           />
           <span className="text-[#525252]">]</span>
+          {/* The way out without a keyboard (a phone has no Escape): shown once a label was refused. */}
+          {editError !== null && (
+            <button
+              type="button"
+              onClick={() => { refocusLabel.current = `${layout}:${group.key}`; cancelEdit(); }}
+              aria-label={`${t.anonymizing.cancel}: ${label}`}
+              title={t.anonymizing.cancel}
+              data-testid="entity-label-cancel"
+              className="inline-flex items-center justify-center min-h-11 min-w-11 md:min-h-6 md:min-w-6 text-[#525252] hover:text-[#111111] cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" aria-hidden="true" />
+            </button>
+          )}
+        </span>
+        {editError !== null && (
+          <span id={editErrorId} role="alert" data-testid="entity-label-error" className="block mt-1 max-w-[34ch] whitespace-normal font-sans text-xs leading-snug text-[#CC0000]">
+            {editError}
+          </span>
+        )}
         </span>
       );
     }

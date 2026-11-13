@@ -244,6 +244,7 @@ export const pl: Translations = {
     ocrExtracted: 'Tekst odczytany z obrazu',
     removeRedaction: 'Usuń anonimizację',
     alsoElsewhere: (n) => `Ten sam tekst występuje jeszcze w innych miejscach: ${n}.`,
+    alreadyRedacted: (value) => `To jest już anonimizowane jako część „${value}”. Nic nie zmieniono.`,
     redactThemToo: "Anonimizuj je także",
   },
   textOutput: {
