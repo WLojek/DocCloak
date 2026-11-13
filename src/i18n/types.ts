@@ -96,6 +96,12 @@ export interface Translations {
     /** Settings popover, under the regex toggle: where the language is picked (T228). */
     regexRegionHint: string;
     regexRegions: Record<string, string>;
+    /** T263: the same setting, reachable without a document. */
+    neverTitle: string;
+    neverDescription: string;
+    /** Switch for the reminder to save the replacement table (it can be turned off in the reminder itself). */
+    reminderTitle: string;
+    reminderDescription: string;
   };
   dictionary: {
     title: string;
@@ -129,6 +135,9 @@ export interface Translations {
     ocrNoText: string;
     ocrExtracted: string;
     removeRedaction: string;
+    /** After a value was marked by hand: the same text stands in `count` more places. */
+    alsoElsewhere: (count: number) => string;
+    redactThemToo: string;
   };
   textOutput: {
     title: string;
@@ -148,6 +157,33 @@ export interface Translations {
     downloaded: string;
     exportFailed: string;
     nextStepHint: string;
+    /**
+     * Under the result: how many different values were replaced, and in how many places.
+     * Not the list's count (entityTable.title), which is every place found, redacted or not.
+     */
+    replacedSummary: (values: number, places: number) => string;
+    /** Next to the download: the replacement table as a file (T261). */
+    saveTable: string;
+    tableSaved: string;
+    /** The line at the result: every place found is replaced. */
+    reviewAll: (count: number) => string;
+    /** The line at the result when places were left readable. */
+    reviewKept: (found: number, replaced: number, kept: number) => string;
+    reviewLink: string;
+    showKeptLink: string;
+    /** Under the result, in place of "safe to share", when places were left readable. */
+    keptHint: (kept: number) => string;
+    /** Added to the line at the result when every readable place is of a type set to never be redacted. */
+    keptBySetting: (types: string) => string;
+    /** Toasts after a download or a copy that takes readable places with it. */
+    downloadedKept: (kept: number) => string;
+    copiedKept: (kept: number) => string;
+    /** Next to the download in the file bar: how many places stay readable, and the way to them. */
+    filebarKept: (kept: number) => string;
+    /** One-time toast when the result changes after it was copied or downloaded. */
+    changedAfterTaken: string;
+    /** In the result panel when a pasted text was checked and nothing was found. */
+    noDetectionsText: string;
   };
   redactButton: {
     redact: string;
@@ -156,6 +192,7 @@ export interface Translations {
     detectionFailedBody: string;
   };
   entityTable: {
+    /** Heading of the list: every place where sensitive data was found (one row each). */
     title: (count: number) => string;
     subtitle: string;
     type: string;
@@ -164,9 +201,62 @@ export interface Translations {
     confidence: string;
     include: string;
     clickToRename: string;
-    includeEntity: string;
-    excludeEntity: string;
     markAs: string;
+    /** WLojek/DocCloak#4: filter by type and text, then act on everything shown. */
+    filterLabel: string;
+    allTypes: string;
+    /** Chip that lists only the items that are not redacted. */
+    keptChip: string;
+    filterPlaceholder: string;
+    clearFilter: string;
+    showing: (shown: number, total: number) => string;
+    /** Lasting summary next to the count line. */
+    status: (redacted: number, kept: number) => string;
+    dontRedactThese: (count: number) => string;
+    redactThese: (count: number) => string;
+    /** Shown instead of the two buttons while no filter is on. */
+    bulkHint: string;
+    noMatches: string;
+    keptToast: (count: number) => string;
+    redactedToast: (count: number) => string;
+    /** A re-run on the same text kept what the user chose (T261). */
+    choicesKeptToast: string;
+    /** The xN button of a value that stands in several places (T262). */
+    places: (count: number) => string;
+    /** T263: types that are never anonymized, also in the next documents. */
+    neverOffer: (type: string) => string;
+    neverNote: string;
+    neverRemove: (type: string) => string;
+    /** Toast after a type was put on the never-redact list: what it did here (`count` places) and how long it holds. */
+    neverOnToast: (type: string, count: number) => string;
+    /** Toast after a type was taken off the list; `count` places of it are still readable in the open document. */
+    neverOffToast: (type: string, count: number) => string;
+    redactThemNow: string;
+    /** Next to a value redacted in some of its places only. */
+    partly: (redacted: number, total: number) => string;
+    /** Button of a value that stands in one place: opens that place with the words around it. */
+    showPlace: string;
+    /** Toast when a rename is refused because another value holds that label. */
+    labelTaken: (label: string, value: string) => string;
+    /** Filter chip for the places the detector was least sure about. */
+    lowChip: string;
+    /** What the "Certainty" number means, under the list's subtitle. */
+    certaintyHelp: string;
+    /** Button next to a renamed label: back to the numbered one. */
+    resetLabel: string;
+    /** Toast when a text holds more values than labels can be kept stable for. */
+    labelsNotStable: string;
+    /** Refusal of a hand label that has the shape of the numbered labels DocCloak issues. */
+    labelOwnShape: (label: string) => string;
+    /** Refusal of a hand label without a letter or digit, or with brackets inside. */
+    labelInvalid: string;
+    /** After a re-run on the same text: places that were redacted and are not found any more. */
+    droppedToast: (count: number) => string;
+    keepRedacted: string;
+    /** Refusal of a hand label that the document itself holds as bracketed text ("[Client]" in a template). */
+    labelInText: (label: string) => string;
+    /** Refusal of a rename whose derived label (surname, first name) once stood for another value. */
+    labelDerivedTaken: (label: string, derived: string, value: string) => string;
   };
   entityLabels: Record<EntityType, string>;
   step2: {
@@ -182,6 +272,96 @@ export interface Translations {
     outputPlaceholder: string;
     copy: string;
     copied: string;
+    /** WLojek/DocCloak#3: names back into a docx, the replacement table as a file. */
+    docxTitle: string;
+    docxBody: string;
+    docxButton: string;
+    docxWorking: string;
+    /** Both routes: in how many places an original was put back (0 = none found in pasted text). */
+    restoredCount: (count: number) => string;
+    /** Appended when nothing that looks like a label stayed. */
+    allClear: string;
+    docxDownloaded: (file: string) => string;
+    docxDownloadAgain: string;
+    docxNothing: (file: string) => string;
+    /** Labels that stayed in the result, then why and what to do. */
+    leftover: (count: number) => string;
+    leftoverHelp: string;
+    andMore: (count: number) => string;
+    showAll: string;
+    /** A label left in the result that this tab issued earlier: what it stood for and why it is not restored. */
+    staleLabel: (label: string, original: string) => string;
+    /** The same for a label of another document or an earlier version of the text: the value is not named. */
+    staleElsewhere: (label: string) => string;
+    /** A label whose value is in the table, written in a form restore does not read. */
+    unreadLabel: (label: string, original: string) => string;
+    /** A label that stood for one value earlier in this tab and stands for another now: not restored. */
+    staleTwo: (label: string, now: string) => string;
+    /** In the report when the document's own table did the restoring: one pair of it, to tell whose it is. */
+    usedDocumentTable: (label: string, value: string) => string;
+    /** In place of the quiet table line when the document's protected text never left the page in this tab. */
+    notTakenOut: string;
+    /** A label-like token left in a reply that the document itself holds as text. */
+    inTextOnly: (label: string) => string;
+    /** A label of the table that the document also holds as text: not restored. */
+    inTextAndLabel: (label: string) => string;
+    /** When a table from a file restored labels that also stand for values of the open document. */
+    fileOverDocument: string;
+    /** Heading of the list of other bracketed text that remains (not known to be a label). */
+    otherBrackets: string;
+    /** In the report when a table loaded from a file did the restoring. */
+    usedFileTable: (file: string) => string;
+    /** Toast after copying a restored text that still holds labels. */
+    copiedWithLabels: (count: number) => string;
+    docxOnlyDocx: string;
+    docxFailed: string;
+    /** Accessible name of the strip that says which table restores. */
+    tableTitle: string;
+    tableCurrent: (count: number) => string;
+    tableFromFile: (file: string, count: number) => string;
+    /** Introduces one real pair of the table. */
+    tableExample: string;
+    tableBody: string;
+    tableSaveHint: string;
+    tableFromFileNote: string;
+    tableFromFileNoteAlone: string;
+    tableImport: string;
+    tableUseCurrent: string;
+    tableRemove: string;
+    tableInvalid: string;
+    /** A new redaction put a loaded table away. */
+    tableDroppedToast: string;
+    loadEarlier: string;
+  };
+  /** T261: the protected result left the page, its replacement table exists only in this tab. */
+  tableReminder: {
+    title: string;
+    body: string;
+    dismiss: string;
+    never: string;
+    /** Toast after "Don't remind me again": where it can be switched back on. */
+    offToast: string;
+    /** Question before "Clear" or removing the file throws away a table that was never saved. */
+    clearConfirm: string;
+  };
+  /** T265: spreadsheets. */
+  xlsx: {
+    /** Heading of the notice shown for a loaded workbook. */
+    title: string;
+    /** What is checked, with the count of date cells and of long numbers read as identifiers. */
+    checked: (dates: number, identifiers: number) => string;
+    sheetNames: string;
+    /** Number cells that are not checked and stay readable. */
+    notChecked: (count: number) => string;
+    /** At the result of a workbook with number cells that were not checked (in place of "safe to share"). */
+    resultWarning: (count: number) => string;
+    /** Opens the list of the unchecked cells (sheet, address, value). */
+    showCells: string;
+    /** Toast after downloading a workbook that keeps unchecked number cells readable. */
+    downloadedUnchecked: (count: number) => string;
+    formulasNote: string;
+    invalid: string;
+    sheetsRenamed: (names: string, count: number) => string;
   };
   footer: {
     offlineMessage: string;
@@ -190,6 +370,8 @@ export interface Translations {
   };
   toast: {
     copiedToClipboard: string;
+    /** Accessible name of the button that closes a toast. */
+    dismiss: string;
     cleared: string;
     redactionRemoved: string;
     undo: string;

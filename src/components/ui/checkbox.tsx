@@ -1,6 +1,6 @@
 import * as React from "react"
 import * as CheckboxPrimitive from "@radix-ui/react-checkbox"
-import { Check } from "lucide-react"
+import { Check, Minus } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
@@ -11,7 +11,7 @@ const Checkbox = React.forwardRef<
   <CheckboxPrimitive.Root
     ref={ref}
     className={cn(
-      "peer h-4 w-4 shrink-0 border border-[#111111] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-[#111111] data-[state=checked]:text-[#F9F9F7] data-[state=checked]:border-[#111111] cursor-pointer",
+      "peer h-4 w-4 shrink-0 border border-[#111111] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 group data-[state=checked]:bg-[#111111] data-[state=checked]:text-[#F9F9F7] data-[state=checked]:border-[#111111] data-[state=indeterminate]:bg-[#111111] data-[state=indeterminate]:text-[#F9F9F7] cursor-pointer",
       className
     )}
     {...props}
@@ -19,7 +19,9 @@ const Checkbox = React.forwardRef<
     <CheckboxPrimitive.Indicator
       className={cn("flex items-center justify-center text-current")}
     >
-      <Check className="h-3.5 w-3.5" />
+      {/* Some of a group: a dash (checked="indeterminate"), all of it: a tick. */}
+      <Check className="h-3.5 w-3.5 group-data-[state=indeterminate]:hidden" />
+      <Minus className="h-3.5 w-3.5 hidden group-data-[state=indeterminate]:block" />
     </CheckboxPrimitive.Indicator>
   </CheckboxPrimitive.Root>
 ))

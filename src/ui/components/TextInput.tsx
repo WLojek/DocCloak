@@ -16,6 +16,15 @@ interface TextInputProps {
   entities: DetectedEntity[];
   onAddEntity?: (start: number, end: number, type: EntityType) => void;
   onRemoveEntity?: (index: number) => void;
+  /** Places of `entities` that are found but not redacted: drawn differently, they stay readable. */
+  keptIndices?: Set<number>;
+  /**
+   * Redact a place or leave it readable. When given, a click on a detected value does this
+   * instead of removing the detection: a removed one left no trace in the list or in any count.
+   */
+  onToggleEntity?: (index: number) => void;
+  /** A result exists for this text: the "ready, click Redact" hint is over. */
+  hasResult?: boolean;
   fileName?: string | null;
   onLoadFile?: (file: File) => Promise<LoadFileResult>;
   onRemoveFile?: () => void;
@@ -64,10 +73,17 @@ function buildWordSpans(text: string, entities: DetectedEntity[]): WordSpan[] {
   return spans;
 }
 
-export function TextInput({ value, onChange, onClear, entities, onAddEntity, onRemoveEntity, fileName, onLoadFile, onRemoveFile }: TextInputProps) {
+export function TextInput({ value, onChange, onClear, entities, onAddEntity, onRemoveEntity, keptIndices, onToggleEntity, hasResult, fileName, onLoadFile, onRemoveFile }: TextInputProps) {
   const { t } = useTranslation();
   const { showToast } = useToast();
   const wordCount = value.trim() ? value.trim().split(/\s+/).length : 0;
+  // The list as it is now, for the Undo of a click on a value (it outlives the render it was made in).
+  const entitiesRef = useRef(entities);
+  entitiesRef.current = entities;
+  const keptRef = useRef(keptIndices);
+  keptRef.current = keptIndices;
+  // Where the mouse button went down on a found value: a press that moved is a selection.
+  const pressAt = useRef<{ x: number; y: number } | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -254,7 +270,7 @@ export function TextInput({ value, onChange, onClear, entities, onAddEntity, onR
         <input
           ref={fileInputRef}
           type="file"
-          accept=".doc,.docx,.pdf,.png,.jpg,.jpeg,.webp,.bmp,.gif"
+          accept=".doc,.docx,.xlsx,.pdf,.png,.jpg,.jpeg,.webp,.bmp,.gif"
           onChange={handleFileUpload}
           className="hidden"
         />
@@ -287,8 +303,28 @@ export function TextInput({ value, onChange, onClear, entities, onAddEntity, onR
                 const entityIndex = entities.findIndex(
                   (e) => e.start === span.entity!.start && e.end === span.entity!.end
                 );
+                const kept = entityIndex !== -1 && (keptIndices?.has(entityIndex) ?? false);
                 const removeWithUndo = () => {
-                  if (!onRemoveEntity || entityIndex === -1) return;
+                  if (entityIndex === -1) return;
+                  if (onToggleEntity) {
+                    // Same as the box in the list: the place stays listed, counted and marked.
+                    onToggleEntity(entityIndex);
+                    const place = span.entity!;
+                    showToast(kept ? t.entityTable.redactedToast(1) : t.entityTable.keptToast(1), {
+                      label: t.toast.undo,
+                      // Undo acts on this place, wherever it stands in the list by then (a value
+                      // marked by hand in between moves the numbers), and only while the place is
+                      // still as this click left it.
+                      onClick: () => {
+                        const now = entitiesRef.current.findIndex((e) => e.start === place.start && e.end === place.end && e.value === place.value);
+                        if (now === -1) return;
+                        const keptNow = keptRef.current?.has(now) ?? false;
+                        if (keptNow === !kept) onToggleEntity(now);
+                      },
+                    });
+                    return;
+                  }
+                  if (!onRemoveEntity) return;
                   const removed = span.entity!;
                   onRemoveEntity(entityIndex);
                   showToast(t.toast.redactionRemoved, {
@@ -304,9 +340,19 @@ export function TextInput({ value, onChange, onClear, entities, onAddEntity, onR
                     className="entity-highlight-animate focus:outline focus:outline-2 focus:outline-[#111111]"
                     role="button"
                     tabIndex={0}
-                    aria-label={`${t.textInput.removeRedaction}: ${span.text}`}
+                    aria-label={`${kept ? t.entityTable.include : onToggleEntity ? t.entityTable.dontRedactThese(1) : t.textInput.removeRedaction}: ${span.text}`}
+                    onMouseDown={(e) => { pressAt.current = { x: e.clientX, y: e.clientY }; }}
                     onClick={(e) => {
                       e.stopPropagation();
+                      // A drag that selects part of the value is a selection (the "Mark as" picker
+                      // opens for it), not a click: it must not leave the value readable. The
+                      // selection itself is gone by now (the picker takes it), so the gesture is
+                      // told by where the button went down and where it came up.
+                      const down = pressAt.current;
+                      pressAt.current = null;
+                      if (down && (Math.abs(e.clientX - down.x) > 4 || Math.abs(e.clientY - down.y) > 4)) return;
+                      const selection = window.getSelection();
+                      if (selection && !selection.isCollapsed) return;
                       removeWithUndo();
                     }}
                     onKeyDown={(e) => {
@@ -315,12 +361,16 @@ export function TextInput({ value, onChange, onClear, entities, onAddEntity, onR
                         removeWithUndo();
                       }
                     }}
-                    title={t.textInput.removeRedaction}
+                    title={kept ? `${t.entityTable.keptChip}. ${t.entityTable.include}` : onToggleEntity ? t.entityTable.dontRedactThese(1) : t.textInput.removeRedaction}
+                    data-kept={kept ? 'true' : undefined}
                     style={{
                       // Tinted block in the type's own color: more visible than the ink block was.
-                      backgroundColor: ENTITY_COLORS[span.entity.type] + '30',
-                      borderBottom: `2px solid ${ENTITY_COLORS[span.entity.type]}`,
-                      color: ENTITY_COLORS[span.entity.type],
+                      // A place that is found but not redacted has no tint and a dashed amber line:
+                      // it used to look exactly like a redacted one.
+                      backgroundColor: kept ? 'transparent' : ENTITY_COLORS[span.entity.type] + '30',
+                      borderBottom: kept ? '2px dashed #8A6508' : `2px solid ${ENTITY_COLORS[span.entity.type]}`,
+                      // The word stays dark: in the type's colour it measured 3.45 to 4.35:1 on the tint.
+                      color: '#111111',
                       padding: '1px 3px',
                       cursor: 'pointer',
                       '--mark-color': ENTITY_COLORS[span.entity.type] + '70',
@@ -420,11 +470,11 @@ export function TextInput({ value, onChange, onClear, entities, onAddEntity, onR
           {value ? t.textInput.wordCount(wordCount) : '\u00A0'}
         </p>
         <div className="flex items-center gap-3">
-          {value && !hasEntities && (
-            <p className="label-meta text-[#2D6A4F]/70">{t.textInput.readyToRedact}</p>
+          {value && !hasEntities && !hasResult && (
+            <p className="label-meta text-[#2D6A4F]">{t.textInput.readyToRedact}</p>
           )}
           {hasEntities && (
-            <p className="label-meta text-muted-foreground/60">{t.textInput.selectToTag}</p>
+            <p className="label-meta text-[#525252]">{t.textInput.selectToTag}</p>
           )}
         </div>
       </div>

@@ -15,7 +15,11 @@ import { DictionaryBar } from './ui/components/DictionaryBar.tsx';
 import { Lock, Settings, ArrowRight, Plus, X, ChevronDown, Check, Info, FileText, Image as ImageIcon, Download, Github, RotateCw } from 'lucide-react';
 import { isImageFile } from '@doccloak/core/dom';
 import { UnredactableNotice } from './ui/components/UnredactableNotice.tsx';
-import { fileErrorCode, fileErrorMessage, pdfDownloadName } from './ui/hooks/useAnonymizer.ts';
+import { TableReminder } from './ui/components/TableReminder.tsx';
+import { SpreadsheetNotice } from './ui/components/SpreadsheetNotice.tsx';
+import { ALL_ENTITY_TYPES } from './ui/keepTypes.ts';
+import { ENTITY_COLORS } from '@doccloak/core';
+import { fileErrorCode, fileErrorMessage, pdfDownloadName, xlsxDownloadName } from './ui/hooks/useAnonymizer.ts';
 import logoSrc from './ui/assets/doc-cloak-logo-light.png';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useToast } from './ui/components/Toast.tsx';
@@ -64,8 +68,17 @@ export default function App() {
     addManualEntity,
     removeEntity,
     renameLabel,
+    resetLabel,
+    renamedOriginals,
+    keptRanges,
     toggleEntity,
-    deanonymize,
+    setEntitiesExcluded,
+    restoreText,
+    restoreDocx,
+    exportMapping,
+    importMapping,
+    importedMapping,
+    clearImportedMapping,
     clear,
     threshold,
     replacementMode,
@@ -87,6 +100,7 @@ export default function App() {
     docxFileName,
     fileName,
     hasDocxExtraction,
+    hasXlsxExtraction,
     hasPdfExtraction,
     hasDocumentExtraction,
     pdfRemoved,
@@ -95,8 +109,23 @@ export default function App() {
     ocrPages,
     loadFile,
     exportDocx,
+    exportXlsx,
     exportPdf,
     exportRedactedImage,
+    keepTypes,
+    handleKeepTypesChange,
+    markResultTakenOut,
+    dismissTableReminder,
+    tableReminder,
+    tableReminderEnabled,
+    setTableReminderEnabled,
+    tableUnsaved,
+    tableVersion,
+    resultTakenOut,
+    droppedCount,
+    keepDroppedRedacted,
+    dismissDropped,
+    xlsxInfo,
     removeFile,
     retryModelLoad,
     modelConsented,
@@ -109,6 +138,28 @@ export default function App() {
   } = useAnonymizer();
 
   const { showToast } = useToast();
+
+  // Places found that are not redacted: they leave the page readable with every copy and download.
+  const keptPlaces = [...excludedIndices].filter((index) => index < entities.length);
+  const keptCount = keptPlaces.length;
+  // One reason for all of them (a type set to never be redacted) is said with the count.
+  const keptTypes = [...new Set(keptPlaces.map((index) => entities[index].type))];
+  const keptReason = keptCount > 0 && keptTypes.every((type) => keepTypes.includes(type))
+    ? t.textOutput.keptBySetting(keptTypes.map((type) => t.entityLabels[type]).join(', '))
+    : undefined;
+  const uncheckedCells = xlsxInfo?.otherNumberCells ?? 0;
+  const keptCountRef = useRef(keptCount);
+  keptCountRef.current = keptCount;
+  const downloadedMessage = useCallback(
+    () => (keptCountRef.current > 0 ? t.textOutput.downloadedKept(keptCountRef.current) : t.textOutput.downloaded),
+    [t],
+  );
+
+  // The line at the result ("Review the list" / "Show what stays readable") opens the list below.
+  const [listReveal, setListReveal] = useState<{ kept: boolean; nonce: number }>();
+  const revealList = useCallback((kept: boolean) => {
+    setListReveal((previous) => ({ kept, nonce: (previous?.nonce ?? 0) + 1 }));
+  }, []);
 
   // T222: Escape cancels the running detection (the overlay is modal).
   // Offline start (T238): once the model has loaded, the service worker must hold the ONNX Runtime files.
@@ -179,7 +230,8 @@ export default function App() {
       const ext = docxFileName?.match(/\.(docx?)$/i)?.[1] ?? 'docx';
       const baseName = docxFileName?.replace(/\.(docx?)$/i, '') ?? 'document';
       triggerBlobDownload(blob, `${baseName}_redacted.${ext}`);
-      showToast(t.textOutput.downloaded);
+      markResultTakenOut();
+      showToast(downloadedMessage());
     } catch (err) {
       console.error('[DocCloak] Export failed:', err);
       const code = fileErrorCode(err);
@@ -187,7 +239,43 @@ export default function App() {
     } finally {
       setDownloading(false);
     }
-  }, [exportDocx, docxFileName, triggerBlobDownload, showToast, t]);
+  }, [exportDocx, docxFileName, triggerBlobDownload, markResultTakenOut, showToast, t, downloadedMessage]);
+
+  // Spreadsheet (T265): same flow as docx.
+  const handleDownloadXlsx = useCallback(async () => {
+    setDownloading(true);
+    try {
+      const blob = await exportXlsx();
+      triggerBlobDownload(blob, xlsxDownloadName(fileName));
+      markResultTakenOut();
+      // A workbook can carry number cells nobody checked: said with the download when nothing else is.
+      // Both, when both are true: places left readable, and number cells nobody checked.
+      showToast(uncheckedCells === 0
+        ? downloadedMessage()
+        : keptCountRef.current === 0
+          ? t.xlsx.downloadedUnchecked(uncheckedCells)
+          : `${downloadedMessage()} ${t.xlsx.notChecked(uncheckedCells)}`);
+    } catch (err) {
+      console.error('[DocCloak] Workbook export failed:', err);
+      const code = fileErrorCode(err);
+      showToast(code ? fileErrorMessage(t, code) : (t.textOutput.exportFailed ?? 'Export failed.'));
+    } finally {
+      setDownloading(false);
+    }
+  }, [exportXlsx, fileName, triggerBlobDownload, markResultTakenOut, showToast, t, downloadedMessage, uncheckedCells]);
+
+  // T261: the replacement table as a file, from where the protected file is taken (and from the reminder).
+  const [tableJustSaved, setTableJustSaved] = useState(false);
+  const handleSaveTable = useCallback(() => {
+    const table = exportMapping();
+    if (!table) return;
+    triggerBlobDownload(table.blob, table.downloadName);
+    setTableJustSaved(true);
+    // Said every time: pasted text has no file bar whose button could change, and the reminder just goes away.
+    showToast(t.textOutput.tableSaved);
+  }, [exportMapping, triggerBlobDownload, showToast, t]);
+  // A changed table is not the saved one any more.
+  useEffect(() => setTableJustSaved(false), [entries]);
 
   // PDF (T216): same flow as docx; a verify-failed or stale-extraction error
   // from the writer maps to its own translated message and nothing is saved.
@@ -197,7 +285,8 @@ export default function App() {
     try {
       const blob = await exportPdf();
       triggerBlobDownload(blob, pdfDownloadName(fileName));
-      showToast(t.textOutput.downloaded);
+      markResultTakenOut();
+      showToast(downloadedMessage());
     } catch (err) {
       console.error('[DocCloak] PDF export failed:', err);
       const code = fileErrorCode(err);
@@ -205,7 +294,7 @@ export default function App() {
     } finally {
       setDownloading(false);
     }
-  }, [exportPdf, fileName, triggerBlobDownload, showToast, t]);
+  }, [exportPdf, fileName, triggerBlobDownload, markResultTakenOut, showToast, t, downloadedMessage]);
 
   const handleDownloadImage = useCallback(async () => {
     if (!exportRedactedImage) return;
@@ -214,14 +303,15 @@ export default function App() {
       const blob = await exportRedactedImage();
       const baseName = fileName?.replace(/\.[^.]+$/, '') ?? 'image';
       triggerBlobDownload(blob, `${baseName}_redacted.png`);
-      showToast(t.textOutput.downloaded);
+      markResultTakenOut();
+      showToast(downloadedMessage());
     } catch (err) {
       console.error('[DocCloak] Image export failed:', err);
       showToast(t.textOutput.exportFailed ?? 'Export failed.');
     } finally {
       setDownloading(false);
     }
-  }, [exportRedactedImage, fileName, triggerBlobDownload, showToast, t]);
+  }, [exportRedactedImage, fileName, triggerBlobDownload, markResultTakenOut, showToast, t, downloadedMessage]);
 
   // Keyboard shortcut: Cmd+Enter / Ctrl+Enter to redact
   useEffect(() => {
@@ -238,8 +328,16 @@ export default function App() {
   }, [inputText, modelLoaded, anonymizing, anonymize, unredactablePending]);
 
   // Clear with undo
+  // "Clear" and removing the file throw the table away. When the result is already out and the
+  // table was never saved, that is the only way back to the original data: ask first.
+  const mayLoseTable = useCallback(() => !tableUnsaved || window.confirm(t.tableReminder.clearConfirm), [tableUnsaved, t]);
+  const handleRemoveFile = useCallback(() => {
+    if (mayLoseTable()) removeFile();
+  }, [mayLoseTable, removeFile]);
+
   const handleClear = useCallback(() => {
     if (!inputText) return;
+    if (!mayLoseTable()) return;
     clearSnapshotRef.current = { text: inputText, anonymized: anonymizedText, entities, entries };
     clear();
     showToast(t.toast.cleared, {
@@ -252,7 +350,7 @@ export default function App() {
         }
       },
     });
-  }, [inputText, anonymizedText, entities, entries, clear, handleInputChange, showToast, t]);
+  }, [inputText, anonymizedText, entities, entries, clear, handleInputChange, showToast, t, mayLoseTable]);
 
   const handleAddLabel = () => {
     const label = newLabelInput.trim().toLowerCase();
@@ -537,6 +635,54 @@ export default function App() {
                       <p className="text-[10px] text-muted-foreground mt-2 leading-snug">{t.settings.regexRegionHint}</p>
                     )}
                   </div>
+                  {/* T263: types that are never anonymized. The same list as in the bar of detections,
+                      reachable before any document is open. */}
+                  <div className="border-t border-[#E5E5E0] pt-3" data-testid="settings-never">
+                    <p className="text-xs font-medium text-[#111111]">{t.settings.neverTitle}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5 leading-snug">{t.settings.neverDescription}</p>
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {ALL_ENTITY_TYPES.map((type) => {
+                        const on = keepTypes.includes(type);
+                        return (
+                          <button
+                            key={type}
+                            type="button"
+                            aria-pressed={on}
+                            onClick={() => handleKeepTypesChange(on ? keepTypes.filter((kept) => kept !== type) : [...keepTypes, type])}
+                            className={`inline-flex items-center gap-1.5 px-2.5 md:px-2 min-h-11 md:min-h-6 text-xs font-medium border cursor-pointer transition-colors ${
+                              on ? 'border-[#111111] bg-[#111111] text-[#F9F9F7]' : 'border-[#C8C5BC] bg-white text-[#525252] hover:border-[#111111] hover:text-[#111111]'
+                            }`}
+                          >
+                            <span className="w-2 h-2" style={{ backgroundColor: ENTITY_COLORS[type] }} aria-hidden="true" />
+                            {t.entityLabels[type]}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  {/* The reminder can be switched off in the reminder itself; this is the way back. */}
+                  <div className="border-t border-[#E5E5E0] pt-3">
+                    <label className="flex items-center justify-between gap-3 cursor-pointer">
+                      <div>
+                        <p className="text-xs font-medium text-[#111111]">{t.settings.reminderTitle}</p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5 leading-snug">{t.settings.reminderDescription}</p>
+                      </div>
+                      <button
+                        role="switch"
+                        aria-checked={tableReminderEnabled}
+                        aria-label={t.settings.reminderTitle}
+                        data-testid="settings-reminder"
+                        onClick={() => setTableReminderEnabled(!tableReminderEnabled)}
+                        className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer border-2 border-transparent transition-colors ${
+                          tableReminderEnabled ? 'bg-[#111111]' : 'bg-[#C8C5BC]'
+                        }`}
+                      >
+                        <span className={`pointer-events-none inline-block h-4 w-4 bg-white shadow-sm transition-transform ${
+                          tableReminderEnabled ? 'translate-x-4' : 'translate-x-0'
+                        }`} />
+                      </button>
+                    </label>
+                  </div>
                   <OcrWorkersSetting />
                   {/* Heavier rule: detection settings above, output settings below */}
                   <div className="border-t-2 border-[#111111] pt-3">
@@ -697,6 +843,9 @@ export default function App() {
           />
         )}
 
+        {/* Workbook (T265): what was checked and what was not, shown as soon as the file is read. */}
+        {hasXlsxExtraction && xlsxInfo && <SpreadsheetNotice info={xlsxInfo} />}
+
         {/* PDF (T216): parts the writer drops from the export instead of redacting them
             (annotations, forms, bookmarks, ...). Informational: nothing to decide. */}
         {hasPdfExtraction && pdfRemoved.length > 0 && (
@@ -734,12 +883,43 @@ export default function App() {
               </div>
               <p className="text-xs text-[#111111] truncate font-medium">{fileName}</p>
             </div>
-            <div className="flex items-center justify-end px-4 py-2">
+            <div className="flex flex-wrap items-center justify-end gap-2 px-4 py-2">
+              {/* Next to the download, not a document away from it: what the file will carry readable. */}
+              {keptCount > 0 && !anonymizing && (
+                <button
+                  onClick={() => revealList(true)}
+                  data-testid="filebar-kept"
+                  className="pressable flex items-center px-3 py-1.5 min-h-11 md:min-h-0 border border-[#8A6508] bg-[#F6EFD9] text-[#111111] hover:bg-[#111111] hover:text-[#F9F9F7] hover:border-[#111111] transition-colors cursor-pointer text-xs font-medium text-left"
+                >
+                  {t.textOutput.filebarKept(keptCount)}
+                </button>
+              )}
+              {/* T261: the table goes out where the protected file goes out. */}
+              {replacementMode === 'labeled' && entries.length > 0 && (
+                <button
+                  onClick={handleSaveTable}
+                  data-testid="filebar-save-table"
+                  className="pressable flex items-center gap-2 px-3 py-1.5 min-h-11 md:min-h-0 border border-transparent text-[#111111] underline underline-offset-2 hover:border-[#C8C5BC] hover:no-underline transition-colors cursor-pointer text-xs font-medium"
+                >
+                  {tableJustSaved ? <Check className="w-3 h-3" /> : <Download className="w-3 h-3" />}
+                  {tableJustSaved ? t.textOutput.tableSaved : t.textOutput.saveTable}
+                </button>
+              )}
+              {hasXlsxExtraction && (
+                <button
+                  onClick={handleDownloadXlsx}
+                  disabled={downloading || unredactablePending}
+                  className="pressable flex items-center gap-2 px-3 py-1.5 min-h-11 md:min-h-0 border border-[#C8C5BC] bg-[#FFFFFF] text-[#111111] hover:bg-[#111111] hover:text-[#F9F9F7] hover:border-[#111111] transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-xs font-medium"
+                >
+                  <Download className="w-3 h-3" />
+                  {t.textOutput.downloadDocx}
+                </button>
+              )}
               {hasDocxExtraction && (
                 <button
                   onClick={handleDownloadDocx}
                   disabled={downloading || unredactablePending}
-                  className="pressable flex items-center gap-2 px-3 py-1.5 border border-[#C8C5BC] bg-[#FFFFFF] text-[#111111] hover:bg-[#111111] hover:text-[#F9F9F7] hover:border-[#111111] transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-xs font-medium"
+                  className="pressable flex items-center gap-2 px-3 py-1.5 min-h-11 md:min-h-0 border border-[#C8C5BC] bg-[#FFFFFF] text-[#111111] hover:bg-[#111111] hover:text-[#F9F9F7] hover:border-[#111111] transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-xs font-medium"
                 >
                   <Download className="w-3 h-3" />
                   {t.textOutput.downloadDocx}
@@ -749,7 +929,7 @@ export default function App() {
                 <button
                   onClick={handleDownloadPdf}
                   disabled={downloading || unredactablePending}
-                  className="pressable flex items-center gap-2 px-3 py-1.5 border border-[#C8C5BC] bg-[#FFFFFF] text-[#111111] hover:bg-[#111111] hover:text-[#F9F9F7] hover:border-[#111111] transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-xs font-medium"
+                  className="pressable flex items-center gap-2 px-3 py-1.5 min-h-11 md:min-h-0 border border-[#C8C5BC] bg-[#FFFFFF] text-[#111111] hover:bg-[#111111] hover:text-[#F9F9F7] hover:border-[#111111] transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-xs font-medium"
                 >
                   <Download className="w-3 h-3" />
                   {t.textOutput.downloadPdf}
@@ -759,7 +939,7 @@ export default function App() {
                 <button
                   onClick={handleDownloadImage}
                   disabled={downloading}
-                  className="pressable flex items-center gap-2 px-3 py-1.5 border border-[#C8C5BC] bg-[#FFFFFF] text-[#111111] hover:bg-[#111111] hover:text-[#F9F9F7] hover:border-[#111111] transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-xs font-medium"
+                  className="pressable flex items-center gap-2 px-3 py-1.5 min-h-11 md:min-h-0 border border-[#C8C5BC] bg-[#FFFFFF] text-[#111111] hover:bg-[#111111] hover:text-[#F9F9F7] hover:border-[#111111] transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-xs font-medium"
                 >
                   <Download className="w-3 h-3" />
                   {t.textOutput.downloadImage}
@@ -776,13 +956,18 @@ export default function App() {
           </div>
         )}
 
+        {/* T261: the protected result left the page, its table exists only in this tab. Right under
+            the download and above the text, where the eye is after the click (under a long document
+            it would never be seen). */}
+        {tableReminder && <TableReminder onSave={handleSaveTable} onDismiss={dismissTableReminder} />}
+
         {/* Document panels */}
-        <div className={`grid grid-cols-1 md:grid-cols-2 gap-0 border border-[#C8C5BC] bg-[#FFFFFF] ${fileName && anonymizedText ? 'border-t-0' : ''}`}>
+        <div className={`grid grid-cols-1 md:grid-cols-2 gap-0 border border-[#C8C5BC] bg-[#FFFFFF] ${(fileName && anonymizedText) || tableReminder ? 'border-t-0' : ''}`}>
           <div className="md:border-r border-[#C8C5BC] bg-[#FFFFFF] flex flex-col">
-            <TextInput value={inputText} onChange={handleInputChange} onClear={handleClear} entities={entities} onAddEntity={addManualEntity} onRemoveEntity={removeEntity} fileName={fileName} onLoadFile={loadFile} onRemoveFile={removeFile} />
+            <TextInput value={inputText} onChange={handleInputChange} onClear={handleClear} entities={entities} onAddEntity={addManualEntity} onRemoveEntity={removeEntity} onToggleEntity={toggleEntity} keptIndices={excludedIndices} hasResult={anonymizedText !== ''} fileName={fileName} onLoadFile={loadFile} onRemoveFile={handleRemoveFile} />
           </div>
           <div className="bg-[#FFFFFF] border-t md:border-t-0 border-[#C8C5BC] flex flex-col">
-            <TextOutput value={anonymizedText} entries={entries} loading={anonymizing} />
+            <TextOutput value={anonymizedText} entries={entries} replacedPlaces={entities.length - keptCount} foundPlaces={entities.length} onReviewList={revealList} keptReason={keptReason} keptRanges={keptRanges} fileLoaded={Boolean(fileName)} droppedCount={droppedCount} onKeepDropped={keepDroppedRedacted} onDismissDropped={dismissDropped} uncheckedCells={hasXlsxExtraction ? xlsxInfo?.otherNumberCells ?? 0 : 0} loading={anonymizing} onCopied={markResultTakenOut} />
           </div>
         </div>
 
@@ -850,8 +1035,15 @@ export default function App() {
             entities={entities}
             entries={entries}
             excludedIndices={excludedIndices}
+            text={inputText}
             onToggle={toggleEntity}
+            onSetExcluded={setEntitiesExcluded}
             onRenameLabel={renameLabel}
+            renamedValues={renamedOriginals}
+            onResetLabel={resetLabel}
+            keepTypes={keepTypes}
+            onKeepTypesChange={handleKeepTypesChange}
+            reveal={listReveal}
           />
         )}
 
@@ -920,18 +1112,32 @@ export default function App() {
         </div>
         )}
 
-        {/* Step 2: De-anonymize (only in labeled mode) */}
-        {replacementMode === 'labeled' && entries.length > 0 && (
-          <div className="mt-16">
-            <div className="mb-6 border-b border-[#E5E5E0] pb-4">
-              <h2 className="font-serif text-2xl font-medium text-[#111111] tracking-tight leading-tight">{t.step2.title}</h2>
-              <p className="text-sm text-muted-foreground mt-1.5 leading-relaxed max-w-2xl">{t.step2.description}</p>
-              <p className="text-xs text-muted-foreground/70 mt-1 leading-relaxed max-w-2xl">{t.step2.example}</p>
-            </div>
+        {/* Step 2: De-anonymize (only in labeled mode). With a replacement table (the current
+            document's, or one loaded from a file) the whole panel shows; without one only the
+            way in for a table saved earlier (WLojek/DocCloak#3). */}
+        {replacementMode === 'labeled' && (
+          <div className={entries.length > 0 || importedMapping ? 'mt-16' : 'mt-6'}>
+            {(entries.length > 0 || importedMapping) && (
+              <div className="mb-6 border-b border-[#E5E5E0] pb-4">
+                <h2 className="font-serif text-2xl font-medium text-[#111111] tracking-tight leading-tight">{t.step2.title}</h2>
+                <p className="text-sm text-muted-foreground mt-1.5 leading-relaxed max-w-2xl">{t.step2.description}</p>
+                <p className="text-xs text-muted-foreground/70 mt-1 leading-relaxed max-w-2xl">{t.step2.example}</p>
+              </div>
+            )}
 
             <DeAnonymize
-              onDeanonymize={deanonymize}
+              onRestoreText={restoreText}
               hasMapping={entries.length > 0}
+              mappingCount={entries.length}
+              mappingSample={entries.length > 0 ? { replacement: entries[0].replacement, original: entries[0].original } : null}
+              onRestoreDocx={restoreDocx}
+              onExportMapping={exportMapping}
+              onImportMapping={importMapping}
+              importedMapping={importedMapping}
+              onClearImportedMapping={clearImportedMapping}
+              onDownload={triggerBlobDownload}
+              tableVersion={tableVersion}
+              resultTakenOut={resultTakenOut}
             />
           </div>
         )}
