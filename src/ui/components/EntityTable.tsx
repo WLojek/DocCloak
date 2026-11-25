@@ -5,6 +5,9 @@ import { Card } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ChevronDown, RotateCcw, Search, X } from 'lucide-react';
 import { useTranslation } from '../../i18n/LanguageContext.tsx';
+import { useFeatureStrings } from '../../i18n/features/index.ts';
+import { retypeStrings } from '../../i18n/features/retype.ts';
+import { useRetypeMenu } from '../hooks/useRetypeMenu.tsx';
 import { useToast } from './Toast.tsx';
 
 /**
@@ -67,6 +70,11 @@ interface EntityTableProps {
   onSetExcluded: (indices: number[], excluded: boolean) => void;
   /** Returns the reason when the label is refused; the field then stays open and shows it. */
   onRenameLabel: (original: string, newLabel: string) => string | null | void;
+  /**
+   * Give every place of a value another type (WLojek/DocCloak#5). When given, the type of a row
+   * opens the menu of types.
+   */
+  onChangeType?: (value: string, type: EntityType) => void;
   /** Types that are never anonymized, also in the next documents (T263). */
   keepTypes: EntityType[];
   onKeepTypesChange: (types: EntityType[]) => void;
@@ -88,6 +96,7 @@ export function EntityTable({
   onToggle,
   onSetExcluded,
   onRenameLabel,
+  onChangeType,
   keepTypes,
   onKeepTypesChange,
   renamedValues,
@@ -95,6 +104,7 @@ export function EntityTable({
   reveal,
 }: EntityTableProps) {
   const { t } = useTranslation();
+  const retypeText = useFeatureStrings(retypeStrings);
   const { showToast } = useToast();
   // The one cell being renamed: its value group and layout. Every group exists in both layouts; an
   // input in each would take the focus from the other and close the edit at once.
@@ -224,6 +234,16 @@ export function EntityTable({
   const allChipRef = useRef<HTMLButtonElement>(null);
   const neverNoteRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  // WLojek/DocCloak#5: the menu of types, opened from the type of a row. A row that leaves the
+  // filtered list with its new type hands the focus to "All", like the other controls that go away.
+  const retype = useRetypeMenu({
+    text,
+    entities,
+    excluded: excludedIndices,
+    onChangeType,
+    onSetExcluded,
+    focusFallback: () => allChipRef.current,
+  });
   // The control last pressed in the list (a box of a row sits below the bar: when the bar grows by
   // a row of chips, it is the pressed box that must stay under the finger, measured 50 px on a phone).
   const pressedRef = useRef<Element | null>(null);
@@ -476,16 +496,47 @@ export function EntityTable({
     </>);
   };
 
-  /** Type badge: the colour is carried by the square and the tint, the word stays dark (4.5:1 and more). */
-  const renderType = (type: EntityType) => (
-    <span
-      className="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs font-medium text-[#111111]"
-      style={{ backgroundColor: ENTITY_COLORS[type] + '25' }}
-    >
-      <span className="w-2 h-2 shrink-0" style={{ backgroundColor: ENTITY_COLORS[type] }} aria-hidden="true" />
-      {t.entityLabels[type]}
-    </span>
-  );
+  /**
+   * Type badge: the colour is carried by the square and the tint, the word stays dark (4.5:1 and more).
+   * With a way to change the type it is a button that opens the menu of types: the same badge with
+   * a small arrow, so the list looks as it did. Its size is the badge's; the area that takes a
+   * press is 44 px tall under a finger (as for the boxes).
+   */
+  const renderType = (group: ValueGroup, layout: 'table' | 'card') => {
+    const { type } = group;
+    const badge = 'inline-flex items-center gap-1.5 px-2 py-0.5 text-xs font-medium text-[#111111]';
+    const square = <span className="w-2 h-2 shrink-0" style={{ backgroundColor: ENTITY_COLORS[type] }} aria-hidden="true" />;
+    if (!retype.enabled) {
+      return (
+        <span className={badge} style={{ backgroundColor: ENTITY_COLORS[type] + '25' }}>
+          {square}
+          {t.entityLabels[type]}
+        </span>
+      );
+    }
+    const focusKey = `${layout}:${group.value}`;
+    return (
+      <button
+        type="button"
+        onClick={(e) => {
+          const box = e.currentTarget.getBoundingClientRect();
+          retype.open({ value: group.value, type, x: box.left, y: box.bottom + 4, yAbove: box.top - 4, opener: e.currentTarget, focusKey });
+        }}
+        aria-haspopup="dialog"
+        aria-expanded={retype.openFor === group.value}
+        aria-label={retypeText.change(t.entityLabels[type], group.value)}
+        title={retypeText.heading}
+        data-retype={focusKey}
+        data-testid="entity-type-change"
+        className={`${badge} relative cursor-pointer hover:shadow-[0_0_0_1px_#111111] transition-shadow after:absolute after:content-[''] after:inset-x-0 after:-inset-y-3 md:after:-inset-y-0.5`}
+        style={{ backgroundColor: ENTITY_COLORS[type] + '25' }}
+      >
+        {square}
+        {t.entityLabels[type]}
+        <ChevronDown className="w-3 h-3 -mr-0.5 text-[#525252]" aria-hidden="true" />
+      </button>
+    );
+  };
 
   /** State of a value's box: every place redacted, none, or some. */
   const groupState = (group: ValueGroup): boolean | 'indeterminate' => {
@@ -774,7 +825,7 @@ export function EntityTable({
                   data-state={state === true ? 'redacted' : state === false ? 'kept' : 'mixed'}
                   className={`border-b border-[#E5E5E0] hover:bg-[#E5E5E0]/20 transition-colors ${open ? '' : 'last:border-0'}`}
                 >
-                  <td className="p-3">{renderType(group.type)}</td>
+                  <td className="p-3">{renderType(group, 'table')}</td>
                   <td className="p-3 text-[#525252] text-xs font-mono">{renderLabel(group, 'table')}</td>
                   <td className="p-3 text-foreground font-mono text-xs">
                     <span className="[overflow-wrap:anywhere]">{group.value}</span>
@@ -820,7 +871,7 @@ export function EntityTable({
               <div key={`m-${group.key}`} className="p-3 space-y-2">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    {renderType(group.type)}
+                    {renderType(group, 'card')}
                     <span className="ml-auto mr-3 text-xs text-[#525252]" aria-hidden="true">{t.entityTable.include}</span>
                     <Checkbox
                       checked={state}
@@ -856,6 +907,7 @@ export function EntityTable({
       </Card>
         </div>
       </div>
+      {retype.menu}
     </div>
   );
 }

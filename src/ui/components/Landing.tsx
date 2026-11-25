@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Scale, Briefcase, Stethoscope, Users, Lock, ShieldCheck, Eye, ChevronDown, ArrowDown } from 'lucide-react';
 import { useTranslation } from '../../i18n/LanguageContext.tsx';
+import { useFeatureStrings } from '../../i18n/features/index.ts';
+import { speedStrings } from '../../i18n/features/speed.ts';
 import { RotatingWord } from './RotatingWord.tsx';
 
 export function Hero({ onScrollToTool }: { onScrollToTool: () => void }) {
@@ -154,6 +156,7 @@ export function HowItWorks() {
 
 export function FAQ() {
   const { t } = useTranslation();
+  const speed = useFeatureStrings(speedStrings);
   const f = t.landing.faq;
   const items = [
     { q: f.q1, a: f.a1 },
@@ -162,6 +165,8 @@ export function FAQ() {
     { q: f.q4, a: f.a4 },
     { q: f.q5, a: f.a5 },
     { q: f.q6, a: f.a6 },
+    // T280: why a background tab is slower and what to do about it.
+    { q: speed.faqQuestion, a: speed.faqAnswer },
   ];
   const [openIdx, setOpenIdx] = useState<number | null>(0);
   return (

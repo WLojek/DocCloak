@@ -12,14 +12,14 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { LanguageSwitcher } from './ui/components/LanguageSwitcher.tsx';
 import { DictionaryBar } from './ui/components/DictionaryBar.tsx';
-import { Lock, Settings, ArrowRight, Plus, X, ChevronDown, Check, Info, FileText, Image as ImageIcon, Download, Github, RotateCw } from 'lucide-react';
+import { Lock, Settings, ArrowRight, Plus, X, ChevronDown, Check, Info, FileText, Image as ImageIcon, Download, Github, RotateCw, Eye } from 'lucide-react';
 import { isImageFile } from '@doccloak/core/dom';
 import { UnredactableNotice } from './ui/components/UnredactableNotice.tsx';
 import { TableReminder } from './ui/components/TableReminder.tsx';
 import { SpreadsheetNotice } from './ui/components/SpreadsheetNotice.tsx';
 import { ALL_ENTITY_TYPES } from './ui/keepTypes.ts';
 import { ENTITY_COLORS } from '@doccloak/core';
-import { fileErrorCode, fileErrorMessage, pdfDownloadName, xlsxDownloadName, type TextSnapshot } from './ui/hooks/useAnonymizer.ts';
+import { fileErrorCode, fileErrorMessage, pdfDownloadName, refusalMessage, xlsxDownloadName, type TextSnapshot } from './ui/hooks/useAnonymizer.ts';
 import logoSrc from './ui/assets/doc-cloak-logo-light.png';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useToast } from './ui/components/Toast.tsx';
@@ -33,6 +33,12 @@ import { OcrWorkersSetting } from './ui/components/OcrWorkersSetting.tsx';
 import type { ProviderId, RegexRegionId } from '@doccloak/core';
 import { useModelStorage } from './ui/hooks/useModelStorage.ts';
 import { modelFeedbackUrl } from './feedback.ts';
+import { useFeatureStrings } from './i18n/features/index.ts';
+import { speedStrings } from './i18n/features/speed.ts';
+import { exportRefusalStrings } from './i18n/features/exportRefusal.ts';
+import { batchStrings } from './i18n/features/batch.ts';
+import { FileQueue } from './ui/components/FileQueue.tsx';
+import { PdfPages } from './ui/components/PdfPages.tsx';
 
 /** Filled into the GitHub feedback form (T250). */
 const APP_VERSION_LINE = `DocCloak ${__APP_VERSION__}, core ${__CORE_VERSION__}`;
@@ -42,10 +48,16 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+/** A model of this size or more gets its size in red in the list (T280): the download is a decision of its own. */
+const LARGE_MODEL_MB = 1000;
+
 const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
 
 export default function App() {
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
+  const speed = useFeatureStrings(speedStrings);
+  const refusalText = useFeatureStrings(exportRefusalStrings);
+  const batchText = useFeatureStrings(batchStrings);
   const {
     inputText,
     anonymizedText,
@@ -75,6 +87,7 @@ export default function App() {
     keptRanges,
     toggleEntity,
     setEntitiesExcluded,
+    changeEntityType,
     restoreText,
     restoreDocx,
     exportMapping,
@@ -106,6 +119,7 @@ export default function App() {
     hasPdfExtraction,
     hasDocumentExtraction,
     pdfRemoved,
+    pdfPages,
     hasImage,
     ocrProgress,
     ocrPages,
@@ -137,7 +151,21 @@ export default function App() {
     allowUnredactable,
     unredactablePending,
     continueWithUnredactable,
+    hasMapping,
+    mappingCount,
+    mappingSample,
+    loadFiles,
+    batch,
   } = useAnonymizer();
+  // WLojek/DocCloak#6: several files at once. The list is shown while a set is open.
+  const inSet = batch.files.length > 0;
+  const queueFile = batch.current;
+  // What the document panel says while a set is open and none of its files is on the page.
+  const emptyNote = !inSet
+    ? undefined
+    : batch.files.some((file) => file.canOpen)
+      ? batchText.noFileOpen
+      : batch.files.every((file) => file.status === 'failed') ? batchText.nothingToOpen : batchText.preparing;
 
   const { showToast } = useToast();
 
@@ -170,13 +198,37 @@ export default function App() {
   }, [modelLoaded]);
 
   useEffect(() => {
-    if (!anonymizing) return;
+    // In a set Escape stops the queue, also between two analyses (while a file is read).
+    if (!anonymizing && !batch.running) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') cancelAnonymize();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [anonymizing, cancelAnonymize]);
+  }, [anonymizing, batch.running, cancelAnonymize]);
+  // T280: a hidden tab shows how far the work is in its title ("42% · DocCloak"), so the user who
+  // went to another tab sees the progress without coming back.
+  const busyPercent = anonymizing && detectionProgress !== null
+    ? Math.round(detectionProgress * 100)
+    : ocrProgress !== null ? Math.round(ocrProgress * 100) : null;
+  // In a set the title also says which file is running ("2/5 · 42% · DocCloak"), and keeps saying
+  // it between two files, while one is read without a percent to show ("2/5 · DocCloak").
+  const busyTitle = queueFile
+    ? `${queueFile.index}/${queueFile.total} · ${busyPercent !== null ? `${busyPercent}% · ` : ''}DocCloak`
+    : busyPercent !== null ? `${busyPercent}% · DocCloak` : null;
+  const pageTitleRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (busyTitle === null) return;
+    if (pageTitleRef.current === null) pageTitleRef.current = document.title;
+    document.title = busyTitle;
+  }, [busyTitle]);
+  useEffect(() => {
+    if (busyTitle !== null || pageTitleRef.current === null) return;
+    document.title = pageTitleRef.current;
+    pageTitleRef.current = null;
+  }, [busyTitle]);
+  // The processor models slow down in a background tab; the ones on the graphics card do not.
+  const runsOnProcessor = PROVIDERS.find((p) => p.id === activeProvider)?.requiresWebGpu !== true;
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [modelInfoOpen, setModelInfoOpen] = useState<string | null>(null);
   // T250: which models are on this device; read again when the settings open and when a model has loaded.
@@ -276,8 +328,10 @@ export default function App() {
     // Said every time: pasted text has no file bar whose button could change, and the reminder just goes away.
     showToast(t.textOutput.tableSaved);
   }, [exportMapping, triggerBlobDownload, showToast, t]);
-  // A changed table is not the saved one any more.
-  useEffect(() => setTableJustSaved(false), [entries]);
+  // A changed table is not the saved one any more. In a set the table is the set's: it changes
+  // when a file's list or labels change, not when another file is merely opened.
+  const tableMark = inSet ? tableVersion : entries;
+  useEffect(() => setTableJustSaved(false), [tableMark]);
 
   // PDF (T216): same flow as docx; a verify-failed or stale-extraction error
   // from the writer maps to its own translated message and nothing is saved.
@@ -291,12 +345,13 @@ export default function App() {
       showToast(downloadedMessage());
     } catch (err) {
       console.error('[DocCloak] PDF export failed:', err);
-      const code = fileErrorCode(err);
-      showToast(code ? fileErrorMessage(t, code) : (t.textOutput.exportFailed ?? 'Export failed.'));
+      // A refusal in the user's words: a code of fileErrors, or (T284) a page with a hidden area
+      // that cannot be exported as a picture. Nothing was downloaded either way.
+      showToast(refusalMessage(t, err, 'pdf', refusalText) ?? (t.textOutput.exportFailed ?? 'Export failed.'));
     } finally {
       setDownloading(false);
     }
-  }, [exportPdf, fileName, triggerBlobDownload, markResultTakenOut, showToast, t, downloadedMessage]);
+  }, [exportPdf, fileName, triggerBlobDownload, markResultTakenOut, showToast, t, downloadedMessage, refusalText]);
 
   const handleDownloadImage = useCallback(async () => {
     if (!exportRedactedImage) return;
@@ -320,22 +375,39 @@ export default function App() {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
         e.preventDefault();
-        if (inputText.trim() && modelLoaded && !anonymizing && !unredactablePending) {
+        if (inputText.trim() && modelLoaded && !anonymizing && !batch.running && !unredactablePending) {
           anonymize();
         }
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [inputText, modelLoaded, anonymizing, anonymize, unredactablePending]);
+  }, [inputText, modelLoaded, anonymizing, batch.running, anonymize, unredactablePending]);
 
   // Clear with undo
   // "Clear" and removing the file throw the table away. When the result is already out and the
   // table was never saved, that is the only way back to the original data: ask first.
   const mayLoseTable = useCallback(() => !tableUnsaved || window.confirm(t.tableReminder.clearConfirm), [tableUnsaved, t]);
+  // A set has one table for all its files. Removing a file that is already out, while that table
+  // is not saved, takes away the way back for that file: ask first. A file nobody took out can go.
+  const { files: batchFiles, activeId: openFileId, remove: removeBatchFile, clear: clearBatch, add: addBatchFiles } = batch;
+  const handleRemoveBatchFile = useCallback((id: string) => {
+    const file = batchFiles.find((item) => item.id === id);
+    if (!file) return;
+    if (file.takenOut && tableUnsaved && !window.confirm(batchText.unsavedConfirm)) return;
+    removeBatchFile(id);
+  }, [batchFiles, tableUnsaved, batchText, removeBatchFile]);
+  const handleClearBatch = useCallback(() => {
+    if (tableUnsaved && !window.confirm(batchText.unsavedConfirm)) return;
+    clearBatch();
+  }, [tableUnsaved, batchText, clearBatch]);
   const handleRemoveFile = useCallback(() => {
+    if (openFileId !== null) {
+      handleRemoveBatchFile(openFileId);
+      return;
+    }
     if (mayLoseTable()) removeFile();
-  }, [mayLoseTable, removeFile]);
+  }, [mayLoseTable, removeFile, openFileId, handleRemoveBatchFile]);
 
   const handleClear = useCallback(() => {
     if (!inputText) return;
@@ -385,7 +457,11 @@ export default function App() {
       </a>
       {/* Engine state announcements for assistive tech */}
       <div className="sr-only" role="status" aria-live="polite">
-        {modelLoading ? t.loading.preparingEngine : anonymizing ? t.anonymizing.title : modelLoaded ? t.header.ready : ''}
+        {modelLoading
+          ? t.loading.preparingEngine
+          : queueFile
+            ? batchText.fileOf(queueFile.index, queueFile.total, queueFile.name)
+            : anonymizing ? t.anonymizing.title : modelLoaded ? t.header.ready : ''}
       </div>
       {/* Header-shrink sentinel: observed instead of a scroll listener */}
       <div ref={scrollSentinelRef} className="absolute top-[50px] left-0 h-px w-px" aria-hidden="true" />
@@ -397,6 +473,9 @@ export default function App() {
               <div className="w-12 h-12 border border-[#111111] flex items-center justify-center mx-auto mb-5">
                 <ImageIcon className="w-6 h-6 text-[#111111]" />
               </div>
+              {queueFile && (
+                <p className="label-meta text-[#525252] mb-2 mx-auto max-w-xs truncate" data-testid="queue-file">{batchText.fileOf(queueFile.index, queueFile.total, queueFile.name)}</p>
+              )}
               <p className="font-serif text-lg font-medium tracking-tight mb-1">{t.ocr.processingTitle}</p>
               <div className="w-48 mx-auto mt-3 mb-2">
                 <Progress value={Math.round(ocrProgress * 100)} className="h-1.5" />
@@ -408,9 +487,10 @@ export default function App() {
         </div>
       )}
 
-      {/* Anonymizing overlay */}
-      {anonymizing && (
-        <div role="dialog" aria-modal="true" aria-label={t.anonymizing.title} className="fixed inset-0 z-40 bg-[#F9F9F7]/80 flex items-center justify-center">
+      {/* Anonymizing overlay. In a set it stays up from the first file to the last (also while a
+          file is read without OCR), says which file is running, and its Cancel stops the queue. */}
+      {(anonymizing || (batch.running && ocrProgress === null)) && (
+        <div role="dialog" aria-modal="true" aria-label={anonymizing ? t.anonymizing.title : batchText.readingTitle} className="fixed inset-0 z-40 bg-[#F9F9F7]/80 flex items-center justify-center">
           <Card className="border-[#111111] shadow-[4px_4px_0px_0px_#111111]">
             <CardContent className="pt-8 pb-8 px-10 text-center">
               <div className="flex justify-center gap-[6px] mb-6">
@@ -425,7 +505,10 @@ export default function App() {
                   />
                 ))}
               </div>
-              <p className="font-serif text-lg font-medium tracking-tight mb-1">{t.anonymizing.title}</p>
+              {queueFile && (
+                <p className="label-meta text-[#525252] mb-2 mx-auto max-w-xs truncate" data-testid="queue-file">{batchText.fileOf(queueFile.index, queueFile.total, queueFile.name)}</p>
+              )}
+              <p className="font-serif text-lg font-medium tracking-tight mb-1">{anonymizing ? t.anonymizing.title : batchText.readingTitle}</p>
               {detectionProgress !== null && (
                 <div className="w-56 mx-auto mt-3 mb-2">
                   <Progress value={Math.round(detectionProgress * 100)} className="h-1.5" />
@@ -438,6 +521,12 @@ export default function App() {
                 </div>
               )}
               <p className="text-sm text-[#525252]">{t.anonymizing.description}</p>
+              {runsOnProcessor && (
+                <p className="mt-3 mx-auto max-w-xs flex items-center justify-center gap-1.5 text-xs text-[#525252]" data-testid="visible-tab-hint">
+                  <Eye className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                  {speed.visibleTabHint}
+                </p>
+              )}
               <Button variant="outline" size="sm" className="mt-5" onClick={cancelAnonymize} autoFocus>
                 {t.anonymizing.cancel}
               </Button>
@@ -501,7 +590,13 @@ export default function App() {
                             >
                               <span className="flex items-baseline justify-between gap-2">
                                 <span className="text-xs font-medium">{label}</span>
-                                <span className="text-[10px] text-muted-foreground shrink-0">{t.settings.modelSize(p.sizeMB)}</span>
+                                {p.sizeMB >= LARGE_MODEL_MB ? (
+                                  <span className="text-[10px] font-semibold text-[#CC0000] shrink-0" data-testid="model-large" title={speed.largeDownloadLabel}>
+                                    {speed.largeDownload(`${new Intl.NumberFormat(language, { maximumFractionDigits: 2 }).format(p.sizeMB / 1000)} GB`)}
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] text-muted-foreground shrink-0">{t.settings.modelSize(p.sizeMB)}</span>
+                                )}
                               </span>
                               <span className="block text-[10px] text-muted-foreground mt-0.5">{modelT?.description ?? p.description}</span>
                               {noGpu && <span className="block text-[10px] text-[#CC0000] mt-0.5">{t.settings.modelNeedsWebGpu}</span>}
@@ -834,6 +929,21 @@ export default function App() {
           </div>
         )}
 
+        {/* WLojek/DocCloak#6: the files of a set. Each is opened, reviewed and downloaded on its own. */}
+        <FileQueue
+          files={batch.files}
+          busy={batch.busy || downloading}
+          paused={batch.paused}
+          waiting={batch.waiting}
+          waitingForModel={batch.waitingForModel}
+          maxFiles={batch.maxFiles}
+          onOpen={batch.open}
+          onRemove={handleRemoveBatchFile}
+          onAddFiles={addBatchFiles}
+          onResume={batch.resume}
+          onClear={handleClearBatch}
+        />
+
         {/* Informed-consent export (T177): parts the writer cannot redact. Redact and
             Download stay disabled for this file until the user chooses Continue or Cancel. */}
         {hasDocumentExtraction && (
@@ -842,7 +952,7 @@ export default function App() {
             warnings={fileWarnings}
             decided={allowUnredactable}
             onContinue={continueWithUnredactable}
-            onCancel={removeFile}
+            onCancel={inSet ? handleRemoveFile : removeFile}
           />
         )}
 
@@ -875,6 +985,21 @@ export default function App() {
           </section>
         )}
 
+        {/* PDF pages (T284, WLojek/DocCloak.Core#6): leave pages out and hide areas by hand, for what
+            no detector finds (a signature, a page the OCR could not read). Shown as soon as a PDF
+            is on the page, before Redact too; closed until it is asked for. In a set it belongs
+            to the open file. */}
+        {pdfPages && (
+          <PdfPages
+            key={openFileId ?? 'one-file'}
+            extraction={pdfPages.extraction}
+            edits={pdfPages.edits}
+            covered={pdfPages.covered}
+            onChange={pdfPages.apply}
+            busy={pdfPages.busy || downloading}
+          />
+        )}
+
         {/* File bar - input file (left) + download (right) */}
         {fileName && anonymizedText && (
           <div className="animate-content-reveal grid grid-cols-1 md:grid-cols-2 gap-0 border border-b-0 border-[#C8C5BC] bg-[#F4F3EE]">
@@ -898,7 +1023,7 @@ export default function App() {
                 </button>
               )}
               {/* T261: the table goes out where the protected file goes out. */}
-              {replacementMode === 'labeled' && entries.length > 0 && (
+              {replacementMode === 'labeled' && hasMapping && (
                 <button
                   onClick={handleSaveTable}
                   data-testid="filebar-save-table"
@@ -967,7 +1092,7 @@ export default function App() {
         {/* Document panels */}
         <div className={`grid grid-cols-1 md:grid-cols-2 gap-0 border border-[#C8C5BC] bg-[#FFFFFF] ${(fileName && anonymizedText) || tableReminder ? 'border-t-0' : ''}`}>
           <div className="md:border-r border-[#C8C5BC] bg-[#FFFFFF] flex flex-col">
-            <TextInput value={inputText} onChange={handleInputChange} onClear={handleClear} entities={entities} onAddEntity={addManualEntity} onRemoveEntity={removeEntity} onToggleEntity={toggleEntity} keptIndices={excludedIndices} hasResult={anonymizedText !== ''} fileName={fileName} onLoadFile={loadFile} onRemoveFile={handleRemoveFile} />
+            <TextInput value={inputText} onChange={handleInputChange} onClear={handleClear} entities={entities} onAddEntity={addManualEntity} onRemoveEntity={removeEntity} onToggleEntity={toggleEntity} onChangeType={changeEntityType} onSetExcluded={setEntitiesExcluded} keptIndices={excludedIndices} hasResult={anonymizedText !== ''} fileName={fileName} onLoadFile={loadFile} onLoadFiles={loadFiles} onRemoveFile={handleRemoveFile} emptyNote={emptyNote} />
           </div>
           <div className="bg-[#FFFFFF] border-t md:border-t-0 border-[#C8C5BC] flex flex-col">
             <TextOutput value={anonymizedText} entries={entries} replacedPlaces={entities.length - keptCount} foundPlaces={entities.length} onReviewList={revealList} keptReason={keptReason} keptRanges={keptRanges} fileLoaded={Boolean(fileName)} droppedCount={droppedCount} onKeepDropped={keepDroppedRedacted} onDismissDropped={dismissDropped} uncheckedCells={hasXlsxExtraction ? xlsxInfo?.otherNumberCells ?? 0 : 0} loading={anonymizing} onCopied={markResultTakenOut} />
@@ -1005,7 +1130,7 @@ export default function App() {
               )}
               <Button
                 onClick={anonymize}
-                disabled={!inputText.trim() || !modelLoaded || anonymizing || unredactablePending}
+                disabled={!inputText.trim() || !modelLoaded || anonymizing || batch.running || unredactablePending}
                 size="lg"
                 variant="solid"
                 className="gap-2 px-12 py-4 text-sm font-semibold disabled:opacity-100 disabled:bg-[#111111]/55 disabled:text-[#F9F9F7] disabled:cursor-not-allowed"
@@ -1042,6 +1167,7 @@ export default function App() {
             onToggle={toggleEntity}
             onSetExcluded={setEntitiesExcluded}
             onRenameLabel={renameLabel}
+            onChangeType={changeEntityType}
             renamedValues={renamedOriginals}
             onResetLabel={resetLabel}
             keepTypes={keepTypes}
@@ -1119,8 +1245,8 @@ export default function App() {
             document's, or one loaded from a file) the whole panel shows; without one only the
             way in for a table saved earlier (WLojek/DocCloak#3). */}
         {replacementMode === 'labeled' && (
-          <div className={entries.length > 0 || importedMapping ? 'mt-16' : 'mt-6'}>
-            {(entries.length > 0 || importedMapping) && (
+          <div className={hasMapping || importedMapping ? 'mt-16' : 'mt-6'}>
+            {(hasMapping || importedMapping) && (
               <div className="mb-6 border-b border-[#E5E5E0] pb-4">
                 <h2 className="font-serif text-2xl font-medium text-[#111111] tracking-tight leading-tight">{t.step2.title}</h2>
                 <p className="text-sm text-muted-foreground mt-1.5 leading-relaxed max-w-2xl">{t.step2.description}</p>
@@ -1130,9 +1256,9 @@ export default function App() {
 
             <DeAnonymize
               onRestoreText={restoreText}
-              hasMapping={entries.length > 0}
-              mappingCount={entries.length}
-              mappingSample={entries.length > 0 ? { replacement: entries[0].replacement, original: entries[0].original } : null}
+              hasMapping={hasMapping}
+              mappingCount={mappingCount}
+              mappingSample={mappingSample}
               onRestoreDocx={restoreDocx}
               onExportMapping={exportMapping}
               onImportMapping={importMapping}

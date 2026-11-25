@@ -110,8 +110,8 @@ describe('engine consent gate (S2)', () => {
     expect(created[0].preload).toHaveBeenCalledTimes(1);
   });
 
-  it('hasWebGpu follows navigator.gpu; only OpenAI Privacy Filter requires it (T242)', () => {
-    expect(PROVIDERS.filter((p) => p.requiresWebGpu).map((p) => p.id)).toEqual(['openai-pf']);
+  it('hasWebGpu follows navigator.gpu; the two models on the graphics card require it (T242, T279)', () => {
+    expect(PROVIDERS.filter((p) => p.requiresWebGpu).map((p) => p.id)).toEqual(['bardsai-v3-gpu', 'openai-pf']);
     const nav = navigator as Navigator & { gpu?: unknown };
     const had = 'gpu' in nav;
     const before = nav.gpu;
@@ -127,7 +127,7 @@ describe('engine consent gate (S2)', () => {
     const sizes = Object.fromEntries(PROVIDERS.map((p) => [p.id, p.sizeMB]));
     expect(sizes).toEqual({
       gliner: 83, 'gliner-base': 197, bardsai: 279,
-      'bardsai-v2': 343, 'bardsai-v3': 343, 'gliner2-pii': 551, 'gliner2-pii-yethdev': 462, 'openai-pf': 837,
+      'bardsai-v2': 343, 'bardsai-v3': 343, 'bardsai-v3-gpu': 1265, 'gliner2-pii': 551, 'gliner2-pii-yethdev': 462, 'openai-pf': 837,
     });
     for (const p of PROVIDERS) expect(typeof p.label).toBe('string');
   });

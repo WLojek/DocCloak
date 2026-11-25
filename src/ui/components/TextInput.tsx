@@ -6,6 +6,9 @@ import { EntityTypePicker } from './EntityTypePicker.tsx';
 import { Button } from '@/components/ui/button';
 import { X, Upload, FileText, Image as ImageIcon } from 'lucide-react';
 import { useTranslation } from '../../i18n/LanguageContext.tsx';
+import { useFeatureStrings } from '../../i18n/features/index.ts';
+import { retypeStrings } from '../../i18n/features/retype.ts';
+import { useRetypeMenu } from '../hooks/useRetypeMenu.tsx';
 import { useToast } from './Toast.tsx';
 import type { LoadFileResult } from '../hooks/useAnonymizer.ts';
 
@@ -23,11 +26,29 @@ interface TextInputProps {
    * instead of removing the detection: a removed one left no trace in the list or in any count.
    */
   onToggleEntity?: (index: number) => void;
+  /**
+   * Give every place of a value another type (WLojek/DocCloak#5). When given, the context menu of
+   * a found value (right click, the menu key, a long press) and a selection inside one open the
+   * menu of types. A plain click stays what it was.
+   */
+  onChangeType?: (value: string, type: EntityType) => void;
+  /** Redact or leave readable many places in one step: the "do not redact" of the menu of types. */
+  onSetExcluded?: (indices: number[], excluded: boolean) => void;
   /** A result exists for this text: the "ready, click Redact" hint is over. */
   hasResult?: boolean;
   fileName?: string | null;
   onLoadFile?: (file: File) => Promise<LoadFileResult>;
+  /**
+   * Several files picked or dropped at once (WLojek/DocCloak#6). When given, the file field takes
+   * more than one file and everything picked or dropped goes here, one file included.
+   */
+  onLoadFiles?: (files: File[]) => Promise<LoadFileResult>;
   onRemoveFile?: () => void;
+  /**
+   * Shown in place of the text field while there is no text and no file: a set of files is open
+   * and none of them is on the page, so there is nothing to type into.
+   */
+  emptyNote?: string;
 }
 
 interface WordSpan {
@@ -73,15 +94,22 @@ function buildWordSpans(text: string, entities: DetectedEntity[]): WordSpan[] {
   return spans;
 }
 
-export function TextInput({ value, onChange, onClear, entities, onAddEntity, onRemoveEntity, keptIndices, onToggleEntity, hasResult, fileName, onLoadFile, onRemoveFile }: TextInputProps) {
+export function TextInput({ value, onChange, onClear, entities, onAddEntity, onRemoveEntity, keptIndices, onToggleEntity, onChangeType, onSetExcluded, hasResult, fileName, onLoadFile, onLoadFiles, onRemoveFile, emptyNote }: TextInputProps) {
   const { t } = useTranslation();
+  const retypeText = useFeatureStrings(retypeStrings);
   const { showToast } = useToast();
+  // WLojek/DocCloak#5: the menu of types for a value that is found already.
+  const { enabled: canRetype, open: openRetype, openFor: retypeFor, menu: retypeMenu } = useRetypeMenu({ text: value, entities, excluded: keptIndices, onChangeType, onSetExcluded });
+  const retypeOpen = retypeFor !== null;
   const wordCount = value.trim() ? value.trim().split(/\s+/).length : 0;
   // The list as it is now, for the Undo of a click on a value (it outlives the render it was made in).
   const entitiesRef = useRef(entities);
   entitiesRef.current = entities;
   const keptRef = useRef(keptIndices);
   keptRef.current = keptIndices;
+  // The text as it is now: an Undo made for one document does nothing once another is on the page.
+  const valueRef = useRef(value);
+  valueRef.current = value;
   // Where the mouse button went down on a found value: a press that moved is a selection.
   const pressAt = useRef<{ x: number; y: number } | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -94,9 +122,13 @@ export function TextInput({ value, onChange, onClear, entities, onAddEntity, onR
   const [fileError, setFileError] = useState<string | null>(null);
   const hasEntities = entities.length > 0;
 
-  const processFile = useCallback(async (file: File) => {
-    if (!onLoadFile) return;
-    const result = await onLoadFile(file);
+  const canLoad = Boolean(onLoadFile || onLoadFiles);
+  const processFiles = useCallback(async (files: File[]) => {
+    if (files.length === 0) return;
+    let result: LoadFileResult;
+    if (onLoadFiles) result = await onLoadFiles(files);
+    else if (onLoadFile) result = await onLoadFile(files[0]);
+    else return;
     if (!result.success) {
       // Typed refusals (T177/T178) arrive already translated in `message`;
       // the raw error text is only the fallback for untyped failures.
@@ -111,14 +143,15 @@ export function TextInput({ value, onChange, onClear, entities, onAddEntity, onR
     } else {
       setFileError(null);
     }
-  }, [onLoadFile, showToast, t]);
+  }, [onLoadFile, onLoadFiles, showToast, t]);
+  const processFile = useCallback((file: File) => processFiles([file]), [processFiles]);
 
   const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    await processFile(file);
+    const files = Array.from(e.target.files ?? []);
+    if (files.length === 0) return;
+    await processFiles(files);
     if (fileInputRef.current) fileInputRef.current.value = '';
-  }, [processFile]);
+  }, [processFiles]);
 
   // Drag and drop handlers
   const handleDragEnter = useCallback((e: React.DragEvent) => {
@@ -149,11 +182,8 @@ export function TextInput({ value, onChange, onClear, entities, onAddEntity, onR
     e.stopPropagation();
     dragCounterRef.current = 0;
     setIsDragging(false);
-    const file = e.dataTransfer.files[0];
-    if (file) {
-      await processFile(file);
-    }
-  }, [processFile]);
+    await processFiles(Array.from(e.dataTransfer.files));
+  }, [processFiles]);
 
   const openPickerFromSelection = useCallback((clientX?: number, clientY?: number) => {
     if (!onAddEntity) return;
@@ -187,6 +217,23 @@ export function TextInput({ value, onChange, onClear, entities, onAddEntity, onR
     // to the selected text itself.
     const rect = range.getBoundingClientRect();
 
+    // The menu of types is open already (a long press opens it and selects the word as well).
+    if (retypeOpen) {
+      selection.removeAllRanges();
+      return;
+    }
+    // A selection inside one found value is a question about that value, not a new mark: it opens
+    // the menu of types for it. "Mark as" on a redacted value used to answer that it is redacted
+    // already, and on a value that is not redacted it redacted the place under the label of the
+    // type it was found as ("[PHONE_1]" for what the user had just marked as something else).
+    // The menu does both: the type for the value, and the place redacted when it was not.
+    const found = canRetype ? entities.findIndex((entity) => entity.start === selStart && entity.end === selEnd) : -1;
+    if (found !== -1 && (onSetExcluded || !(keptIndices?.has(found) ?? false))) {
+      openRetype({ value: entities[found].value, type: entities[found].type, place: found, x: clientX ?? rect.left, y: clientY ?? rect.bottom + 8 });
+      selection.removeAllRanges();
+      return;
+    }
+
     setPicker({
       word: selectedText.length > 40 ? selectedText.slice(0, 37) + '...' : selectedText,
       start: selStart,
@@ -196,7 +243,7 @@ export function TextInput({ value, onChange, onClear, entities, onAddEntity, onR
     });
 
     selection.removeAllRanges();
-  }, [onAddEntity, value]);
+  }, [onAddEntity, onSetExcluded, value, entities, keptIndices, canRetype, openRetype, retypeOpen]);
 
   const handleSelectionEnd = useCallback((e: React.MouseEvent) => {
     openPickerFromSelection(e.clientX, e.clientY);
@@ -233,7 +280,7 @@ export function TextInput({ value, onChange, onClear, entities, onAddEntity, onR
 
   // Pasting a screenshot or copied image runs it through OCR
   const handlePaste = useCallback((e: React.ClipboardEvent) => {
-    if (!onLoadFile) return;
+    if (!canLoad) return;
     const item = Array.from(e.clipboardData.items).find((i) => i.type.startsWith('image/'));
     if (!item) return;
     const blob = item.getAsFile();
@@ -242,7 +289,7 @@ export function TextInput({ value, onChange, onClear, entities, onAddEntity, onR
     const ext = item.type.split('/')[1] ?? 'png';
     const file = blob.name ? blob : new File([blob], `pasted-image.${ext}`, { type: item.type });
     void processFile(file);
-  }, [onLoadFile, processFile]);
+  }, [canLoad, processFile]);
 
   const wordSpans = hasEntities ? buildWordSpans(value, entities) : [];
   const showEmptyState = !value && !fileName;
@@ -251,10 +298,10 @@ export function TextInput({ value, onChange, onClear, entities, onAddEntity, onR
   return (
     <div
       className="flex flex-col h-full"
-      onDragEnter={onLoadFile ? handleDragEnter : undefined}
-      onDragLeave={onLoadFile ? handleDragLeave : undefined}
-      onDragOver={onLoadFile ? handleDragOver : undefined}
-      onDrop={onLoadFile ? handleDrop : undefined}
+      onDragEnter={canLoad ? handleDragEnter : undefined}
+      onDragLeave={canLoad ? handleDragLeave : undefined}
+      onDragOver={canLoad ? handleDragOver : undefined}
+      onDrop={canLoad ? handleDrop : undefined}
     >
       {/* Header bar */}
       <div className="flex items-center justify-between h-11 relative border-b border-[#C8C5BC] px-4 bg-[#F4F3EE]">
@@ -271,6 +318,7 @@ export function TextInput({ value, onChange, onClear, entities, onAddEntity, onR
           ref={fileInputRef}
           type="file"
           accept=".doc,.docx,.xlsx,.pdf,.png,.jpg,.jpeg,.webp,.bmp,.gif"
+          multiple={Boolean(onLoadFiles)}
           onChange={handleFileUpload}
           className="hidden"
         />
@@ -310,12 +358,15 @@ export function TextInput({ value, onChange, onClear, entities, onAddEntity, onR
                     // Same as the box in the list: the place stays listed, counted and marked.
                     onToggleEntity(entityIndex);
                     const place = span.entity!;
+                    const text = value;
                     showToast(kept ? t.entityTable.redactedToast(1) : t.entityTable.keptToast(1), {
                       label: t.toast.undo,
                       // Undo acts on this place, wherever it stands in the list by then (a value
                       // marked by hand in between moves the numbers), and only while the place is
                       // still as this click left it.
                       onClick: () => {
+                        // Another document is on the page: this place is not one of its places.
+                        if (valueRef.current !== text) return;
                         const now = entitiesRef.current.findIndex((e) => e.start === place.start && e.end === place.end && e.value === place.value);
                         if (now === -1) return;
                         const keptNow = keptRef.current?.has(now) ?? false;
@@ -332,6 +383,22 @@ export function TextInput({ value, onChange, onClear, entities, onAddEntity, onR
                     onClick: () => onAddEntity?.(removed.start, removed.end, removed.type),
                   });
                 };
+                const action = kept ? t.entityTable.include : onToggleEntity ? t.entityTable.dontRedactThese(1) : t.textInput.removeRedaction;
+                const hint = kept ? `${t.entityTable.keptChip}. ${action}` : action;
+                // The menu of types, under the value (the pointer's place is used when there is one).
+                const openTypes = (mark: HTMLElement, x?: number, y?: number) => {
+                  const box = mark.getBoundingClientRect();
+                  const atPointer = x !== undefined && y !== undefined && (x !== 0 || y !== 0);
+                  openRetype({
+                    value: span.entity!.value,
+                    type: span.entity!.type,
+                    place: entityIndex === -1 ? undefined : entityIndex,
+                    x: atPointer ? x : box.left,
+                    y: atPointer ? y : box.bottom + 4,
+                    yAbove: atPointer ? undefined : box.top - 4,
+                    opener: mark,
+                  });
+                };
                 return (
                   <mark
                     key={i}
@@ -340,8 +407,17 @@ export function TextInput({ value, onChange, onClear, entities, onAddEntity, onR
                     className="entity-highlight-animate focus:outline focus:outline-2 focus:outline-[#111111]"
                     role="button"
                     tabIndex={0}
-                    aria-label={`${kept ? t.entityTable.include : onToggleEntity ? t.entityTable.dontRedactThese(1) : t.textInput.removeRedaction}: ${span.text}`}
+                    aria-label={`${action}: ${span.text}`}
                     onMouseDown={(e) => { pressAt.current = { x: e.clientX, y: e.clientY }; }}
+                    // The second action of a found value: its context menu is the menu of types
+                    // (right click, the menu key, VoiceOver's menu command, a long press on Android).
+                    // With text selected the browser's own menu stays, so the selection can be copied.
+                    onContextMenu={canRetype ? (e) => {
+                      const selection = window.getSelection();
+                      if (selection && !selection.isCollapsed) return;
+                      e.preventDefault();
+                      openTypes(e.currentTarget, e.clientX, e.clientY);
+                    } : undefined}
                     onClick={(e) => {
                       e.stopPropagation();
                       // A drag that selects part of the value is a selection (the "Mark as" picker
@@ -360,8 +436,14 @@ export function TextInput({ value, onChange, onClear, entities, onAddEntity, onR
                         e.preventDefault();
                         removeWithUndo();
                       }
+                      // A keyboard without a menu key (a Mac) has Shift+F10 for the same menu.
+                      if (canRetype && (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10'))) {
+                        e.preventDefault();
+                        openTypes(e.currentTarget);
+                      }
                     }}
-                    title={kept ? `${t.entityTable.keptChip}. ${t.entityTable.include}` : onToggleEntity ? t.entityTable.dontRedactThese(1) : t.textInput.removeRedaction}
+                    aria-keyshortcuts={canRetype ? 'Shift+F10' : undefined}
+                    title={canRetype ? `${hint}. ${retypeText.markHint}` : hint}
                     data-kept={kept ? 'true' : undefined}
                     style={{
                       // Tinted block in the type's own color: more visible than the ink block was.
@@ -417,6 +499,15 @@ export function TextInput({ value, onChange, onClear, entities, onAddEntity, onR
             </div>
             {value}
           </div>
+        ) : emptyNote ? (
+          /* A set of files is open and none of them is on the page. */
+          <div className="p-4 min-h-[200px] flex flex-col items-center justify-center gap-2 text-center" data-testid="input-empty-note">
+            <FileText className="w-5 h-5 text-[#707070]" aria-hidden="true" />
+            <p className="text-sm text-[#525252]">{emptyNote}</p>
+            {fileError && (
+              <p className="text-xs text-[#CC0000]" role="alert">{fileError}</p>
+            )}
+          </div>
         ) : (
           /* Editable text area - same element whether empty or not */
           <div className="flex flex-col">
@@ -430,7 +521,7 @@ export function TextInput({ value, onChange, onClear, entities, onAddEntity, onR
               style={{ fieldSizing: 'content' } as React.CSSProperties}
             />
             {/* Upload section - only visible when empty */}
-            {showEmptyState && onLoadFile && (
+            {showEmptyState && canLoad && (
               <>
                 <div className="flex items-center gap-3 px-4">
                   <div className="flex-1 border-t border-[#E5E5E0]" />
@@ -479,6 +570,7 @@ export function TextInput({ value, onChange, onClear, entities, onAddEntity, onR
         </div>
       </div>
 
+      {retypeMenu}
       {picker && (
         <EntityTypePicker
           word={picker.word}

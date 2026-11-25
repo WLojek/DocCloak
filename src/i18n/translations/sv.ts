@@ -102,6 +102,24 @@ export const sv: Translations = {
         ],
         bestFor: 'Engelska och franska dokument, när GLiNER2 är för stor eller för långsam.',
       },
+      'bardsai-v3-gpu': {
+        label: 'BardS.ai EU PII v3, full precision (WebGPU)',
+        description: 'BardS.ai v3 med full precision på grafikkortet: många gånger snabbare, även i en flik i bakgrunden.',
+        strengths: [
+          'Överlägset snabbast med ett nyare grafikkort: 0,07 s för ett textstycke i vår mätning, mot 0,7 s för v3 på fyra processortrådar.',
+          'Behåller den farten när fliken ligger i bakgrunden: webbläsaren bromsar sidan, inte grafikkortet.',
+          'De ursprungliga vikterna, inte de komprimerade; lika träffsäker som v3 i vårt test med 112 dokument på 14 språk.',
+          'Känner igen samma 37 slags personuppgifter som v3.',
+        ],
+        weaknesses: [
+          'Mycket stor nedladdning: 1,27 GB, ungefär fyra gånger v3.',
+          'Kräver WebGPU och ett grafikkort med tillräckligt minne; utan dem startar den inte.',
+          'Behöver flera gigabyte ledigt minne medan den laddas.',
+          'Farten är hittills mätt på en dator (Apple M4 Pro); på andra grafikkort blir den en annan.',
+          'Stöder inte egna etiketter.',
+        ],
+        bestFor: 'Långa dokument och arbete i bakgrunden, på en dator med bra grafikkort och snabb uppkoppling.',
+      },
       'gliner2-pii': {
         label: 'GLiNER2 Privacy Filter',
         description: 'Mycket träffsäker, bäst på företag och franska, men stor och långsammast.',

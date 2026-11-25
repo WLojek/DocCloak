@@ -28,6 +28,7 @@
 
 import type { BlobCache, CoreEnv, HardwareHints, KVStore } from '@doccloak/core';
 import { MODEL_CACHE_NAME } from './model-cache.ts';
+import { threadsFromWorkerName } from './ort-threads.ts';
 import {
   DebertaV2Tokenizer,
   PreTrainedTokenizer,
@@ -215,6 +216,17 @@ async function persistWebStorage(): Promise<boolean> {
   }
 }
 
+/**
+ * WASM threads for ONNX Runtime (T280): the count the page chose when it started this worker
+ * (src/ort-threads.ts, carried in the worker's name), and 1 wherever threads cannot run: outside
+ * a worker, or on a page that is not cross-origin isolated (no SharedArrayBuffer).
+ */
+export function webOrtThreads(): number {
+  const scope = globalThis as { name?: unknown; crossOriginIsolated?: boolean };
+  if (scope.crossOriginIsolated !== true) return 1;
+  return threadsFromWorkerName(typeof scope.name === 'string' ? scope.name : undefined);
+}
+
 /** Build the full web CoreEnv (main thread or worker). */
 export function createWebCoreEnv(): CoreEnv {
   void dropLegacyTransformersCache();
@@ -224,10 +236,10 @@ export function createWebCoreEnv(): CoreEnv {
     // Wrap instead of passing the function reference so fetch keeps its
     // expected receiver (avoids Illegal invocation in browsers).
     fetch: (...args: Parameters<typeof fetch>) => fetch(...args),
-    // Same behavior as before the move: BASE_URL wasm assets, single-threaded
-    // WASM (ORT's multi-threaded path hangs in some cross-origin-isolated
-    // contexts).
-    wasm: { paths: import.meta.env.BASE_URL, numThreads: 1 },
+    // BASE_URL wasm assets. Threads (T280): several where the page is cross-origin isolated,
+    // else one. The multi-threaded path once hung in some isolated contexts; the page watches
+    // a load for that and goes back to one thread (engine.ts, loadWithThreadFallback).
+    wasm: { paths: import.meta.env.BASE_URL, numThreads: webOrtThreads() },
     buildTokenizer: buildWebTokenizer,
     hardware: webHardwareHints(),
     persistStorage: persistWebStorage,

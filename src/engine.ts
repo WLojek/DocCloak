@@ -47,6 +47,7 @@ import type {
   RegexRegionId,
 } from '@doccloak/core';
 import { detectUiLanguage } from './i18n/storage.ts';
+import { SINGLE_THREAD_STORAGE_KEY, detectionWorkerName, ortThreadsFor } from './ort-threads.ts';
 import { languages as UI_LANGUAGES } from './i18n/translations/index.ts';
 
 const UI_LANGUAGE_CODES: readonly string[] = UI_LANGUAGES.map((l) => l.code);
@@ -76,6 +77,8 @@ export const PROVIDER_SIZE_MB: Record<ProviderId, number> = {
   bardsai: 279,
   'bardsai-v2': 343,
   'bardsai-v3': 343,
+  // T279: the unquantized v3 graph (1231 MB) plus the tokenizer; shown in red in the list.
+  'bardsai-v3-gpu': 1265,
   'gliner2-pii': 551,
   'gliner2-pii-yethdev': 462,
   'openai-pf': 837,
@@ -257,13 +260,53 @@ type ClientFactory = (initial: {
   customLabels: string[];
 }, onWorkerError: (err: Error) => void) => ClientHandle;
 
+// ── WASM threads (T280) ────────────────────────────────────
+
+/**
+ * A model load that reports nothing for this long once its bytes are on the device is taken for a
+ * threaded runtime that hung (ONNX Runtime's multi-threaded start did, in some cross-origin
+ * isolated contexts). Reading 1.2 GB from the cache, hashing it and compiling the graph takes
+ * seconds to tens of seconds; nothing honest takes this long without a download running.
+ */
+export const LOAD_STALL_MS = 90_000;
+
+function singleThreadStored(): boolean {
+  try {
+    return localStorage.getItem(SINGLE_THREAD_STORAGE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+/** Set by a stalled threaded load where localStorage cannot keep the fallback (private mode). */
+let forceSingleThread = false;
+
+/** Threads the next detection worker starts with: see src/ort-threads.ts. */
+export function detectionThreads(): number {
+  if (forceSingleThread) return 1;
+  try {
+    return ortThreadsFor({
+      isolated: (globalThis as { crossOriginIsolated?: boolean }).crossOriginIsolated === true,
+      cores: typeof navigator === 'undefined' ? undefined : navigator.hardwareConcurrency,
+      mobile: mainThreadHardwareHints().isMobile === true,
+      singleThreadStored: singleThreadStored(),
+    });
+  } catch {
+    return 1;
+  }
+}
+
+/** Threads of the worker that is running now (1 before any was started). */
+let workerThreads = 1;
+
 function spawnWorkerClient(
   initial: Parameters<ClientFactory>[0],
   onWorkerError: (err: Error) => void,
 ): ClientHandle {
+  workerThreads = detectionThreads();
   const w = new Worker(
     new URL('./detection.worker.ts', import.meta.url),
-    { type: 'module' },
+    { type: 'module', name: detectionWorkerName(workerThreads) },
   );
   const c = connectEngine(
     {
@@ -348,12 +391,58 @@ function getClient(): EngineClient {
       },
     );
     h.client.onDownloadProgress(({ loaded: downloaded, total }) => {
+      loadWatch?.(downloaded, total);
       downloadProgressCallback?.(downloaded, total);
     });
     handle = h;
     client = h.client;
   }
   return client;
+}
+
+/** The running load's stall watch, fed by the download progress (null when no load is watched). */
+let loadWatch: ((downloaded: number, total: number) => void) | null = null;
+
+/**
+ * Run a model load. With several threads it is watched: when the worker reports nothing for
+ * LOAD_STALL_MS while no download is running, the worker is dropped, this profile is set to one
+ * thread for good and the load runs once more in a fresh single-threaded worker (from the cache,
+ * the bytes are there). With one thread it runs unwatched, exactly as before threads.
+ */
+async function loadWithThreadFallback(run: (c: EngineClient) => Promise<void>): Promise<void> {
+  const first = getClient();
+  if (workerThreads <= 1) return run(first);
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let stalled = false;
+  const disarm = () => {
+    if (timer !== null) clearTimeout(timer);
+    timer = null;
+  };
+  const arm = () => {
+    disarm();
+    timer = setTimeout(() => {
+      stalled = true;
+      console.warn(`[DocCloak] The model load made no progress for ${LOAD_STALL_MS / 1000} s with ${workerThreads} threads; going back to one thread`);
+      try { localStorage.setItem(SINGLE_THREAD_STORAGE_KEY, '1'); } catch { /* the next worker of this page still gets one thread */ }
+      forceSingleThread = true;
+      if (client === first) discardWorker(new Error('The model load stalled with several threads'));
+    }, LOAD_STALL_MS);
+  };
+  // While bytes are coming in, a slow network is not a hang: the watch waits for the download.
+  loadWatch = (downloaded, total) => (total > 0 && downloaded < total ? disarm() : arm());
+  arm();
+  try {
+    await run(first);
+  } catch (err) {
+    if (!stalled) throw err;
+    disarm();
+    loadWatch = null;
+    loading = true;
+    await run(getClient());
+  } finally {
+    disarm();
+    loadWatch = null;
+  }
 }
 
 // ── Public API (same signatures as before) ─────────────────
@@ -464,8 +553,8 @@ export function preloadModel(): Promise<void> {
   if (!hasModelConsent()) return Promise.reject(new ConsentRequiredError(activeId));
 
   loading = true;
-  const c = getClient();
-  inflightLoad = c.preload()
+  let c = getClient();
+  inflightLoad = loadWithThreadFallback((current) => { c = current; return current.preload(); })
     .then(() => {
       const s = c.getSettings();
       loaded = true;
@@ -544,9 +633,9 @@ export async function switchProvider(
   localStorage.setItem(ENGINE_SETTINGS_KEYS.provider, id);
   const savedLabels = loadCustomLabelsFromStorage();
 
-  const c = getClient();
+  let c = getClient();
   try {
-    await c.switchProvider(id, savedLabels);
+    await loadWithThreadFallback((current) => { c = current; return current.switchProvider(id, savedLabels); });
     const s = c.getSettings();
     activeId = s.providerId;
     threshold = s.threshold;
@@ -668,6 +757,9 @@ export function _setClientFactoryForTests(factory: ClientFactory | null): void {
 
 /** Forget the current worker and loaded state without terminating (tests only). */
 export function _resetEngineStateForTests(): void {
+  workerThreads = 1;
+  forceSingleThread = false;
+  loadWatch = null;
   handle = null;
   client = null;
   loaded = false;
@@ -679,6 +771,11 @@ export function _resetEngineStateForTests(): void {
   regexEnabled = loadRegexSetting();
   regexRegion = loadRegexRegion();
   downloadProgressCallback = null;
+}
+
+/** Pretend the running worker was started with `threads` threads (tests only). */
+export function _setWorkerThreadsForTests(threads: number): void {
+  workerThreads = threads;
 }
 
 // ── Helpers ────────────────────────────────────────────────

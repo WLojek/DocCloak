@@ -44,6 +44,7 @@ export interface Translations {
       bardsai: ModelCopy;
       'bardsai-v2': ModelCopy;
       'bardsai-v3': ModelCopy;
+      'bardsai-v3-gpu': ModelCopy;
       'gliner2-pii': ModelCopy;
       'gliner2-pii-yethdev': ModelCopy;
       'openai-pf': ModelCopy;
