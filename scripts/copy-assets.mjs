@@ -11,26 +11,29 @@ import { createRequire } from 'module';
 import { dirname, join } from 'path';
 
 // ONNX Runtime WASM (PII detection models)
-// ort 1.29: core imports the onnxruntime-web/webgpu entry
-// (ort.webgpu.bundle.min.mjs) - the non-deprecated build with the native
-// WebGPU EP + wasm fallback, which loads the unified .asyncify binary.
+// Two builds since core 0.18.1 (T289):
+// - the plain build (onnxruntime-web/wasm) for every model that runs on the
+//   WASM execution provider. With the WebGPU build Safari held 6 GB as soon
+//   as a model was loaded and grew on; with this one 1.3 GB, flat.
+// - the WebGPU build (onnxruntime-web/webgpu, ort.webgpu.bundle.min.mjs: the
+//   native WebGPU EP, the unified .asyncify binary) for the two models that
+//   run on WebGPU.
 // The bare package entry resolves the deprecated JSEP bundle whose wasm
-// (26.5 MiB) exceeds Cloudflare Pages' 25 MiB per-file limit; asyncify
-// (24.6 MiB) fits. Keep the .asyncify.mjs glue for external-wasm /
-// threaded loader paths.
+// (26.5 MiB) exceeds Cloudflare Pages' 25 MiB per-file limit; the plain
+// (13.3 MiB) and the asyncify (24.6 MiB) binaries fit. The .mjs glue files
+// are for the external-wasm / threaded loader paths.
 const ORT_FILES = [
+  'ort-wasm-simd-threaded.wasm',
+  'ort-wasm-simd-threaded.mjs',
   'ort-wasm-simd-threaded.asyncify.wasm',
   'ort-wasm-simd-threaded.asyncify.mjs',
 ];
 for (const f of ORT_FILES) {
   copyFileSync(`node_modules/onnxruntime-web/dist/${f}`, `public/${f}`);
 }
-// Stale assets from earlier ort setups (plain pair <= 1.19, jsep pair from
-// the deprecated bundle entry).
-for (const f of [
-  'ort-wasm-simd-threaded.wasm', 'ort-wasm-simd-threaded.mjs',
-  'ort-wasm-simd-threaded.jsep.wasm', 'ort-wasm-simd-threaded.jsep.mjs',
-]) {
+// Stale assets from an earlier ort setup (the jsep pair of the deprecated
+// bundle entry).
+for (const f of ['ort-wasm-simd-threaded.jsep.wasm', 'ort-wasm-simd-threaded.jsep.mjs']) {
   rmSync(`public/${f}`, { force: true });
 }
 

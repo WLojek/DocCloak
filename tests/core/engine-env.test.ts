@@ -60,18 +60,18 @@ const ortMock = {
 /**
  * Dev checkouts link @doccloak/core to a sibling directory
  * ("file:../DocCloak.Core") that carries its own node_modules copy of
- * onnxruntime-web. Core's `import 'onnxruntime-web/webgpu'` resolves to
+ * onnxruntime-web. Core's `import 'onnxruntime-web/webgpu'` (and `/wasm`) resolves to
  * that copy (realpath), which the bare-specifier mock below does not cover,
  * so the same factory is registered for the resolved file as well.
  */
-function resolveCoreOrtEntry(): string | null {
+function resolveCoreOrtEntry(name: './webgpu' | './wasm' = './webgpu'): string | null {
   try {
     const coreDir = realpathSync(path.resolve(HERE, '../../node_modules/@doccloak/core'));
     const ortDir = path.join(coreDir, 'node_modules/onnxruntime-web');
     const pkgPath = path.join(ortDir, 'package.json');
     if (!existsSync(pkgPath)) return null;
     const pkg = JSON.parse(readFileSync(pkgPath, 'utf8')) as { exports?: Record<string, unknown> };
-    let entry: unknown = pkg.exports?.['./webgpu'];
+    let entry: unknown = pkg.exports?.[name];
     if (entry && typeof entry === 'object') entry = (entry as Record<string, unknown>).import;
     if (entry && typeof entry === 'object') entry = (entry as Record<string, unknown>).default;
     return typeof entry === 'string' ? path.join(ortDir, entry) : null;
@@ -81,8 +81,12 @@ function resolveCoreOrtEntry(): string | null {
 }
 
 vi.doMock('onnxruntime-web/webgpu', () => ortMock);
+vi.doMock('onnxruntime-web/wasm', () => ortMock);
 const coreOrtEntry = resolveCoreOrtEntry();
 if (coreOrtEntry) vi.doMock(coreOrtEntry, () => ortMock);
+// Core 0.18.1 (T289): the WASM models load the plain build, the WebGPU models the WebGPU build.
+const coreOrtWasmEntry = resolveCoreOrtEntry('./wasm');
+if (coreOrtWasmEntry) vi.doMock(coreOrtWasmEntry, () => ortMock);
 
 // Imported after the mocks are registered (vi.doMock is not hoisted).
 const core = await import('@doccloak/core');

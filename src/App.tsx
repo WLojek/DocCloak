@@ -28,6 +28,7 @@ import { REGEX_REGIONS } from '@doccloak/core';
 import { PROVIDERS, getRecommendedProviderId, hasWebGpu } from './engine.ts';
 import { formatEta } from './lib/detection-eta.ts';
 import { clearOfflineData, warmRuntimeCache } from './sw-register.ts';
+import { ortRuntimeFilesFor } from './ort-runtime-files.ts';
 import { OfflineDataReset } from './ui/components/OfflineDataReset.tsx';
 import { OcrWorkersSetting } from './ui/components/OcrWorkersSetting.tsx';
 import type { ProviderId, RegexRegionId } from '@doccloak/core';
@@ -193,9 +194,12 @@ export default function App() {
 
   // T222: Escape cancels the running detection (the overlay is modal).
   // Offline start (T238): once the model has loaded, the service worker must hold the ONNX Runtime files.
+  // Only the build the loaded model uses (T289): the plain one, or the WebGPU one.
   useEffect(() => {
-    if (modelLoaded) warmRuntimeCache(__ORT_RUNTIME_FILES__);
-  }, [modelLoaded]);
+    if (!modelLoaded) return;
+    const onWebGpu = PROVIDERS.find((p) => p.id === activeProvider)?.requiresWebGpu === true;
+    warmRuntimeCache(ortRuntimeFilesFor(__ORT_RUNTIME_FILES__, onWebGpu));
+  }, [modelLoaded, activeProvider]);
 
   useEffect(() => {
     // In a set Escape stops the queue, also between two analyses (while a file is read).
